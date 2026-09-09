@@ -1,0 +1,6 @@
+incident_id,incident_summary,resolving_article_ids,is_answerable,requires_multi_doc
+SAMPLE-001,"Printer offline and not printing",KB-S001,true,false
+SAMPLE-002,"VPN client won't connect after update",KB-S002,true,false
+SAMPLE-003,"Email not syncing AND VPN dropping","KB-S002",true,true
+SAMPLE-004,"Request for a company parking permit",,false,false
+SAMPLE-005,"Password reset needed for company portal",KB-S003,true,false
