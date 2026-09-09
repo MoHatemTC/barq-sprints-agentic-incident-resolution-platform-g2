@@ -27,8 +27,8 @@ COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "barq_knowledge_base"
 MODEL_FINGERPRINT_MARKER_ID = "00000000-0000-0000-0000-000000000001"
 
 
-def deterministic_point_id(article_id: str, chunk_index: int) -> str:
-    raw = f"{article_id}:{chunk_index}"
+def deterministic_point_id(article_id: str, version: int, chunk_index: int) -> str:
+    raw = f"{article_id}:{version}:{chunk_index}"
     digest = hashlib.sha256(raw.encode()).hexdigest()
     return f"{digest[0:8]}-{digest[8:12]}-{digest[12:16]}-{digest[16:20]}-{digest[20:32]}"
 
@@ -67,7 +67,7 @@ def _build_points(articles: list[Article]) -> list[PointStruct]:
         chunks = chunk_article(article.body)
         for i, (section, chunk_text) in enumerate(chunks):
             points.append(PointStruct(
-                id=deterministic_point_id(article.article_id, i),
+                id=deterministic_point_id(article.article_id, article.version, i),
                 vector={
                     "dense": embed_dense(chunk_text),
                     "sparse": SparseVector(**embed_sparse(chunk_text)),
