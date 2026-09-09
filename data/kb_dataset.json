@@ -1,0 +1,122 @@
+[
+  {
+    "article_number": "KB-S001",
+    "title": "Printer offline or not printing",
+    "body": "## Symptom\nPrinter shows offline in Windows; print jobs sit in queue without printing.\n\n## Resolution\n1. Confirm printer is powered on and network-connected.\n2. Restart the print spooler:\n```\nnet stop spooler\nnet start spooler\n```\n3. Clear the print queue and resend the job.\n\n## Related error codes\n- 0x00000709",
+    "category": "hardware",
+    "service": "print_services",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB-S002",
+    "title": "VPN client fails to connect",
+    "body": "## Symptom\nVPN client shows connection failed or times out.\n\n## Resolution\n1. Confirm active internet connection.\n2. Update VPN client to latest version.\n3. Clear VPN client cache: `vpnclient --clear-cache`\n4. Reconnect.\n\n## Related error codes\n- ERR_VPN_TIMEOUT_017",
+    "category": "network",
+    "service": "vpn",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB-S002",
+    "title": "VPN client fails to connect",
+    "body": "## Symptom\nVPN client shows connection failed or times out.\n\n## Resolution\n1. Confirm active internet connection.\n2. Update VPN client to latest version.\n3. Clear cache via Settings > Network > Reset.\n4. Reconnect. Contact network ops if issue persists beyond 3 attempts.\n\n## Related error codes\n- ERR_VPN_TIMEOUT_017\n- ERR_VPN_AUTH_022",
+    "category": "network",
+    "service": "vpn",
+    "workflow_state": "retired",
+    "version": 2,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB-S003",
+    "title": "Password reset for company portal",
+    "body": "## Resolution\n1. Go to password.company.com\n2. Enter employee ID.\n3. Follow the emailed reset link.\n4. If self-service fails, contact IT with manager confirmation.",
+    "category": "identity",
+    "service": "authentication",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB-S004",
+    "title": "Email not syncing across devices",
+    "body": "## Symptom\nNew emails appear on one device but not others; folders out of sync.\n\n## Resolution\n1. Verify mailbox storage quota is not full.\n2. Confirm IMAP/Exchange server settings match on all devices.\n3. Restart the email client.\n4. Check spam/junk folder filters per device.\n\n## Related error codes\n- SYNC_ERR_0091",
+    "category": "software",
+    "service": "email",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB-S005",
+    "title": "Software installation request process",
+    "body": "## Resolution\n1. Standard approved software: install via Company Software Center, no ticket needed.\n2. Non-standard software: requires manager approval, then a ticket to IT procurement.\n3. Installation typically completes within 1 business day of approval.",
+    "category": "software",
+    "service": "software_provisioning",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB-S006",
+    "title": "Monitor display flickering or no signal",
+    "body": "## Symptom\nExternal monitor flickers, shows no signal, or resolution resets unexpectedly.\n\n## Resolution\n1. Reseat the display cable (HDMI/DisplayPort) at both ends.\n2. Update graphics driver via Device Manager.\n3. Test with a different cable to rule out a faulty one.\n4. If using a docking station, update dock firmware.\n\n## Related error codes\n- DISP_NOSIGNAL_04",
+    "category": "hardware",
+    "service": "display_peripherals",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB-S007",
+    "title": "Shared drive access denied",
+    "body": "## Symptom\nUser receives access denied error when opening a shared network drive.\n\n## Resolution\n1. Confirm the user's AD group membership includes the correct share permission group.\n2. Have the user reconnect the mapped drive (disconnect, remap).\n3. If newly hired, allow up to 4 hours for AD group sync to propagate.\n4. Escalate to identity team if access is still denied after propagation window.",
+    "category": "access",
+    "service": "file_storage",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB-S008",
+    "title": "Laptop battery draining rapidly",
+    "body": "## Symptom\nBattery percentage drops significantly faster than expected under normal use.\n\n## Resolution\n1. Check Task Manager for high background CPU usage processes.\n2. Run battery report: `powercfg /batteryreport`\n3. Review report for battery health/capacity degradation.\n4. If capacity is below 60% of design, submit a hardware replacement request.",
+    "category": "hardware",
+    "service": "laptop_hardware",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB-S009",
+    "title": "Two-factor authentication (2FA) not receiving codes",
+    "body": "## Symptom\nUser does not receive SMS or app push codes during 2FA login.\n\n## Resolution\n1. Confirm phone number on file is correct in the identity portal.\n2. Check authenticator app time sync (drift causes code rejection).\n3. Request a backup code from IT if device is unavailable.\n4. Re-enroll the device if codes still fail after time sync check.\n\n## Related error codes\n- MFA_TIMEOUT_003",
+    "category": "identity",
+    "service": "authentication",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "confidential"
+  },
+  {
+    "article_number": "KB-S010",
+    "title": "New draft: Zoom audio not working in meetings",
+    "body": "## Symptom\nNo audio input/output detected during Zoom calls.\n\n## Resolution\n[DRAFT - resolution steps pending review from AV team]",
+    "category": "software",
+    "service": "video_conferencing",
+    "workflow_state": "draft",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB-S011",
+    "title": "Old procedure: Legacy timesheet system login",
+    "body": "## Resolution\n1. Navigate to the legacy timesheet portal (decommissioned June 2025).\n2. Use your old employee number as username.\n\nNote: this system has been replaced. See KB-S012 for the current process.",
+    "category": "software",
+    "service": "hr_systems",
+    "workflow_state": "retired",
+    "version": 1,
+    "security_level": "internal"
+  }
+]
