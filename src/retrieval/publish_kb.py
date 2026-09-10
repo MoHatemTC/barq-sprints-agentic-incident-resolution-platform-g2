@@ -75,9 +75,24 @@ def _dry_run(articles: list[dict], mapping: dict) -> dict:
         stats["skipped_dry_run"] += 1
     return stats
 
+def _dedupe_articles(articles: list[dict]) -> list[dict]:
+    """Given possibly-multiple records per article_number (e.g. retired +
+    published near-duplicates), keep only the highest-version, non-retired
+    record for each article_number."""
+    best: dict[str, dict] = {}
+    for article in articles:
+        number = article["article_number"]
+        if article.get("workflow_state") == "retired":
+            continue
+        current = best.get(number)
+        if current is None or article.get("version", 0) > current.get("version", 0):
+            best[number] = article
+    return list(best.values())
+
 
 def publish(corpus_path: str, dry_run: bool = False) -> dict:
     articles = load_corpus(corpus_path)
+    articles = _dedupe_articles(articles)
     mapping = load_mapping()
 
     if dry_run:
