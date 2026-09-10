@@ -10,11 +10,14 @@ via S1.5's Table API client -- see servicenow_source.py.
 import json
 from pathlib import Path
 from ..schema import Article
+from ..article_utils import dedupe_articles
 
 
 def load_articles_from_json(json_path: str) -> list[Article]:
     with open(json_path, "r", encoding="utf-8") as f:
         raw_articles = json.load(f)
+        
+    raw_articles = dedupe_articles(raw_articles)
 
     articles = []
     for raw in raw_articles:
