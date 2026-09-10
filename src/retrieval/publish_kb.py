@@ -54,10 +54,10 @@ def save_mapping(mapping: dict, path: str = MAPPING_PATH) -> None:
 
 def _build_payload(article: dict) -> dict:
     return {
+        "kb_knowledge_base": os.environ["SERVICENOW_KB_SYS_ID"],
         "short_description": article["title"],
         "text": article["body"],
         "kb_category": article.get("category", ""),
-        # workflow_state on kb_knowledge is normally: draft / published / retired
         "workflow_state": article.get("workflow_state", "draft"),
     }
 
