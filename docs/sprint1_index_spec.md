@@ -29,7 +29,8 @@ All three services include health checks; `docker compose ps` reports
 | Sparse vector | named `sparse`, no fixed size (Qdrant sparse vectors are variable-length by design) |
 
 Both vector types are stored on every point, enabling hybrid (dense + sparse)
-retrieval once query-time logic is built in Sprint 2/3.
+retrieval once query-time fusion logic is built in Sprint 2/3. Query-time
+search implemented so far is dense-only (see §8b).
 
 ## 3. Embedding models
 
@@ -106,26 +107,67 @@ Every point carries:
 | Default collection name `kb_articles` | `barq_knowledge_base` | Renamed per team/mentor guidance for clarity |
 | Article source: local `.md` files with YAML frontmatter | Pluggable source abstraction (`src/retrieval/sources/`) reading from JSON, with a stub for a future ServiceNow-backed source | Needed to match the confirmed Path B JSON schema (`article_number`, `body`, etc.) and to support a clean swap to ServiceNow's Table API in a later sprint without rewriting the ingestion logic |
 | Payload: `article_id`, `title`, `category`, `service`, `workflow_state`, `version`, `security_level`, `chunk_index`, `text` | Same, plus `sys_id`, `number`, `section` | Added per mentor feedback (Sarah) specifying the exact payload fields expected |
+| No shared dedupe logic | `src/retrieval/article_utils.py::dedupe_articles()`, used by both `publish_kb.py` and `local_json_source.py` | Originally wrote dedupe logic separately in the publishing script; recognized the vector store needed the same filtering (keep highest-version, non-retired record per article) and extracted it into one shared function instead of duplicating |
 
 ## 8. Verification results
 
-All three success criteria were tested against the full 27-article corpus
-(84 points after chunking):
+Verified against the corpus as it evolved during development:
 
 | Test | Result |
 |---|---|
-| Clean ingestion from empty collection | ✅ 84 points, 384-dim dense vectors |
-| Idempotent re-ingestion (same content, run twice) | ✅ Point count unchanged (84 → 84) |
-| Persistence across full container restart (`docker compose down && up`) | ✅ Point count unchanged (84 → 84), no re-ingestion required to observe this — the data was retained on the named volume |
+| Clean ingestion from empty collection (initial 27-record corpus, before dedupe) | ✅ 84 points, 384-dim dense vectors |
+| Idempotent re-ingestion (same content, run twice) | ✅ Point count unchanged run-over-run |
+| Persistence across full container restart (`docker compose down && up`) | ✅ Point count unchanged, no re-ingestion required to observe this — data was retained on the named volume |
+| Clean ingestion after `dedupe_articles()` wired in (24 published, non-retired articles) | ✅ 76 points, 384-dim dense vectors |
+
+Point count dropped from 84 → 76 after dedupe was applied, consistent with
+removing the two retired-only articles (KB0012, KB0022) that have no
+published counterpart and should never have been indexed.
+
+## 8b. Retrieval smoke test (dense search)
+
+`src/retrieval/smoke_test.py` runs a small set of real queries against the
+index to prove retrieval actually works, not just that ingestion succeeded.
+Search is dense-only at this stage; hybrid dense+sparse fusion is Sprint
+2/3 scope.
+
+| Query | Expected article | Result |
+|---|---|---|
+| "VPN authentication keeps failing after I changed my password" | KB0001 | ✅ top result, score 0.822 |
+| "Outlook shows disconnected and no email is coming through" | KB0002 | ✅ top result, score 0.772 |
+| "My account got locked after too many failed login attempts" | KB0005 | ✅ top result, score 0.751 |
+| "requesting annual leave for next month" (deliberately unanswerable) | none | top match KB0020, score 0.646 |
+
+Correct matches scored 0.72–0.82; the best-matching irrelevant result for a
+genuinely out-of-scope query scored 0.646 — a real, observed gap of
+roughly 0.07–0.17. This is evidence (not a guess) for where Sprint 3's
+confidence threshold should sit, since dense similarity alone cannot
+self-reject an out-of-scope query — it will always return whatever is
+topically closest, relevant or not.
+
+This test also caught a real bug during development: after
+`dedupe_articles()` was added, two retired articles (KB0012, KB0022) were
+still returned by search because ingestion only upserts — it never removes
+points for articles no longer in the corpus. Deleting and re-ingesting the
+collection resolved it for this sprint (see §9 for the underlying
+limitation, not yet fixed at the pipeline level).
 
 ## 9. Known limitations / not yet implemented
 
-- No query-time retrieval logic yet (dense+sparse hybrid search with
-  reranking is Sprint 2/3 scope).
+- No query-time **hybrid** (dense+sparse fusion) retrieval yet — only dense
+  search has been implemented and verified (§8b). Sparse vectors are
+  stored on every point but not yet queried. Hybrid search with reranking
+  is Sprint 2/3 scope.
+- **Ingestion is upsert-only**; it does not remove points for articles that
+  have been deleted or excluded from the source corpus (e.g. by dedupe
+  logic added after initial ingestion). This was caught directly by the
+  retrieval smoke test (§8b) — two retired articles remained searchable
+  after a corpus/logic change until the collection was deleted and
+  recreated. Currently mitigated manually; a proper fix would diff the
+  corpus against existing point IDs and delete orphans automatically.
 - `sys_id` is currently a placeholder (mirrors `article_number`) since
   articles are read from local JSON, not yet from ServiceNow's Table API.
   This will be corrected once S1.5's read client is wired into
   `src/retrieval/sources/servicenow_source.py`.
-- ServiceNow Knowledge Base publishing (uploading these articles into
-  ServiceNow itself, as opposed to Qdrant) is a separate, not-yet-completed
-  step of S1.4.
+- Confidence threshold value is not yet decided or implemented — §8b's
+  results are the evidence for that decision, not the decision itself.
