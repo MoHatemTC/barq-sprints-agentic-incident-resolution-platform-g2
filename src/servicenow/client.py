@@ -39,3 +39,8 @@ class ServiceNowClient:
 
         raise_for_status(response)
         return response.json().get("result")
+    
+    def get_incident(self, sys_id):
+         # Read one incident by sys_id
+        url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
+        return self._request("GET", url)
