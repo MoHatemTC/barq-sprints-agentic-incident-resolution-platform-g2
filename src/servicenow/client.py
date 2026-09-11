@@ -44,3 +44,26 @@ class ServiceNowClient:
          # Read one incident by sys_id
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
         return self._request("GET", url)
+
+    
+    def update_incident(self, sys_id, fields):
+        # Write AI fields , Keys are logical names from config file
+        payload = {}
+        for key, value in fields.items():
+            if key not in config.AI_FIELDS:
+                raise ValueError(f"Unknown AI field: {key}")
+            payload[config.AI_FIELDS[key]] = value
+
+        url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
+        return self._request("PATCH", url, json=payload)
+    
+    
+
+    def add_work_note(self, sys_id, note):
+        # Append a work note to incident
+        if not note or not note.strip():
+            raise ValueError("Work note cannot be empty")
+
+        url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
+        return self._request("PATCH", url, json={config.WORK_NOTES: note})
+    
