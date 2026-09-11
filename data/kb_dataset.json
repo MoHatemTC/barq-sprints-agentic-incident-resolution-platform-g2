@@ -230,6 +230,16 @@
     "security_level": "internal"
   },
   {
+    "article_number": "KB0022",
+    "title": "SAP GUI connection cleanup after APPSRV-OLD-04 migration",
+    "body": "## Symptom\nSAP GUI fails to connect with RFC_ERROR_COMMUNICATION after a workstation uses a saved connection entry for APPSRV-OLD-04. The user may still be on the corporate network and other SAP users may connect normally.\n\n## Cause\nThe saved SAP Logon entry still targets the retired application server APPSRV-OLD-04 instead of the current message server group. APPSRV-OLD-04 was removed during the 2025 SAP Basis migration, so direct application-server routing now times out.\n\n## Resolution\n1. Open SAP Logon and identify any connection entry whose application server is APPSRV-OLD-04.\n2. Do not restore APPSRV-OLD-04 or add a local hosts-file workaround.\n3. Replace the direct application-server entry with the current message server and logon group from the published SAP connection details.\n4. Save the entry, reconnect, and confirm the logon screen appears without RFC_ERROR_COMMUNICATION.\n5. If the timeout continues from a known-good corporate network or VPN session, follow KB0008 to verify message-server reachability before escalating.\n\n## Escalation\nEscalate to SAP Basis with the exact SAP Logon entry, the message server group used, and the error text RFC_ERROR_COMMUNICATION if the corrected entry still cannot reach the logon screen.",
+    "category": "software",
+    "service": "sap-erp",
+    "workflow_state": "published",
+    "version": 2,
+    "security_level": "internal"
+  },
+  {
     "article_number": "KB0023",
     "title": "Two-factor authentication codes not arriving",
     "body": "## Symptom\nUser does not receive SMS or app push codes during 2FA login.\n\n## Resolution\n1. Confirm the phone number on file is correct in the identity portal.\n2. Check authenticator app time sync (drift causes code rejection).\n3. Request a backup code from IT if the device is unavailable.\n4. Re-enroll the device if codes still fail after the time sync check.\n\n## Related error codes\n- MFA_TIMEOUT_003",

@@ -7,7 +7,7 @@ Usage: python scripts/validate_kb_dataset.py path/to/dataset.json
 
 import json
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 
 REQUIRED_FIELDS = ["article_number", "title", "category", "service",
                     "workflow_state", "version", "security_level", "body"]
@@ -27,9 +27,11 @@ def validate(dataset_path: str):
         "service_values": Counter(),
         "missing_security_level": [],
         "html_present": [],
+        "near_duplicate_version_pairs": [],
     }
 
     seen_numbers = set()
+    versions_by_number = defaultdict(list)
 
     for i, article in enumerate(articles):
         num = article.get("article_number", f"<no article_number, index {i}>")
@@ -54,9 +56,19 @@ def validate(dataset_path: str):
         if not article.get("security_level"):
             issues["missing_security_level"].append(num)
 
+        if "version" in article:
+            versions_by_number[num].append((article.get("version"), article.get("workflow_state", "")))
+
         body = article.get("body", "")
         if "<" in body and ">" in body:
             issues["html_present"].append(num)
+
+    for num, versions in versions_by_number.items():
+        version_values = {version for version, _ in versions}
+        has_retired = any(state == "retired" for _, state in versions)
+        has_published = any(state == "published" for _, state in versions)
+        if len(version_values) >= 2 and has_retired and has_published:
+            issues["near_duplicate_version_pairs"].append((num, sorted(versions)))
 
     _print_report(issues)
     return issues
@@ -92,6 +104,11 @@ def _print_report(issues: dict):
     print(f"\nArticles containing raw HTML in body: {len(issues['html_present'])}")
     for num in issues["html_present"]:
         print(f"  - {num}")
+
+    print(f"\nNear-duplicate version pairs: {len(issues['near_duplicate_version_pairs'])}")
+    for num, versions in issues["near_duplicate_version_pairs"]:
+        printable = ", ".join(f"v{version} ({state})" for version, state in versions)
+        print(f"  - {num}: {printable}")
 
 
 if __name__ == "__main__":

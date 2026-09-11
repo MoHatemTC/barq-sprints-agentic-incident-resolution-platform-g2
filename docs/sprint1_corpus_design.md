@@ -2,7 +2,7 @@
 
 **Owner:** Abdullah Ashraf
 **Status:** Working corpus, authored fallback pending official supplied dataset
-**Path:** Path B (supplied/validated dataset) — see note below
+**Path:** Path B-style schema/validation with authored fallback content — see note below
 
 ## 0. Important note on data provenance
 
@@ -14,10 +14,11 @@ this design and the pipeline needed to be proven end-to-end:
    Operations Manual shared by the team, including the genuine documented
    near-duplicate version pair (KB0010 v1, retired after a documented 40-minute
    outage — MIR-2026-03 — superseded by v2, published).
-2. **16 additional articles (KB0011–KB0026)** authored in the same domain,
+2. **17 additional records (KB0011–KB0026)** authored in the same domain,
    style and technical depth to bring the corpus to the required 25+ minimum,
    and to cover categories/services not represented in the original 10
    (identity requests, video conferencing, onboarding, hardware peripherals).
+   This includes the synthetic near-duplicate SAP migration pair for KB0022.
 
 If/when the official supplied dataset lands, this document's **structure**
 (schema, allowed values, chunking rule, mapping rationale format) remains
@@ -41,7 +42,7 @@ in `src/retrieval/ingest.py`:
 | `version` | integer | `1, 2, 3, ...` | Incremented on content revision; used in the point-ID scheme (§5) so multiple versions of the same article coexist in the index |
 | `security_level` | string | `internal`, `confidential` | **Inferred** — the source manual did not include this field explicitly. Identity/MFA-related articles were marked `confidential`; all others `internal`. This inference must be validated against the official dataset if/when it supersedes this corpus. |
 
-## 2. Article inventory (27 records / 26 unique KB numbers)
+## 2. Article inventory (28 records / 26 unique KB numbers)
 
 | article_number | title | category | service | workflow_state | version |
 |---|---|---|---|---|---|
@@ -59,7 +60,8 @@ in `src/retrieval/ingest.py`:
 | KB0011 | *(additional, draft)* | — | — | **draft** | 1 |
 | KB0012 | *(additional, retired)* | — | — | **retired** | 1 |
 | KB0013–KB0021 | *(additional, published)* | mixed | mixed | published | 1 |
-| KB0022 | *(additional, retired)* | — | — | **retired** | 1 |
+| KB0022 (v1) | SAP GUI RFC_ERROR_COMMUNICATION legacy connection guide | software | sap-erp | **retired** | 1 |
+| KB0022 (v2) | SAP GUI connection cleanup after APPSRV-OLD-04 migration | software | sap-erp | published | 2 |
 | KB0023–KB0026 | *(additional, published)* | mixed | mixed | published | 1 |
 
 *(Full field-by-field content lives in `data/kb_dataset.json`.)*
@@ -69,10 +71,11 @@ in `src/retrieval/ingest.py`:
 | Type | Article(s) | Purpose |
 |---|---|---|
 | Near-duplicate version pair | KB0010 v1 (retired) + KB0010 v2 (published) | Tests that retrieval/filtering correctly surfaces the current version and excludes the retired one — a real documented incident (MIR-2026-03) rather than synthetic |
+| Near-duplicate version pair | KB0022 v1 (retired) + KB0022 v2 (published) | Tests that an outdated SAP application-server procedure for APPSRV-OLD-04 is superseded by the current message-server cleanup path |
 | Draft | KB0011 | Tests that unpublished content is not surfaced as a valid answer |
-| Retired | KB0012, KB0022 | Tests exclusion of superseded content |
+| Retired | KB0012, KB0022 v1 | Tests exclusion of superseded content |
 
-## 4. Incident-to-article ground truth (26 incidents)
+## 4. Incident-to-article ground truth (27 incidents)
 
 Ground truth lives in `data/coverage_matrix.csv`. Four incidents are the
 **real, worked examples** from the manual's Section 7:
@@ -84,7 +87,7 @@ Ground truth lives in `data/coverage_matrix.csv`. Four incidents are the
 | INC0010064 | KB0005 (v4) | true | false | Three reported symptoms, one root cause (account lockout) |
 | INC0010052 | KB0010 (v2) | true | false | P1, high-risk, escalated; resolved via the *current* order-service article, not the retired v1 |
 
-The remaining 22 incidents were authored to exercise the rest of the corpus,
+The remaining 23 incidents were authored to exercise the rest of the corpus,
 including:
 - **5 multi-document incidents** (`requires_multi_doc = true`) — symptoms
   that require combining two articles to resolve (e.g. a VPN + Wi-Fi
@@ -93,6 +96,12 @@ including:
   outside the KB's scope (e.g. hardware procurement requests, non-IT
   administrative requests), used to test that the system escalates rather
   than fabricates an answer.
+
+The W0.3 incidents were not present in the shared ServiceNow PDI. After the
+internship admin confirmed they would not be seeded and that generated
+incidents could be used for testing, the matrix was kept honest by treating
+the additional incidents as generated validation records rather than official
+W0.3 seed data.
 
 ## 5. Chunking rule
 

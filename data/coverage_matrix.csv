@@ -25,3 +25,4 @@ INC1024,Mapped H: drive missing after login but path works when typed manually,K
 INC1025,Employee requests VPN access and email account setup on first day,"KB0001,KB0018",true,true
 INC1026,Docked laptop won't wake from sleep and external monitor also shows no signal,"KB0024,KB0021",true,true
 INC1027,New starter locked out on day one and also cannot see the finance shared folder,"KB0005,KB0020",true,true
+INC1028,SAP GUI still points to APPSRV-OLD-04 after the 2025 migration,KB0022,true,false
