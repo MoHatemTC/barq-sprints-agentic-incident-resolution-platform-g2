@@ -66,6 +66,7 @@ LOG_STARTED = "started"
 LOG_SUCCEEDED = "succeeded"
 LOG_FAILED = "failed"
 LOG_BLOCKED = "blocked"
+LOG_AWAITING_APPROVAL = "awaiting_approval"
 LOG_ABANDONED = "abandoned"
 
 # journal field 
