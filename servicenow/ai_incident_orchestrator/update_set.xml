@@ -1,27 +1,142 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<unload unload_date="2026-09-10 00:02:19">
-<sys_update_set action="INSERT_OR_UPDATE">
+<?xml version="1.0" encoding="UTF-8"?><unload unload_date="2026-09-11 15:43:45">
+<sys_remote_update_set action="INSERT_OR_UPDATE">
 <application display_value="AI Incident Orchestrator">4493a537c3c30b10b9523342b4013167</application>
-<base_update_set display_value=""/>
-<batch_install_plan display_value=""/>
-<completed_by display_value=""/>
-<completed_on>2026-09-07 15:12:52</completed_on>
-<description>Automatically created by the system</description>
-<install_date/>
-<installed_from/>
-<is_default>true</is_default>
-<merged_to display_value=""/>
-<name>Default</name>
+<application_name>AI Incident Orchestrator</application_name>
+<application_scope>x_2215689_ai_inc_0</application_scope>
+<application_version>1.0.2</application_version>
+<collisions/>
+<commit_date/>
+<deleted/>
+<description/>
+<inserted/>
+<name>S1.3 Eligibility Business Rule</name>
 <origin_sys_id/>
 <parent display_value=""/>
 <release_date/>
-<remote_sys_id display_value=""/>
-<state>in progress</state>
+<remote_base_update_set display_value=""/>
+<remote_parent_id/>
+<remote_sys_id>22ffc2c1c393c350b9523342b40131a5</remote_sys_id>
+<state>loaded</state>
+<summary/>
+<sys_class_name>sys_remote_update_set</sys_class_name>
 <sys_created_by>admin</sys_created_by>
-<sys_created_on>2026-09-07 15:12:52</sys_created_on>
-<sys_id>4c93a537c3c30b10b9523342b401317c</sys_id>
+<sys_created_on>2026-09-11 15:43:44</sys_created_on>
+<sys_id>47f09a05c393c350b9523342b40131ff</sys_id>
 <sys_mod_count>0</sys_mod_count>
 <sys_updated_by>admin</sys_updated_by>
-<sys_updated_on>2026-09-07 15:12:52</sys_updated_on>
-</sys_update_set>
+<sys_updated_on>2026-09-11 15:43:44</sys_updated_on>
+<update_set display_value=""/>
+<update_source display_value=""/>
+<updated/>
+</sys_remote_update_set>
+<sys_update_xml action="INSERT_OR_UPDATE">
+<action>INSERT_OR_UPDATE</action>
+<application display_value="AI Incident Orchestrator">4493a537c3c30b10b9523342b4013167</application>
+<category>customer</category>
+<comments/>
+<name>sys_script_ed7e89a4c3578f10b9523342b4013144</name>
+<payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update sys_domain="global" table="sys_script"&gt;&lt;sys_script action="INSERT_OR_UPDATE"&gt;&lt;abort_action&gt;false&lt;/abort_action&gt;&lt;access&gt;package_private&lt;/access&gt;&lt;action_delete&gt;false&lt;/action_delete&gt;&lt;action_insert&gt;true&lt;/action_insert&gt;&lt;action_query&gt;false&lt;/action_query&gt;&lt;action_update&gt;true&lt;/action_update&gt;&lt;active&gt;true&lt;/active&gt;&lt;add_message&gt;false&lt;/add_message&gt;&lt;advanced&gt;true&lt;/advanced&gt;&lt;change_fields&gt;false&lt;/change_fields&gt;&lt;client_callable&gt;false&lt;/client_callable&gt;&lt;collection&gt;incident&lt;/collection&gt;&lt;condition/&gt;&lt;description/&gt;&lt;execute_function&gt;false&lt;/execute_function&gt;&lt;filter_condition/&gt;&lt;is_rest&gt;false&lt;/is_rest&gt;&lt;message/&gt;&lt;name&gt;AI Eligibility Check&lt;/name&gt;&lt;order&gt;100&lt;/order&gt;&lt;priority&gt;100&lt;/priority&gt;&lt;rest_method/&gt;&lt;rest_method_text/&gt;&lt;rest_service/&gt;&lt;rest_service_text/&gt;&lt;rest_variables/&gt;&lt;role_conditions/&gt;&lt;script&gt;&lt;![CDATA[(function executeRule(current, previous /*null when async*/) {
+
+    // Condition 1: not active
+    if (current.active == false) {
+        gs.info("AI Orchestrator Suppression [" + current.number + "]: Incident is not active.");
+        return;
+    }
+
+    // Condition 2: AI-enabled
+    if (current.x_2215689_ai_inc_0_ai_enabled == false) {
+        gs.info("AI Orchestrator Suppression [" + current.number + "]: AI is not enabled for this incident.");
+        return;
+    }
+
+    // Condition 3: already processed
+    if (current.x_2215689_ai_inc_0_u_ai_processing_state == 'complete') {
+        gs.info("AI Orchestrator Suppression [" + current.number + "]: Incident is already processed.");
+        return;
+    }
+
+    // Condition 4: supported category
+    var supportedCategories = ['software', 'hardware', 'network', 'database', 'password_reset'];
+    if (supportedCategories.indexOf(current.getValue('category')) == -1) {
+        gs.info("AI Orchestrator Suppression [" + current.number + "]: Incident category is not supported.");
+        return;
+    }
+
+    // Condition 5: already running
+    var state = current.x_2215689_ai_inc_0_u_ai_processing_state;
+    if (state == 'in_progress' || state == 'waiting_for_retry' || state == 'awaiting Approval') {
+        gs.info("AI Orchestrator Suppression [" + current.number + "]: Incident is being processed.");
+        return;
+    }
+
+    // Condition 6: human-locked
+    if (current.x_2215689_ai_inc_0_human_lock == true) {
+        gs.info("AI Orchestrator Suppression [" + current.number + "]: Incident is being processed by a human.");
+        return;
+    }
+
+    // If we reach this point, the incident is eligible.
+    try {
+
+        var event_type = '';
+
+        if (current.isNewRecord()){
+            event_type = "Insert";
+        }
+        else{
+		if (!current.isNewRecord()) {
+			var relevantChange = current.category.changes() ||
+				current.x_2215689_ai_inc_0_u_ai_processing_state.changes() ||
+				current.x_2215689_ai_inc_0_human_lock.changes() ||
+				current.x_2215689_ai_inc_0_ai_enabled.changes() ||
+				current.active.changes();
+			if (!relevantChange) {
+				gs.info("AI Orchestrator Suppression [" + current.number + "]: No relevant field changed.");
+				return;
+				}
+			else{
+				event_type = 'Update';
+			}
+			}
+		}
+        var payload = {
+            "event_id": gs.generateGUID(),
+            "sys_id": current.getValue('sys_id'),
+            "number": current.getValue('number'),
+            "event_type": event_type
+        };
+
+        var r = new sn_ws.RESTMessageV2();
+        // Replace YOUR_ENDPOINT with your public ngrok URL, keep /webhook:
+        r.setEndpoint('https://webhook.site/818273b6-89e1-4206-8a48-64eb86cd9b42');
+        r.setHttpMethod('POST');
+        r.setRequestHeader('Content-Type', 'application/json');
+        r.setAuthenticationProfile('oauth2', 'fa6a7189c39f8350b9523342b401311e');
+        r.setRequestBody(JSON.stringify(payload));
+        r.executeAsync();
+
+        gs.info('Sent incident ' + current.getValue('number'));
+    } catch (ex) {
+        gs.error('Failed to send incident: ' + ex.message);
+    }
+})(current, previous);]]&gt;&lt;/script&gt;&lt;sys_class_name&gt;sys_script&lt;/sys_class_name&gt;&lt;sys_created_by&gt;admin&lt;/sys_created_by&gt;&lt;sys_created_on&gt;2026-09-09 21:39:19&lt;/sys_created_on&gt;&lt;sys_domain&gt;global&lt;/sys_domain&gt;&lt;sys_domain_path&gt;/&lt;/sys_domain_path&gt;&lt;sys_id&gt;ed7e89a4c3578f10b9523342b4013144&lt;/sys_id&gt;&lt;sys_mod_count&gt;12&lt;/sys_mod_count&gt;&lt;sys_name&gt;AI Eligibility Check&lt;/sys_name&gt;&lt;sys_overrides/&gt;&lt;sys_package display_value="AI Incident Orchestrator" source="x_2215689_ai_inc_0"&gt;4493a537c3c30b10b9523342b4013167&lt;/sys_package&gt;&lt;sys_policy/&gt;&lt;sys_scope display_value="AI Incident Orchestrator"&gt;4493a537c3c30b10b9523342b4013167&lt;/sys_scope&gt;&lt;sys_update_name&gt;sys_script_ed7e89a4c3578f10b9523342b4013144&lt;/sys_update_name&gt;&lt;sys_updated_by&gt;admin&lt;/sys_updated_by&gt;&lt;sys_updated_on&gt;2026-09-11 15:41:21&lt;/sys_updated_on&gt;&lt;template/&gt;&lt;when&gt;before&lt;/when&gt;&lt;/sys_script&gt;&lt;sys_translated_text action="delete_multiple" query="documentkey=ed7e89a4c3578f10b9523342b4013144"/&gt;&lt;/record_update&gt;</payload>
+<payload_hash>396025997</payload_hash>
+<remote_update_set display_value="S1.3 Eligibility Business Rule">47f09a05c393c350b9523342b40131ff</remote_update_set>
+<replace_on_upgrade>false</replace_on_upgrade>
+<sys_created_by>admin</sys_created_by>
+<sys_created_on>2026-09-11 15:43:44</sys_created_on>
+<sys_id>8bf09a05c393c350b9523342b40131ff</sys_id>
+<sys_mod_count>0</sys_mod_count>
+<sys_recorded_at>1a091216b600000001</sys_recorded_at>
+<sys_updated_by>admin</sys_updated_by>
+<sys_updated_on>2026-09-11 15:43:44</sys_updated_on>
+<table>incident</table>
+<target_name>AI Eligibility Check</target_name>
+<type>Business Rule</type>
+<update_domain>global</update_domain>
+<update_guid>5c70d2054093c3508d33548d6882d38a</update_guid>
+<update_guid_history>5c70d2054093c3508d33548d6882d38a:396025997,aa3dcac9e853c350f31505c1e99216a3:-165643041,0ef90605ef53c3506c9d17e3c8936e15:-1225018592,899842417253c3503bf0b285fa789982:-337134753,c4bbbdc160df8350d8c642d8642d2f5f:-1225018592,e07b75c1c2df83501d26f0ac9ef83c90:-1373224761,cd972930b2db03508f323a2308b2328e:344557050,9bb371a4589b8f105189f31b15dece52:1975880620,c353b1642a9b8f1071cb4cb2c98a61a7:282518559,dd9959acdf978f1051d5d3d34063e314:1975880620,92b71da80f978f10d809d7d771a20001:1984973738,79df85688b578f10aded1e6e1fcda45e:-1557401721,5c3f8128fe578f1063982446b6aee92d:2007871000</update_guid_history>
+<update_set display_value=""/>
+<view/>
+</sys_update_xml>
 </unload>
