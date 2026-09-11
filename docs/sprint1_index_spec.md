@@ -3,171 +3,133 @@
 **Owner:** Abdullah Ashraf
 **Status:** Built and verified against the working corpus (`docs/sprint1_corpus_design.md`)
 
-This document describes what was actually implemented, not what was
-originally planned — see §7 for deviations from the initial design.
+Describes what was actually implemented, not what was originally planned — see §7 for deviations.
 
 ## 1. Infrastructure
 
-Qdrant runs via the shared `docker-compose.yml` at the repo root, alongside
-PostgreSQL and Redis (scaffolded for later sprints, not yet used by S1.4).
+Qdrant runs via the shared `docker-compose.yml`, alongside PostgreSQL and Redis (scaffolded for later sprints, not yet used by S1.4).
 
 | Service | Image | Port | Persistence |
 |---|---|---|---|
-| qdrant | `qdrant/qdrant:v1.12.4` (pinned) | `6333` (HTTP), `6334` (gRPC) | named volume `qdrant_data` |
-| postgres | `postgres:16` | `5432` | named volume `pg_data` |
-| redis | `redis:7-alpine` | `6379` | none (not needed yet) |
+| qdrant | `qdrant/qdrant:v1.12.4` (pinned) | 6333 (HTTP), 6334 (gRPC) | named volume `qdrant_data` |
+| postgres | `postgres:16` | 5432 | named volume `pg_data` |
+| redis | `redis:7-alpine` | 6379 | none (not needed yet) |
 
-All three services include health checks; `docker compose ps` reports
-`healthy` within ~10–15 seconds of `docker compose up -d`.
+All three include health checks; `docker compose ps` reports `healthy` within ~10–15s of `docker compose up -d`.
+
+## 1b. ServiceNow OAuth integration identity
+
+Publishing (`publish_kb.py`) and permission verification (`scripts/verify_permissions.py`) authenticate via OAuth password grant against the S1.2 integration identity.
+
+**Scope Restriction: Broadly scoped — required, not a workaround.**
+
+ServiceNow's Table API (`/api/now/table/...`) is an unscoped platform API. "Securely scoped" causes every Table API call to fail with `403 Access to unscoped api is not allowed`. A REST API Access Policy cannot fix this for OAuth clients — its "Inbound Authentication Profiles" only support Basic Auth, WSSE, API Key, and HMAC, with no OAuth option. Confirmed with the mentor: "Broadly scoped" is the correct setting for OAuth clients calling the Table API; granular OAuth restriction uses a separate mechanism (REST API Auth Scopes), not used here. The real S1.2 identity was updated accordingly.
+
+| Setting | Value | Why |
+|---|---|---|
+| Scope Restriction | **Broadly scoped** | Required for OAuth clients to call the Table API at all |
+| Internal Integration User | *(recommend checking on the real identity)* | Restricts interactive UI login, per FR-06 least-privilege — flagged to the S1.2 owner |
+
+Verified capabilities (`scripts/verify_permissions.py`), re-confirmed after the scope fix:
+
+| Operation | Table | Result |
+|---|---|---|
+| Authenticate | — | ✅ |
+| Read | `incident` | ✅ 200 |
+| Read | `kb_knowledge` | ✅ 200 |
+| Write (create + delete) | `kb_knowledge` | ✅ 201 / 204 |
 
 ## 2. Collection
 
 | Property | Value |
 |---|---|
-| Name | `barq_knowledge_base` (configurable via `QDRANT_COLLECTION_NAME` env var) |
-| Dense vector | size `384`, distance `Cosine` |
-| Sparse vector | named `sparse`, no fixed size (Qdrant sparse vectors are variable-length by design) |
+| Name | `barq_knowledge_base` (via `QDRANT_COLLECTION_NAME`) |
+| Dense vector | size 384, distance Cosine |
+| Sparse vector | named `sparse`, variable-length |
 
-Both vector types are stored on every point, enabling hybrid (dense + sparse)
-retrieval once query-time fusion logic is built in Sprint 2/3. Query-time
-search implemented so far is dense-only (see §8b).
+Both vector types are stored on every point, enabling hybrid retrieval once query-time fusion is built (Sprint 2/3). Search implemented so far is dense-only (§8b).
 
 ## 3. Embedding models
 
-| Type | Model | Dimensionality |
+| Type | Model | Dim |
 |---|---|---|
-| Dense | `BAAI/bge-small-en-v1.5` (via `sentence-transformers`) | 384 |
-| Sparse | `Qdrant/bm25` (via `fastembed`) | variable (BM25-style term weights) |
+| Dense | `BAAI/bge-small-en-v1.5` | 384 |
+| Sparse | `Qdrant/bm25` | variable |
 
-Model names are configurable via `.env` (`DENSE_EMBEDDING_MODEL`,
-`SPARSE_EMBEDDING_MODEL`), defaulting to the values above.
+Configurable via `.env` (`DENSE_EMBEDDING_MODEL`, `SPARSE_EMBEDDING_MODEL`).
 
-### Model-mismatch guard
-
-A marker point (fixed UUID `00000000-0000-0000-0000-000000000001`) is
-written to the collection on creation, storing a fingerprint string
-(`"{dense_model}::{sparse_model}"`). On every subsequent ingestion run,
-this fingerprint is checked against the current configured models before
-any upsert happens. If they don't match, ingestion aborts with a
-`RuntimeError` rather than silently mixing vectors from two different
-embedding spaces into one collection — verified by design, not yet
-exercised with an actual mismatch (would require deliberately switching
-`DENSE_EMBEDDING_MODEL` and re-running to trigger it).
+**Model-mismatch guard:** a marker point (fixed UUID) stores a fingerprint (`"{dense}::{sparse}"`) on collection creation. Every ingestion run checks the current models against it and aborts with `RuntimeError` on mismatch, rather than silently mixing embedding spaces. Verified by design, not yet triggered against a real mismatch.
 
 ## 4. Chunking
 
-Implemented in `src/retrieval/chunking.py`. Articles are split on `##`
-Markdown section headers; each section becomes exactly one chunk, so a
-numbered procedure is never split mid-step. Returns `(section_label,
-chunk_text)` pairs — the section label is preserved in the payload,
-enabling retrieval results to be attributed to a specific article section
-(e.g. "Resolution" vs. "Symptom").
+`src/retrieval/chunking.py` splits on `##` Markdown headers — each section becomes one chunk, so numbered procedures never split mid-step. Returns `(section_label, chunk_text)` pairs; the label is stored in the payload for result attribution.
 
 ## 5. Point ID scheme
 
-Point IDs are deterministic:
-
 ```
 raw = f"{article_id}:{version}:{chunk_index}"
-point_id = sha256(raw).hexdigest()  # formatted as a UUID string
+point_id = sha256(raw).hexdigest()  # as a UUID string
 ```
 
-**Why version is included:** an earlier version of this scheme used only
-`article_id:chunk_index`, which caused KB0010 v1 and v2 (the real
-near-duplicate pair) to collide on the same point IDs — the retired
-version silently overwrote the published one on ingestion. Including
-`version` in the hash means both versions of an article coexist as
-independent, queryable points, while re-running ingestion on *unchanged*
-content still produces the same IDs (idempotent).
+**Why version is included:** an earlier scheme (`article_id:chunk_index` only) caused KB0010 v1/v2 to collide — the retired version silently overwrote the published one. Adding `version` lets both coexist as independent points while unchanged content still re-hashes to the same ID (idempotent).
 
 ## 6. Payload schema
 
-Every point carries:
-
 | Field | Source | Notes |
 |---|---|---|
-| `sys_id` | article source | Placeholder until S1.5 hand-off supplies real ServiceNow `sys_id` |
-| `number` | article source | ServiceNow-style KB number, e.g. `KB0001` |
-| `article_id` | article source | Same as `number` for now; used internally for point-ID derivation |
-| `title` | article source | |
-| `section` | chunking | e.g. `"Resolution"`, `"Symptom"` |
-| `category` | article source | see allowed values in corpus design doc §1 |
-| `service` | article source | see allowed values in corpus design doc §1 |
-| `workflow_state` | article source | `draft` / `published` / `retired` |
-| `version` | article source | integer |
-| `security_level` | article source | `internal` / `confidential` (inferred for this corpus — see corpus design doc §7) |
-| `chunk_index` | chunking | integer position within the article |
-| `text` | chunking | the actual chunk content, embedded |
+| `sys_id` | source | Placeholder until S1.5 hand-off |
+| `number` | source | e.g. `KB0001` |
+| `article_id` | source | = `number` for now; used in point-ID derivation |
+| `title` | source | |
+| `section` | chunking | e.g. `"Resolution"` |
+| `category` | source | see corpus design doc §1 |
+| `service` | source | see corpus design doc §1 |
+| `workflow_state` | source | draft / published / retired |
+| `version` | source | integer |
+| `security_level` | source | internal / confidential (inferred — corpus design doc §7) |
+| `chunk_index` | chunking | position within article |
+| `text` | chunking | embedded chunk content |
 
 ## 7. Deviations from the original design
 
-| Original plan | What was actually built | Why |
+| Planned | Built | Why |
 |---|---|---|
-| Point ID = `article_id:chunk_index` | Point ID = `article_id:version:chunk_index` | Discovered during testing that near-duplicate version pairs collided and silently overwrote each other; fixed before committing |
-| Default collection name `kb_articles` | `barq_knowledge_base` | Renamed per team/mentor guidance for clarity |
-| Article source: local `.md` files with YAML frontmatter | Pluggable source abstraction (`src/retrieval/sources/`) reading from JSON, with a stub for a future ServiceNow-backed source | Needed to match the confirmed Path B JSON schema (`article_number`, `body`, etc.) and to support a clean swap to ServiceNow's Table API in a later sprint without rewriting the ingestion logic |
-| Payload: `article_id`, `title`, `category`, `service`, `workflow_state`, `version`, `security_level`, `chunk_index`, `text` | Same, plus `sys_id`, `number`, `section` | Added per mentor feedback (Sarah) specifying the exact payload fields expected |
-| No shared dedupe logic | `src/retrieval/article_utils.py::dedupe_articles()`, used by both `publish_kb.py` and `local_json_source.py` | Originally wrote dedupe logic separately in the publishing script; recognized the vector store needed the same filtering (keep highest-version, non-retired record per article) and extracted it into one shared function instead of duplicating |
+| Point ID = `article_id:chunk_index` | + `version` | Near-duplicate pairs collided; fixed before committing |
+| Collection name `kb_articles` | `barq_knowledge_base` | Mentor guidance |
+| `.md` files + YAML frontmatter | Pluggable source abstraction reading JSON, ServiceNow stub | Matches confirmed Path B schema; clean swap to Table API later |
+| Base payload fields | + `sys_id`, `number`, `section` | Mentor-specified exact fields |
+| No shared dedupe | `article_utils.py::dedupe_articles()`, used by `publish_kb.py` + `local_json_source.py` | Avoid duplicating the same filtering logic in two places |
+| Scope Restriction: securely scoped (assumed) | Broadly scoped | Table API is unscoped; confirmed with mentor (§1b) |
 
 ## 8. Verification results
 
-Verified against the corpus as it evolved during development:
-
 | Test | Result |
 |---|---|
-| Clean ingestion from empty collection (initial 27-record corpus, before dedupe) | ✅ 84 points, 384-dim dense vectors |
-| Idempotent re-ingestion (same content, run twice) | ✅ Point count unchanged run-over-run |
-| Persistence across full container restart (`docker compose down && up`) | ✅ Point count unchanged, no re-ingestion required to observe this — data was retained on the named volume |
-| Clean ingestion after `dedupe_articles()` wired in (24 published, non-retired articles) | ✅ 76 points, 384-dim dense vectors |
+| Clean ingestion, initial 27-record corpus (pre-dedupe) | ✅ 84 points, 384-dim |
+| Idempotent re-ingestion | ✅ count unchanged |
+| Persistence across full restart | ✅ count unchanged, no re-ingestion needed |
+| Clean ingestion post-dedupe (24 published articles) | ✅ 76 points |
 
-Point count dropped from 84 → 76 after dedupe was applied, consistent with
-removing the two retired-only articles (KB0012, KB0022) that have no
-published counterpart and should never have been indexed.
+84 → 76 matches removing KB0012 and KB0022 (retired-only, no published counterpart — should never have been indexed).
 
 ## 8b. Retrieval smoke test (dense search)
 
-`src/retrieval/smoke_test.py` runs a small set of real queries against the
-index to prove retrieval actually works, not just that ingestion succeeded.
-Search is dense-only at this stage; hybrid dense+sparse fusion is Sprint
-2/3 scope.
+`src/retrieval/smoke_test.py` proves retrieval works, not just that ingestion succeeded. Dense-only; hybrid fusion is Sprint 2/3 scope.
 
-| Query | Expected article | Result |
+| Query | Expected | Result |
 |---|---|---|
-| "VPN authentication keeps failing after I changed my password" | KB0001 | ✅ top result, score 0.822 |
-| "Outlook shows disconnected and no email is coming through" | KB0002 | ✅ top result, score 0.772 |
-| "My account got locked after too many failed login attempts" | KB0005 | ✅ top result, score 0.751 |
-| "requesting annual leave for next month" (deliberately unanswerable) | none | top match KB0020, score 0.646 |
+| "VPN authentication keeps failing after I changed my password" | KB0001 | ✅ top, 0.822 |
+| "Outlook shows disconnected and no email is coming through" | KB0002 | ✅ top, 0.772 |
+| "My account got locked after too many failed login attempts" | KB0005 | ✅ top, 0.751 |
+| "requesting annual leave for next month" (unanswerable) | none | KB0020, 0.646 |
 
-Correct matches scored 0.72–0.82; the best-matching irrelevant result for a
-genuinely out-of-scope query scored 0.646 — a real, observed gap of
-roughly 0.07–0.17. This is evidence (not a guess) for where Sprint 3's
-confidence threshold should sit, since dense similarity alone cannot
-self-reject an out-of-scope query — it will always return whatever is
-topically closest, relevant or not.
+Correct matches: 0.72–0.82. Best irrelevant match: 0.646 — a real, observed gap of ~0.07–0.17, giving Sprint 3 actual evidence for where the confidence threshold should sit, since dense similarity alone can't self-reject an out-of-scope query.
 
-This test also caught a real bug during development: after
-`dedupe_articles()` was added, two retired articles (KB0012, KB0022) were
-still returned by search because ingestion only upserts — it never removes
-points for articles no longer in the corpus. Deleting and re-ingesting the
-collection resolved it for this sprint (see §9 for the underlying
-limitation, not yet fixed at the pipeline level).
+Also caught a real bug: after adding `dedupe_articles()`, KB0012/KB0022 still returned in search — ingestion only upserts, it never removes points for articles no longer in the corpus. Fixed for this sprint by deleting and re-ingesting the collection (see §9).
 
-## 9. Known limitations / not yet implemented
+## 9. Known limitations
 
-- No query-time **hybrid** (dense+sparse fusion) retrieval yet — only dense
-  search has been implemented and verified (§8b). Sparse vectors are
-  stored on every point but not yet queried. Hybrid search with reranking
-  is Sprint 2/3 scope.
-- **Ingestion is upsert-only**; it does not remove points for articles that
-  have been deleted or excluded from the source corpus (e.g. by dedupe
-  logic added after initial ingestion). This was caught directly by the
-  retrieval smoke test (§8b) — two retired articles remained searchable
-  after a corpus/logic change until the collection was deleted and
-  recreated. Currently mitigated manually; a proper fix would diff the
-  corpus against existing point IDs and delete orphans automatically.
-- `sys_id` is currently a placeholder (mirrors `article_number`) since
-  articles are read from local JSON, not yet from ServiceNow's Table API.
-  This will be corrected once S1.5's read client is wired into
-  `src/retrieval/sources/servicenow_source.py`.
-- Confidence threshold value is not yet decided or implemented — §8b's
-  results are the evidence for that decision, not the decision itself.
+- **No hybrid retrieval yet** — sparse vectors are stored but not queried; dense-only search verified (§8b). Sprint 2/3 scope.
+- **Ingestion is upsert-only** — doesn't remove points for articles no longer in the corpus. Caught by the smoke test (§8b); currently mitigated by deleting/recreating the collection. A proper fix would diff the corpus against existing point IDs and delete orphans.
+- **`sys_id` is a placeholder** (mirrors `article_number`) until S1.5's read client is wired into `servicenow_source.py`.
+- **Confidence threshold** not yet decided — §8b is the evidence, not the decision.
