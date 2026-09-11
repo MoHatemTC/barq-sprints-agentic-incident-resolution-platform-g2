@@ -1,27 +1,25 @@
 """
-Orchestrates: get articles (from a pluggable source) -> chunk -> embed
-(dense + sparse) -> upsert to Qdrant. Deterministic point IDs make
+Orchestrates: get articles (from a pluggable source) -> dedupe -> chunk ->
+embed (dense + sparse) -> upsert to Qdrant. Deterministic point IDs make
 re-running this idempotent.
 """
 
 import os
 import time
 import hashlib
-from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance, VectorParams, SparseVectorParams, PointStruct, SparseVector
 )
 
+from ..config import QDRANT, PATHS
 from .embedding import embed_dense, embed_sparse, get_model_fingerprint, get_dense_dimension
 from .chunking import chunk_article
 from .schema import Article
 from .sources.local_json_source import load_articles_from_json
-
-load_dotenv()
-
-QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333")
-COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "barq_knowledge_base")
+# Note: dedupe_articles() is applied inside local_json_source.py (and
+# servicenow_source.py once implemented) so every source returns an
+# already-deduped article list. Not called again here on purpose.
 
 # Qdrant point IDs must be an unsigned integer or a UUID -- not an arbitrary string.
 MODEL_FINGERPRINT_MARKER_ID = "00000000-0000-0000-0000-000000000001"
@@ -37,8 +35,8 @@ def _ensure_collection(client: QdrantClient):
     dense_dim = get_dense_dimension()
     fingerprint = get_model_fingerprint()
 
-    if client.collection_exists(COLLECTION_NAME):
-        marker = client.retrieve(COLLECTION_NAME, ids=[MODEL_FINGERPRINT_MARKER_ID])
+    if client.collection_exists(QDRANT.collection_name):
+        marker = client.retrieve(QDRANT.collection_name, ids=[MODEL_FINGERPRINT_MARKER_ID])
         if marker and marker[0].payload.get("fingerprint") != fingerprint:
             raise RuntimeError(
                 f"Embedding model mismatch: collection was built with "
@@ -48,11 +46,11 @@ def _ensure_collection(client: QdrantClient):
         return
 
     client.create_collection(
-        collection_name=COLLECTION_NAME,
+        collection_name=QDRANT.collection_name,
         vectors_config={"dense": VectorParams(size=dense_dim, distance=Distance.COSINE)},
         sparse_vectors_config={"sparse": SparseVectorParams()},
     )
-    client.upsert(COLLECTION_NAME, points=[
+    client.upsert(QDRANT.collection_name, points=[
         PointStruct(
             id=MODEL_FINGERPRINT_MARKER_ID,
             vector={"dense": [0.0] * dense_dim},
@@ -90,17 +88,18 @@ def _build_points(articles: list[Article]) -> list[PointStruct]:
     return points
 
 
-def ingest_articles(source: str = "local", json_path: str = "data/kb_dataset.json") -> dict:
+def ingest_articles(source: str = "local", json_path: str = None) -> dict:
     """
-    source: "local" (test path, reads json_path) or "servicenow" (final path,
-    reads from ServiceNow via S1.5's client -- not yet wired up).
+    source: "local" (test path, reads json_path or PATHS.corpus_json) or
+    "servicenow" (final path, reads from ServiceNow via S1.5's client --
+    not yet wired up).
     """
     start = time.time()
-    client = QdrantClient(url=QDRANT_URL, check_compatibility=False)
+    client = QdrantClient(url=QDRANT.url, check_compatibility=False)
     _ensure_collection(client)
 
     if source == "local":
-        articles = load_articles_from_json(json_path)
+        articles = load_articles_from_json(json_path or PATHS.corpus_json)
     elif source == "servicenow":
         from .sources.servicenow_source import load_articles_from_servicenow
         articles = load_articles_from_servicenow()
@@ -108,14 +107,14 @@ def ingest_articles(source: str = "local", json_path: str = "data/kb_dataset.jso
         raise ValueError(f"Unknown source: {source}")
 
     points = _build_points(articles)
-    client.upsert(collection_name=COLLECTION_NAME, points=points)
+    client.upsert(collection_name=QDRANT.collection_name, points=points)
 
     elapsed = time.time() - start
-    info = client.get_collection(COLLECTION_NAME)
+    info = client.get_collection(QDRANT.collection_name)
     stats = {
         "point_count": info.points_count,
         "dimensionality": get_dense_dimension(),
-        "collection_name": COLLECTION_NAME,
+        "collection_name": QDRANT.collection_name,
         "elapsed_seconds": round(elapsed, 2),
     }
     print(f"Ingestion complete: {stats}")

@@ -7,18 +7,10 @@ client only works with an OAuth client id/secret + service account
 username/password, per FR-06.
 """
 
-import os
 import time
 import httpx
-from dotenv import load_dotenv
 
-load_dotenv()
-
-SERVICENOW_INSTANCE_URL = os.environ.get("SERVICENOW_INSTANCE_URL", "").rstrip("/")
-CLIENT_ID = os.environ.get("SERVICENOW_OAUTH_CLIENT_ID", "")
-CLIENT_SECRET = os.environ.get("SERVICENOW_OAUTH_CLIENT_SECRET", "")
-USERNAME = os.environ.get("SERVICENOW_OAUTH_USERNAME", "")
-PASSWORD = os.environ.get("SERVICENOW_OAUTH_PASSWORD", "")
+from ..config import SERVICENOW
 
 
 class ServiceNowAuthError(RuntimeError):
@@ -37,24 +29,25 @@ class ServiceNowOAuthClient:
         self._expires_at = 0
 
     def _fetch_token(self):
-        if not all([SERVICENOW_INSTANCE_URL, CLIENT_ID, CLIENT_SECRET, USERNAME, PASSWORD]):
+        if not all([SERVICENOW.instance_url, SERVICENOW.oauth_client_id,
+                    SERVICENOW.oauth_client_secret, SERVICENOW.oauth_username,
+                    SERVICENOW.oauth_password]):
             raise ServiceNowAuthError(
                 "Missing one or more required ServiceNow OAuth env vars: "
                 "SERVICENOW_INSTANCE_URL, SERVICENOW_OAUTH_CLIENT_ID, "
                 "SERVICENOW_OAUTH_CLIENT_SECRET, SERVICENOW_OAUTH_USERNAME, "
-                "SERVICENOW_OAUTH_PASSWORD. Check .env -- this is expected "
-                "to be blocked until the S1.2 OAuth identity is available."
+                "SERVICENOW_OAUTH_PASSWORD. Check .env."
             )
 
-        url = f"{SERVICENOW_INSTANCE_URL}/oauth_token.do"
+        url = f"{SERVICENOW.instance_url}/oauth_token.do"
         resp = httpx.post(
             url,
             data={
                 "grant_type": "password",
-                "client_id": CLIENT_ID,
-                "client_secret": CLIENT_SECRET,
-                "username": USERNAME,
-                "password": PASSWORD,
+                "client_id": SERVICENOW.oauth_client_id,
+                "client_secret": SERVICENOW.oauth_client_secret,
+                "username": SERVICENOW.oauth_username,
+                "password": SERVICENOW.oauth_password,
             },
             timeout=15,
         )

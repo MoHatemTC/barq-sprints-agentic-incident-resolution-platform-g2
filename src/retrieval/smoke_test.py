@@ -10,20 +10,11 @@ Usage:
     python -m src.retrieval.smoke_test "custom query text"
 """
 
-import os
 import sys
-import certifi
-os.environ["SSL_CERT_FILE"] = certifi.where()
-
-from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 
+from ..config import QDRANT
 from .embedding import embed_dense
-
-load_dotenv()
-
-QDRANT_URL = os.environ.get("QDRANT_URL", "http://localhost:6333")
-COLLECTION_NAME = os.environ.get("QDRANT_COLLECTION_NAME", "barq_knowledge_base")
 
 # A handful of real, known-answer queries pulled from coverage_matrix.csv --
 # each one should surface its expected article near the top of results.
@@ -48,11 +39,11 @@ KNOWN_QUERIES = [
 
 
 def search(query: str, top_k: int = 3):
-    client = QdrantClient(url=QDRANT_URL, check_compatibility=False)
+    client = QdrantClient(url=QDRANT.url, check_compatibility=False)
     vector = embed_dense(query)
 
     results = client.query_points(
-        collection_name=COLLECTION_NAME,
+        collection_name=QDRANT.collection_name,
         query=vector,
         using="dense",
         limit=top_k,
@@ -64,7 +55,7 @@ def search(query: str, top_k: int = 3):
 
 
 def run_smoke_test():
-    print(f"Running retrieval smoke test against collection '{COLLECTION_NAME}'\n")
+    print(f"Running retrieval smoke test against collection '{QDRANT.collection_name}'\n")
     passed = 0
     failed = 0
 

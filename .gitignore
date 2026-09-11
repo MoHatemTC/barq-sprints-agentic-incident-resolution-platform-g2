@@ -36,4 +36,3 @@ logs/
 
 # Temporary local test datasets
 tmp/
-data/servicenow_kb_mapping.json

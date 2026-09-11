@@ -10,76 +10,63 @@ each successful publish, so re-runs update the existing record instead of
 duplicating it, without requiring any ServiceNow schema change.
 
 Usage:
-    python -m src.retrieval.publish_kb data/kb_dataset.json
-    python -m src.retrieval.publish_kb data/kb_dataset.json --dry-run
+    python -m src.retrieval.publish_kb
+    python -m src.retrieval.publish_kb --dry-run
 """
-
-import os
-import certifi
-os.environ["SSL_CERT_FILE"] = certifi.where()
 
 import sys
 import json
 import argparse
 import httpx
 from pathlib import Path
-from dotenv import load_dotenv
 
+from ..config import SERVICENOW, PATHS
 from .servicenow_auth import ServiceNowOAuthClient, ServiceNowAuthError
-from .article_utils import dedupe_articles
-
-load_dotenv()
-
-SERVICENOW_INSTANCE_URL = os.environ.get("SERVICENOW_INSTANCE_URL", "").rstrip("/")
-KB_TABLE = "kb_knowledge"
-MAPPING_PATH = "data/servicenow_kb_mapping.json"
+from .sources.local_json_source import load_articles_from_json
 
 
-def load_corpus(path: str) -> list[dict]:
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-def load_mapping(path: str = MAPPING_PATH) -> dict:
+def load_mapping(path: str = None) -> dict:
     """article_number -> sys_id. Empty dict if the file doesn't exist yet."""
+    path = path or PATHS.servicenow_kb_mapping
     if not Path(path).exists():
         return {}
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
 
-def save_mapping(mapping: dict, path: str = MAPPING_PATH) -> None:
+def save_mapping(mapping: dict, path: str = None) -> None:
+    path = path or PATHS.servicenow_kb_mapping
     with open(path, "w", encoding="utf-8") as f:
         json.dump(mapping, f, indent=2, sort_keys=True)
 
 
-def _build_payload(article: dict) -> dict:
-    return {
-        "kb_knowledge_base": os.environ["SERVICENOW_KB_SYS_ID"],
-        "short_description": article["title"],
-        "text": article["body"],
-        "kb_category": article.get("category", ""),
-        "workflow_state": article.get("workflow_state", "draft"),
+def _build_payload(article) -> dict:
+    payload = {
+        "short_description": article.title,
+        "text": article.body,
+        "kb_category": article.category,
+        "workflow_state": article.workflow_state,
     }
+    if SERVICENOW.kb_sys_id:
+        payload["kb_knowledge_base"] = SERVICENOW.kb_sys_id
+    return payload
 
 
-def _dry_run(articles: list[dict], mapping: dict) -> dict:
-    """No network call, no auth needed -- proves the corpus loads, payloads
-    build correctly, and shows which articles would create vs. update
-    based on the current local mapping."""
+def _dry_run(articles, mapping: dict) -> dict:
     stats = {"would_create": 0, "would_update": 0, "skipped_dry_run": 0, "failed": []}
     for article in articles:
         payload = _build_payload(article)
-        action = "UPDATE" if article["article_number"] in mapping else "CREATE"
-        print(f"[dry-run] would {action} {article['article_number']}: {payload['short_description']}")
+        action = "UPDATE" if article.article_id in mapping else "CREATE"
+        print(f"[dry-run] would {action} {article.number}: {payload['short_description']}")
         stats["would_update" if action == "UPDATE" else "would_create"] += 1
         stats["skipped_dry_run"] += 1
     return stats
 
 
-def publish(corpus_path: str, dry_run: bool = False) -> dict:
-    articles = load_corpus(corpus_path)
-    articles = dedupe_articles(articles)
+def publish(corpus_path: str = None, dry_run: bool = False) -> dict:
+    # dedupe_articles() already runs inside load_articles_from_json() --
+    # do not call it again here on the resulting Article objects.
+    articles = load_articles_from_json(corpus_path or PATHS.corpus_json)
     mapping = load_mapping()
 
     if dry_run:
@@ -92,35 +79,34 @@ def publish(corpus_path: str, dry_run: bool = False) -> dict:
 
     with httpx.Client(timeout=15) as client:
         for article in articles:
-            article_number = article["article_number"]
             payload = _build_payload(article)
-            known_sys_id = mapping.get(article_number)
+            known_sys_id = mapping.get(article.article_id)
 
             try:
                 if known_sys_id:
                     resp = client.patch(
-                        f"{SERVICENOW_INSTANCE_URL}/api/now/table/{KB_TABLE}/{known_sys_id}",
+                        f"{SERVICENOW.instance_url}/api/now/table/{SERVICENOW.kb_table}/{known_sys_id}",
                         headers={**auth.auth_headers(), "Content-Type": "application/json"},
                         json=payload,
                     )
                     resp.raise_for_status()
                     stats["updated"] += 1
-                    print(f"Updated {article_number} (sys_id={known_sys_id})")
+                    print(f"Updated {article.number} (sys_id={known_sys_id})")
                 else:
                     resp = client.post(
-                        f"{SERVICENOW_INSTANCE_URL}/api/now/table/{KB_TABLE}",
+                        f"{SERVICENOW.instance_url}/api/now/table/{SERVICENOW.kb_table}",
                         headers={**auth.auth_headers(), "Content-Type": "application/json"},
                         json=payload,
                     )
                     resp.raise_for_status()
                     new_sys_id = resp.json()["result"]["sys_id"]
-                    mapping[article_number] = new_sys_id
+                    mapping[article.article_id] = new_sys_id
                     stats["created"] += 1
-                    print(f"Created {article_number} (sys_id={new_sys_id})")
+                    print(f"Created {article.number} (sys_id={new_sys_id})")
 
             except (httpx.HTTPStatusError, ServiceNowAuthError, KeyError) as e:
-                stats["failed"].append({"article_number": article_number, "error": str(e)})
-                print(f"FAILED {article_number}: {e}")
+                stats["failed"].append({"article_number": article.number, "error": str(e)})
+                print(f"FAILED {article.number}: {e}")
 
     save_mapping(mapping)
     print(f"\nPublish complete: {stats}")
@@ -129,7 +115,7 @@ def publish(corpus_path: str, dry_run: bool = False) -> dict:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("corpus_path", nargs="?", default="data/kb_dataset.json")
+    parser.add_argument("corpus_path", nargs="?", default=None)
     parser.add_argument("--dry-run", action="store_true",
                          help="Print what would be published without calling ServiceNow")
     args = parser.parse_args()

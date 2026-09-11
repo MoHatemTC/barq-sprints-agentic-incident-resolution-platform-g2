@@ -6,17 +6,13 @@ import os
 import certifi
 os.environ["SSL_CERT_FILE"] = certifi.where()
 
-from dotenv import load_dotenv
 from sentence_transformers import SentenceTransformer
 from fastembed import SparseTextEmbedding
 
-load_dotenv()
+from ..config import EMBEDDING
 
-DENSE_MODEL_NAME = os.environ.get("DENSE_EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
-SPARSE_MODEL_NAME = os.environ.get("SPARSE_EMBEDDING_MODEL", "Qdrant/bm25")
-
-_dense_model = SentenceTransformer(DENSE_MODEL_NAME)
-_sparse_model = SparseTextEmbedding(model_name=SPARSE_MODEL_NAME)
+_dense_model = SentenceTransformer(EMBEDDING.dense_model)
+_sparse_model = SparseTextEmbedding(model_name=EMBEDDING.sparse_model)
 
 
 def embed_dense(text: str) -> list[float]:
@@ -33,7 +29,7 @@ def embed_sparse(text: str) -> dict:
 
 def get_model_fingerprint() -> str:
     """Used to detect model mismatch on re-ingestion."""
-    return f"{DENSE_MODEL_NAME}::{SPARSE_MODEL_NAME}"
+    return f"{EMBEDDING.dense_model}::{EMBEDDING.sparse_model}"
 
 
 def get_dense_dimension() -> int:
