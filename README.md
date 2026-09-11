@@ -49,7 +49,7 @@ barq-ai-incident-orchestrator/
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/<org>/barq-sprints-agentic-incident-resolution-platform-g2.git
+git clone https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2.git
 cd barq-sprints-agentic-incident-resolution-platform-g2
 ```
 
@@ -65,6 +65,12 @@ python -m venv venv
 
 # macOS / Linux
 source venv/bin/activate
+```
+
+**Option — conda (recommended on Windows, avoids some native dependency issues, e.g. with torch):**
+```bash
+conda create -n barq-orch python=3.11 -y
+conda activate barq-orch
 ```
 
 ### 3. Install dependencies
