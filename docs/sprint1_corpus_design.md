@@ -1,7 +1,7 @@
 # Sprint 1 — Knowledge Corpus Design (S1.4)
 
 **Owner:** Abdullah Ashraf
-**Status:** Working corpus, authored fallback pending official supplied dataset
+**Status:** Working corpus (authored fallback, pending official supplied dataset), published to a dedicated ServiceNow Knowledge Base ("AI Incident Orchestrator KB")
 **Path:** Path B-style schema/validation with authored fallback content — see §0
 
 ## 0. Data provenance

@@ -62,7 +62,9 @@ Configurable via `.env` (`DENSE_EMBEDDING_MODEL`, `SPARSE_EMBEDDING_MODEL`).
 
 ## 4. Chunking
 
-`src/retrieval/chunking.py` splits on `##` Markdown headers — each section becomes one chunk, so numbered procedures never split mid-step. Returns `(section_label, chunk_text)` pairs; the label is stored in the payload for result attribution.
+`src/retrieval/chunking.py` runs HTML preprocessing (`preprocessing.py::strip_article_html`) before splitting on `##` Markdown headers — each section becomes one chunk, so numbered procedures never split mid-step. Plain Markdown/text passes through preprocessing unchanged; HTML is converted to Markdown with code blocks, inline code, and technical tokens preserved — verified by `tests/test_html_preprocessing.py` (5/5 passing).
+
+**Size/overlap are config-driven, not hardcoded.** Any section exceeding `CHUNK_SIZE` (default 500, via `src/config.py::CHUNKING`) is further split into overlapping windows of `CHUNK_OVERLAP` characters (default 50), still tagged with the original section label. Config validates `chunk_size > 0` and `0 <= chunk_overlap < chunk_size`, raising on invalid values. Short sections (the current corpus) are unaffected — verified by `tests/test_chunking_config.py` (9/9 passing).
 
 ## 5. Point ID scheme
 
@@ -98,8 +100,10 @@ point_id = sha256(raw).hexdigest()  # as a UUID string
 | Collection name `kb_articles` | `barq_knowledge_base` | Mentor guidance |
 | `.md` files + YAML frontmatter | Pluggable source abstraction reading JSON, ServiceNow stub | Matches confirmed Path B schema; clean swap to Table API later |
 | Base payload fields | + `sys_id`, `number`, `section` | Mentor-specified exact fields |
-| No shared dedupe | `article_utils.py::dedupe_articles()`, used by `publish_kb.py` + `local_json_source.py` | Avoid duplicating the same filtering logic in two places |
+| No shared dedupe | `article_utils.py::dedupe_articles()`, used by `publish_kb.py` + `local_json_source.py` | Avoid duplicating filtering logic in two places |
 | Scope Restriction: securely scoped (assumed) | Broadly scoped | Table API is unscoped; confirmed with mentor (§1b) |
+| No HTML handling | `preprocessing.py::strip_article_html()`, called from `chunking.py` | Brief requires stripping HTML while preserving code/technical tokens |
+| Hardcoded chunking with no size limit | Config-driven `CHUNK_SIZE`/`CHUNK_OVERLAP` with validation | Reviewer feedback: chunk size/overlap should be configurable, not implicit in header-splitting alone |
 
 ## 8. Verification results
 
