@@ -16,6 +16,7 @@ barq-ai-incident-orchestrator/
 │
 ├── servicenow/
 │   └── ai_incident_orchestrator/       # update set .xml — S1.1/S1.2/S1.3
+|       |── update_set.xml #S1.3
 │       └── .gitkeep
 │   └── .gitkeep
 │
@@ -36,6 +37,9 @@ barq-ai-incident-orchestrator/
 │   └── __init__.py             # S1.5
 │
 └── docs/
+    |── images/ #evidence screenshots
+    ├── event_contract_v1.md                # S1.3
+    ├── sprint2_eligibility_evidence.md      # S1.3
     └── sprint1_servicenow_client.md        # S1.5
 ```
 
