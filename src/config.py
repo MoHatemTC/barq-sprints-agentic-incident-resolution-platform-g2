@@ -56,7 +56,23 @@ class PathsConfig:
     )
 
 
+@dataclass(frozen=True)
+class ChunkingConfig:
+    chunk_size: int = int(os.environ.get("CHUNK_SIZE", "500"))
+    chunk_overlap: int = int(os.environ.get("CHUNK_OVERLAP", "50"))
+
+    def __post_init__(self):
+        if self.chunk_size <= 0:
+            raise ValueError(f"CHUNK_SIZE must be > 0, got {self.chunk_size}")
+        if not (0 <= self.chunk_overlap < self.chunk_size):
+            raise ValueError(
+                "CHUNK_OVERLAP must satisfy 0 <= CHUNK_OVERLAP < CHUNK_SIZE, "
+                f"got CHUNK_OVERLAP={self.chunk_overlap}, CHUNK_SIZE={self.chunk_size}"
+            )
+
+
 QDRANT = QdrantConfig()
 EMBEDDING = EmbeddingConfig()
 SERVICENOW = ServiceNowConfig()
 PATHS = PathsConfig()
+CHUNKING = ChunkingConfig()
