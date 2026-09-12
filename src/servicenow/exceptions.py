@@ -11,6 +11,10 @@ class ServiceNowError(Exception):
         super().__init__(f"[{status_code}] {message}")
 
 
+class ServiceNowWriteNotAppliedError(ServiceNowError):
+    # 200 returned, but ServiceNow silently dropped one or more fields
+    log_state = "blocked"
+
 class ServiceNowAuthError(ServiceNowError):
     # when 401 so token missing, invalid or expired
     retryable = True
@@ -39,6 +43,7 @@ class ServiceNowValidationError(ServiceNowError):
 class ServiceNowServerError(ServiceNowError):
     # when 5xx — ServiceNow is unavailable or have something wrong 
     retryable = True
+
     
 # Status map to use for matching :
 _STATUS_MAP = {
