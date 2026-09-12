@@ -45,12 +45,14 @@ rather than failing later with an error. `.env` is gitignored and no credential 
 
 | Status | Meaning | Retryable | Exception | Log state |
 |---|---|---|---|---|
+| 200 | Write accepted but silently dropped | No | `ServiceNowWriteNotAppliedError` | blocked |
 | 401 | Token expired or invalid | Yes need refresh, retry once | `ServiceNowAuthError` | failed |
 | 403 | Integration user lacks permission | No | `ServiceNowPermissionError` | blocked |
 | 404 | Record missing **or** read restricted | No | `ServiceNowNotFoundError` | failed |
 | 409 | Record changed While the request | No | `ServiceNowConflictError` | failed |
 | 422 | Payload rejected | No | `ServiceNowValidationError` | failed |
 | 5xx | ServiceNow unavailable | Yes | `ServiceNowServerError` | failed |
+
 
 Every request carries an explicit timeout (`SERVICENOW_TIMEOUT`, default 30s),
 adjustable in `.env`.
@@ -89,9 +91,11 @@ a dedicated instance
 What I founded from testing against the live instance :
 
 1- **A 200 does not prove a write landed.** PATCH requests including fields the
-integration user cannot write return 200 with those fields silently unwritten.
-`ai_confidence` behaved this way while `ai_classification` and `ai_suggestion`
-in the same payload wrote correctly , The only defence is reading back
+identity cannot write return 200 with those fields silently unwritten. Observed
+on `ai_confidence` under the earlier `ai_integration_test` identity; it writes
+correctly under `ai_orchestrator_svc`. The client now compares every sent value
+against the response and raises `ServiceNowWriteNotAppliedError` when anything
+is missing.
 
 2- **404 is ambiguous.** ServiceNow returns *"Record doesn't exist or ACL restricts
 the record retrieval"* for both cases, deliberately, A 404 cannot be read as
@@ -103,6 +107,13 @@ proof a record is absent
 4- **No referential validation on insert.** An execution log row accepts an
 unparseable incident reference and stores it verbatim, Valid sys_ids are the
 caller's responsibility
+
+5- **Work notes are write-blocked for the service account.** A PATCH returns 200
+but `work_notes` is absent from the response, a plain GET returns `None`, and
+`sys_journal_field` has zero rows. So `add_work_note` verifies against the
+journal table rather than the response. Open S1.2 item: the ACL exists with the
+right role but sits in the scoped app while `incident` is global.
+`test_add_work_note` is marked `xfail` until it takes effect.
 
 ## Known limitations
 
