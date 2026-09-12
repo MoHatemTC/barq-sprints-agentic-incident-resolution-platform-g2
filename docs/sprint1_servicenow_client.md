@@ -1,0 +1,21 @@
+# ServiceNow OAuth
+SERVICENOW_INSTANCE_URL=OUR_INSTANCE_URL
+# (values from S1.2) as integration user not admin
+SERVICENOW_OAUTH_CLIENT_ID=
+SERVICENOW_OAUTH_CLIENT_SECRET=
+SERVICENOW_OAUTH_USERNAME=
+SERVICENOW_OAUTH_PASSWORD=
+SERVICENOW_KB_SYS_ID=
+
+# Our Client behaviour
+SERVICENOW_TIMEOUT=30
+SERVICENOW_MAX_RETRIES=1
+
+# Test Incident
+INCIDENT_SYS_ID=Our_Testing_Icident_ID
+
+# ===== S1.4 (Abdullah) — Qdrant + Embeddings =====
+QDRANT_URL=http://localhost:6333
+QDRANT_COLLECTION_NAME=barq_knowledge_base
+DENSE_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+SPARSE_EMBEDDING_MODEL=Qdrant/bm25
