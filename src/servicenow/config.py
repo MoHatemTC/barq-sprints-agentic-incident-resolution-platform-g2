@@ -69,5 +69,15 @@ LOG_BLOCKED = "blocked"
 LOG_AWAITING_APPROVAL = "awaiting_approval"
 LOG_ABANDONED = "abandoned"
 
+# valide ones based on service now
+VALID_LOG_STATUSES = {
+    LOG_STARTED,
+    LOG_SUCCEEDED,
+    LOG_FAILED,
+    LOG_BLOCKED,
+    LOG_AWAITING_APPROVAL,
+    LOG_ABANDONED,
+}
+
 # journal field 
 WORK_NOTES = "work_notes"
