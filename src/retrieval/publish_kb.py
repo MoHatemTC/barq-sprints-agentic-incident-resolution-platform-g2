@@ -23,6 +23,7 @@ from pathlib import Path
 from ..config import SERVICENOW, PATHS
 from .servicenow_auth import ServiceNowOAuthClient, ServiceNowAuthError
 from .sources.local_json_source import load_articles_from_json
+from src.servicenow.exceptions import ServiceNowWriteNotAppliedError
 
 
 def load_mapping(path: str = None) -> dict:
@@ -50,6 +51,31 @@ def _build_payload(article) -> dict:
     if SERVICENOW.kb_sys_id:
         payload["kb_knowledge_base"] = SERVICENOW.kb_sys_id
     return payload
+
+
+def _verify_write_applied(
+    client: httpx.Client,
+    auth: ServiceNowOAuthClient,
+    sys_id: str,
+    payload: dict,
+) -> None:
+    from src.servicenow.client import _same
+
+    resp = client.get(
+        f"{SERVICENOW.instance_url}/api/now/table/{SERVICENOW.kb_table}/{sys_id}",
+        headers=auth.auth_headers(),
+        params={"sysparm_fields": ",".join(payload.keys())},
+    )
+    resp.raise_for_status()
+    result = resp.json()["result"]
+
+    dropped = [
+        field
+        for field, value in payload.items()
+        if not _same(value, result.get(field))
+    ]
+    if dropped:
+        raise ServiceNowWriteNotAppliedError(200, f"Fields not written: {dropped}")
 
 
 def _dry_run(articles, mapping: dict) -> dict:
@@ -90,6 +116,7 @@ def publish(corpus_path: str = None, dry_run: bool = False) -> dict:
                         json=payload,
                     )
                     resp.raise_for_status()
+                    _verify_write_applied(client, auth, known_sys_id, payload)
                     stats["updated"] += 1
                     print(f"Updated {article.number} (sys_id={known_sys_id})")
                 else:
@@ -100,6 +127,7 @@ def publish(corpus_path: str = None, dry_run: bool = False) -> dict:
                     )
                     resp.raise_for_status()
                     new_sys_id = resp.json()["result"]["sys_id"]
+                    _verify_write_applied(client, auth, new_sys_id, payload)
                     mapping[article.article_id] = new_sys_id
                     stats["created"] += 1
                     print(f"Created {article.number} (sys_id={new_sys_id})")
