@@ -2,7 +2,8 @@
 
 ## 1. Payload Minimalism & Successful Emission
 **Requirement:** Demonstrate payload minimalism via captured traffic to a request-inspection endpoint.
-* **Evidence:** ![Webhook.site Evidence](images/webhook-site%20evidence.png)
+* **Evidence:** ![Webhook.site Insert Evidence](images/webhook-insert%20evidence.png)
+![Webhook.site Update Evidence](images/webhook-update%20evidence.png)
 * **Notes:** The payload successfully transmits only the four required identifiers (`event_id`, `sys_id`, `number`, `event_type`). Authenticated via OAuth integration user.
 
 ## 2. Suppression Conditions

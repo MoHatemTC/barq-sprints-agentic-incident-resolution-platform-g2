@@ -7,7 +7,7 @@ This document defines the minimal outbound event payload emitted by the ServiceN
 
 | Field Name | Data Type | Required | Description |
 | :--- | :--- | :--- | :--- |
-| `event_id` | String (UUID) | Yes | A unique identifier generated via `gs.generateGUID()` at emission. Serves as the idempotency key for the backend queue. |
+| `event_id` | String (32-character hex) | Yes | A unique identifier generated via `gs.generateGUID()` at emission. Serves as the idempotency key for the backend queue. |
 | `sys_id` | String | Yes | The 32-character ServiceNow `sys_id` of the triggered incident. |
 | `number` | String | Yes | The human-readable ServiceNow incident number (e.g., INC0010043). |
 | `event_type` | String | Yes | Indicates the trigger source. Valid values are `"Insert"` or `"Update"`. |
