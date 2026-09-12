@@ -127,21 +127,6 @@ Correct matches: 0.72–0.82. Best irrelevant match: 0.646 — a real, observed 
 
 Also caught a real bug: after adding `dedupe_articles()`, KB0012/KB0022 still returned in search — ingestion only upserts, it never removes points for articles no longer in the corpus. Fixed for this sprint by deleting and re-ingesting the collection (see §9).
 
-### Model-mismatch guard
-
-...**Verified with a real mismatch**: switching `DENSE_EMBEDDING_MODEL` to
-`sentence-transformers/all-MiniLM-L6-v2` and re-running ingestion produced
-a clean `RuntimeError` before any upsert occurred, correctly aborting
-rather than silently mixing embedding spaces:
-
-```
-RuntimeError: Embedding model mismatch: collection was built with
-'BAAI/bge-small-en-v1.5::Qdrant/bm25' but current config is
-'sentence-transformers/all-MiniLM-L6-v2::Qdrant/bm25'. Aborting to
-avoid a corrupted index.
-```
-
-
 ## 9. Known limitations
 
 - **No hybrid retrieval yet** — sparse vectors are stored but not queried; dense-only search verified (§8b). Sprint 2/3 scope.
