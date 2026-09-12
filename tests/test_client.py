@@ -39,3 +39,15 @@ def test_401_refreshes_token_and_retries_once(client):
 def test_log_write_returns_none_on_failure(client):
     with patch("src.servicenow.client.requests.request", return_value=_response(500)):
         assert client.write_execution_log("sys", "eid", "act", "failed") is None
+        
+def test_dropped_field_raises(client):
+    # ServiceNow returns 200 but omits the field it silently dropped
+    resp = _response(200, {"sys_id": "abc"})
+    with patch("src.servicenow.client.requests.request", return_value=resp):
+        with pytest.raises(exc.ServiceNowWriteNotAppliedError):
+            client.update_incident("abc", {"classification": "network"})
+
+
+def test_invalid_log_status_raises(client):
+    with pytest.raises(ValueError):
+        client.write_execution_log("sys", "eid", "act", "not_a_status")
