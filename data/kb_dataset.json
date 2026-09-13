@@ -1,0 +1,282 @@
+[
+  {
+    "article_number": "KB0001",
+    "title": "VPN authentication fails after a password change",
+    "body": "## Symptom\nThe user can reach the internet but the VPN client reports an authentication failure. It began after a password reset. The client may report \"invalid credentials\" even when the new password is entered correctly.\n\n## Cause\nThe VPN client caches the previous credential in the operating system credential store. The cached entry is presented before the newly typed password, so the directory rejects it. Repeated attempts can lock the account (see KB0005).\n\n## Resolution\n1. Confirm with the user that they changed their password within the last 24 hours.\n2. Ask the user to sign out of the VPN client completely, including the system tray icon.\n3. Clear the cached credential for the VPN profile from the credential store.\n4. Reconnect using the new password.\n5. If authentication still fails, check whether the account is locked in the identity console before escalating.\n\n## Escalation\nIf the account is not locked and the new password works elsewhere, escalate to the Network team with the client log.",
+    "category": "network",
+    "service": "corporate-vpn",
+    "workflow_state": "published",
+    "version": 2,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0002",
+    "title": "Outlook shows Disconnected and no mail is delivered",
+    "body": "## Symptom\nThe mail client displays Disconnected or Trying to connect. No new mail arrives. Webmail may still work, or may not.\n\n## Cause\nTwo distinct causes present identically: a single-user profile or cached-mode corruption, and a service-wide mail outage. Distinguishing them is the first step.\n\n## Resolution\n1. Ask whether colleagues are affected. If more than one user in the same area is affected, treat it as a service event and stop; do not apply per-user fixes to a platform outage.\n2. Check whether webmail works for this user. If webmail works, the fault is client-side.\n3. For a client-side fault, close the client fully and reopen it.\n4. If it still fails, recreate the mail profile and allow the cache to rebuild.\n5. Confirm mail flow before closing.\n\n## Escalation\nIf multiple users are affected, raise a major incident against the corporate-email service. Do not resolve individual incidents until the service event is closed.",
+    "category": "software",
+    "service": "corporate-email",
+    "workflow_state": "published",
+    "version": 3,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0003",
+    "title": "Mapped shared drive is missing after sign-in",
+    "body": "## Symptom\nA previously available network drive letter is absent after signing in. Other drives may still be present. Browsing to the server path directly may work.\n\n## Cause\nThe mapping script runs before the network is ready, or the user has been removed from the group that grants access to the share.\n\n## Resolution\n1. Ask the user to browse to the server path directly. If it opens, the share and permissions are fine and the fault is in the mapping.\n2. If the path opens, re-run the mapping script, or remap the drive with reconnect-at-sign-in enabled.\n3. If the path is refused, check the user's group membership against the share's access group.\n4. If group membership is missing, raise an access request. Do not modify group membership from this incident.\n5. Confirm the drive is present after a fresh sign-in before closing.\n\n## Escalation\nPermission changes go through the access request process and are never applied directly from an incident.",
+    "category": "network",
+    "service": "file-services",
+    "workflow_state": "published",
+    "version": 2,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0004",
+    "title": "Print jobs queue but nothing prints",
+    "body": "## Symptom\nDocuments accumulate in the print queue. The printer shows ready and reports no error. Cancelling a job leaves it stuck as Deleting.\n\n## Cause\nThe local print spooler service has stalled, leaving orphaned job files that block the queue.\n\n## Resolution\n1. Confirm the printer is online and shows no physical error, and that paper and toner are present.\n2. Stop the print spooler service on the affected machine.\n3. Delete the queued job files from the spooler directory.\n4. Start the print spooler service again.\n5. Print a test page and confirm it completes.\n\n## Escalation\nIf the queue stalls again within an hour, or several users on the same printer are affected, escalate to Print Services -- the fault is likely on the print server rather than the client.",
+    "category": "hardware",
+    "service": "print-services",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0005",
+    "title": "Account is locked after repeated failed sign-ins",
+    "body": "## Symptom\nThe user cannot sign in to any corporate system. Errors mention a locked or disabled account. Often follows a password change, and often presents as several services failing at once.\n\n## Cause\nThe lockout policy triggers after a threshold of failed attempts. A cached credential on any device -- a phone mail profile, a VPN client, a mapped drive -- can retry an old password silently and lock the account repeatedly.\n\n## Resolution\n1. Verify the user's identity following the identity verification procedure. This step is mandatory.\n2. Unlock the account in the identity console.\n3. Ask the user to sign out of the corporate mail profile on their mobile device, the most common source of a silent retry.\n4. Clear cached credentials on the laptop, including VPN and mapped drives.\n5. Ask the user to sign in again and confirm access to two different services.\n6. If the account locks again within minutes, identify the retrying device from the lockout source before unlocking a third time.\n\n## Escalation\nRepeated lockouts with no identifiable source go to the Identity team. Never disable the lockout policy for an individual user.",
+    "category": "identity",
+    "service": "identity",
+    "workflow_state": "published",
+    "version": 4,
+    "security_level": "confidential"
+  },
+  {
+    "article_number": "KB0006",
+    "title": "Multi-factor authentication after a lost or replaced device",
+    "body": "## Symptom\nThe user has a new phone, or has lost the previous one, and can no longer approve sign-in prompts or generate codes.\n\n## Cause\nThe authenticator registration is bound to the previous device and does not transfer with a phone migration.\n\n## Resolution\n1. Verify the user's identity following the enhanced verification procedure for MFA resets. This is stricter than standard verification.\n2. Confirm whether the previous device is lost or simply replaced. A lost device requires the registration to be revoked, not just re-enrolled.\n3. Raise the MFA reset request through the identity workflow. It requires approval.\n4. Once approved, guide the user through enrolling the new device.\n5. Confirm a successful sign-in with the new factor before closing.\n\n## Escalation\nAn MFA reset is a high-risk identity action. Any suspicion of compromise goes to Security immediately.",
+    "category": "identity",
+    "service": "identity",
+    "workflow_state": "published",
+    "version": 3,
+    "security_level": "confidential"
+  },
+  {
+    "article_number": "KB0007",
+    "title": "Laptop performance degrades after a system update",
+    "body": "## Symptom\nThe machine is noticeably slower after an update. Fans run constantly, applications are slow to launch, and the problem persists across restarts.\n\n## Cause\nPost-update indexing and driver reinstallation run at high priority for a period after installation. If degradation persists beyond that period, a driver mismatch is the usual cause.\n\n## Resolution\n1. Ask when the update was installed. Within 24 hours, background indexing is expected -- check back rather than making changes.\n2. Check resource usage and identify the dominant process.\n3. If indexing dominates, allow it to complete and confirm with the user the following day.\n4. If a graphics or storage driver dominates, reinstall the vendor driver for the installed operating system build.\n5. Restart and confirm the machine returns to normal responsiveness.\n\n## Escalation\nIf performance is still degraded 48 hours after the update with no dominant process, escalate to Endpoint Engineering with a performance capture.",
+    "category": "hardware",
+    "service": "endpoint",
+    "workflow_state": "published",
+    "version": 2,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0008",
+    "title": "SAP GUI connection times out with RFC_ERROR_COMMUNICATION",
+    "body": "## Symptom\nThe SAP GUI client fails to connect and reports RFC_ERROR_COMMUNICATION or a connection timeout. Other applications work normally.\n\n## Cause\nThe client cannot reach the message server on the required port. Most often the user is off the corporate network without the VPN, or the saved connection entry points at a decommissioned application server.\n\n## Resolution\n1. Confirm the user is on the corporate network or connected to the VPN. SAP is not reachable from the internet.\n2. Check the saved connection entry against the current published connection details.\n3. If the entry names a specific application server, change it to the message server and group so load balancing applies.\n4. Reconnect and confirm sign-in reaches the logon screen.\n5. If the timeout persists from a known-good network, check whether the message server is reachable on its port before escalating.\n\n## Escalation\nA confirmed reachability failure from the corporate network goes to the SAP Basis team with the exact error text and the connection entry used.",
+    "category": "software",
+    "service": "sap-erp",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0009",
+    "title": "Wi-Fi drops repeatedly on the 5 GHz corporate network",
+    "body": "## Symptom\nThe connection drops every few minutes and reconnects on its own. It is worse in some parts of the building and while moving between areas.\n\n## Cause\nAggressive roaming behaviour between access points, or a power-saving setting on the wireless adapter that suspends the radio during idle periods.\n\n## Resolution\n1. Establish whether drops occur in one location or while moving. Drops only while moving indicate roaming; drops while stationary indicate the adapter.\n2. For a stationary user, disable power saving on the wireless adapter.\n3. Update the wireless adapter driver to the current supported version.\n4. Ask the user to forget and rejoin the corporate network so the profile is rebuilt.\n5. Confirm a stable connection for at least fifteen minutes before closing.\n\n## Escalation\nDrops affecting several users in the same area are an infrastructure fault. Escalate to Network with the location and approximate times.",
+    "category": "network",
+    "service": "corporate-wifi",
+    "workflow_state": "published",
+    "version": 2,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0010",
+    "title": "Order service connection pool exhaustion -- RETIRED",
+    "body": "## Symptom\nThe order service returns HTTP 500 and logs report that the database connection pool is exhausted.\n\n## Cause\nConnections are not being returned to the pool under load.\n\n## Resolution\n1. Restart the order service application server to clear the pool.\n2. Confirm the service returns 200 and monitor for recurrence.\n\n## Escalation\nIf it recurs within the hour, escalate to Platform Engineering.\n\n## Retirement Note\nRetired 02 Apr 2026. Step 1 caused a 40-minute outage on 14 Mar 2026 (MIR-2026-03) -- the restart drops in-flight orders. Superseded by KB0010 v2.",
+    "category": "software",
+    "service": "order-processing",
+    "workflow_state": "retired",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0010",
+    "title": "Order service connection pool exhaustion",
+    "body": "## Symptom\nThe order service returns HTTP 500 under load. Application logs report that the database connection pool is exhausted and that connection acquisition timed out.\n\n## Cause\nConnections are held beyond their intended lifetime by a long-running query path and are not returned to the pool, so new requests wait and then fail.\n\n## Resolution\n1. Do not restart the application server. A restart drops in-flight orders and caused a 40-minute outage on 14 March 2026.\n2. Confirm pool saturation from the service metrics dashboard rather than from the error message alone.\n3. Notify the Order Processing service owner. This service has a change-controlled remediation path.\n4. Raise an emergency change for the pool drain procedure, which recycles connections without dropping in-flight work.\n5. Apply the drain procedure only once the change is approved.\n6. Monitor pool utilisation for thirty minutes after the drain.\n\n## Escalation\nAny incident on order-processing at Priority 1 goes to the service owner immediately and is never remediated from the service desk alone.",
+    "category": "software",
+    "service": "order-processing",
+    "workflow_state": "published",
+    "version": 2,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0011",
+    "title": "Zoom audio not working in meetings",
+    "body": "## Symptom\nNo audio input/output detected during Zoom calls.\n\n## Resolution\n[DRAFT -- resolution steps pending review from AV team]",
+    "category": "software",
+    "service": "video-conferencing",
+    "workflow_state": "draft",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0012",
+    "title": "Legacy timesheet system login -- superseded",
+    "body": "## Resolution\n1. Navigate to the legacy timesheet portal (decommissioned June 2025).\n2. Use your old employee number as username.\n\nNote: this system has been replaced. See the current HR systems onboarding article.",
+    "category": "software",
+    "service": "hr-systems",
+    "workflow_state": "retired",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0013",
+    "title": "Monitor display flickering or shows no signal",
+    "body": "## Symptom\nExternal monitor flickers, shows no signal, or resolution resets unexpectedly.\n\n## Resolution\n1. Reseat the display cable (HDMI/DisplayPort) at both ends.\n2. Update graphics driver via Device Manager.\n3. Test with a different cable to rule out a faulty one.\n4. If using a docking station, update dock firmware.\n\n## Related error codes\n- DISP_NOSIGNAL_04",
+    "category": "hardware",
+    "service": "endpoint",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0014",
+    "title": "Shared drive access denied despite correct credentials",
+    "body": "## Symptom\nUser receives access denied error when opening a shared network drive.\n\n## Resolution\n1. Confirm the user's AD group membership includes the correct share permission group.\n2. Have the user reconnect the mapped drive (disconnect, remap).\n3. If newly hired, allow up to 4 hours for AD group sync to propagate.\n4. Escalate to identity team if access is still denied after the propagation window.",
+    "category": "identity",
+    "service": "file-services",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0015",
+    "title": "Laptop battery draining rapidly",
+    "body": "## Symptom\nBattery percentage drops significantly faster than expected under normal use.\n\n## Resolution\n1. Check Task Manager for high background CPU usage processes.\n2. Run a battery report: `powercfg /batteryreport`\n3. Review the report for battery health/capacity degradation.\n4. If capacity is below 60% of design, submit a hardware replacement request.",
+    "category": "hardware",
+    "service": "endpoint",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0016",
+    "title": "Email not syncing across multiple devices",
+    "body": "## Symptom\nNew emails appear on one device but not others; folders are out of sync.\n\n## Resolution\n1. Verify mailbox storage quota is not full.\n2. Confirm IMAP/Exchange server settings match on all devices.\n3. Restart the email client.\n4. Check spam/junk folder filters per device.\n\n## Related error codes\n- SYNC_ERR_0091",
+    "category": "software",
+    "service": "corporate-email",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0017",
+    "title": "Software installation request process",
+    "body": "## Resolution\n1. Standard approved software: install via the Company Software Center, no ticket needed.\n2. Non-standard software: requires manager approval, then a ticket to IT procurement.\n3. Installation typically completes within 1 business day of approval.",
+    "category": "software",
+    "service": "software-provisioning",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0018",
+    "title": "Password reset for company portal",
+    "body": "## Resolution\n1. Go to password.company.com\n2. Enter employee ID.\n3. Follow the emailed reset link.\n4. If self-service fails, contact IT with manager confirmation.",
+    "category": "identity",
+    "service": "identity",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0019",
+    "title": "Teams calls dropping mid-meeting",
+    "body": "## Symptom\nTeams calls disconnect unexpectedly after 10-20 minutes, especially on VPN.\n\n## Resolution\n1. Confirm whether the drop correlates with VPN split-tunnel settings.\n2. Disable VPN and test call stability off VPN.\n3. If stable off VPN, add Teams media traffic to the split-tunnel exclusion list.\n4. Update the Teams client to the latest version.\n5. Confirm stability with a 20-minute test call.\n\n## Escalation\nIf drops persist off VPN, escalate to Network Operations with a packet capture.",
+    "category": "network",
+    "service": "video-conferencing",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0020",
+    "title": "New employee cannot access finance shared folder",
+    "body": "## Symptom\nNewly onboarded finance employee reports no access to the department shared folder.\n\n## Resolution\n1. Confirm the employee's start date and whether their AD account has fully provisioned (can take up to 24 hours).\n2. Verify their manager submitted the correct access request (RITM) for the finance share group.\n3. If the RITM was not submitted, direct the manager to raise one -- do not grant access without an approved request.\n4. Once approved, confirm group membership has synced and test folder access.\n\n## Escalation\nIf provisioning has completed and the RITM is approved but access still fails after 4 hours, escalate to Identity & Access.",
+    "category": "identity",
+    "service": "file-services",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0021",
+    "title": "Docking station not detecting external monitors",
+    "body": "## Symptom\nLaptop connects to a docking station but external monitors remain blank or undetected.\n\n## Resolution\n1. Disconnect and reconnect the dock's power and USB-C/Thunderbolt cable.\n2. Update the docking station firmware and driver from the vendor's site.\n3. Test each monitor port individually to isolate a faulty port.\n4. Restart the laptop with the dock connected.\n\n## Related error codes\n- DISP_NOSIGNAL_04",
+    "category": "hardware",
+    "service": "endpoint",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0022",
+    "title": "SAP GUI RFC_ERROR_COMMUNICATION -- legacy connection guide",
+    "body": "## Symptom\nSAP GUI fails to connect with a communication error.\n\n## Resolution\n1. Check the saved connection points to application server APPSRV-OLD-04.\n2. Manually enter the legacy application server address if the saved entry is blank.\n\nNote: APPSRV-OLD-04 was decommissioned in the 2025 SAP Basis migration. This procedure no longer applies -- see KB0008 for the current connection method.",
+    "category": "software",
+    "service": "sap-erp",
+    "workflow_state": "retired",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0022",
+    "title": "SAP GUI connection cleanup after APPSRV-OLD-04 migration",
+    "body": "## Symptom\nSAP GUI fails to connect with RFC_ERROR_COMMUNICATION after a workstation uses a saved connection entry for APPSRV-OLD-04. The user may still be on the corporate network and other SAP users may connect normally.\n\n## Cause\nThe saved SAP Logon entry still targets the retired application server APPSRV-OLD-04 instead of the current message server group. APPSRV-OLD-04 was removed during the 2025 SAP Basis migration, so direct application-server routing now times out.\n\n## Resolution\n1. Open SAP Logon and identify any connection entry whose application server is APPSRV-OLD-04.\n2. Do not restore APPSRV-OLD-04 or add a local hosts-file workaround.\n3. Replace the direct application-server entry with the current message server and logon group from the published SAP connection details.\n4. Save the entry, reconnect, and confirm the logon screen appears without RFC_ERROR_COMMUNICATION.\n5. If the timeout continues from a known-good corporate network or VPN session, follow KB0008 to verify message-server reachability before escalating.\n\n## Escalation\nEscalate to SAP Basis with the exact SAP Logon entry, the message server group used, and the error text RFC_ERROR_COMMUNICATION if the corrected entry still cannot reach the logon screen.",
+    "category": "software",
+    "service": "sap-erp",
+    "workflow_state": "published",
+    "version": 2,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0023",
+    "title": "Two-factor authentication codes not arriving",
+    "body": "## Symptom\nUser does not receive SMS or app push codes during 2FA login.\n\n## Resolution\n1. Confirm the phone number on file is correct in the identity portal.\n2. Check authenticator app time sync (drift causes code rejection).\n3. Request a backup code from IT if the device is unavailable.\n4. Re-enroll the device if codes still fail after the time sync check.\n\n## Related error codes\n- MFA_TIMEOUT_003",
+    "category": "identity",
+    "service": "identity",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "confidential"
+  },
+  {
+    "article_number": "KB0024",
+    "title": "Corporate laptop fails to wake from sleep",
+    "body": "## Symptom\nLaptop screen stays black and unresponsive when opening the lid after sleep; requires a hard power-off to recover.\n\n## Resolution\n1. Update the graphics and chipset drivers to the latest vendor versions.\n2. Disable fast startup in power options.\n3. Check Event Viewer for a kernel-power error at the time of the freeze.\n4. If the issue persists after driver updates, run a full diagnostic and consider a hardware fault.\n\n## Escalation\nRecurring freezes after driver updates go to Endpoint Engineering with the Event Viewer log attached.",
+    "category": "hardware",
+    "service": "endpoint",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0025",
+    "title": "Shared mailbox not appearing in Outlook",
+    "body": "## Symptom\nA shared mailbox the user has permission to no longer appears automatically in their Outlook folder list.\n\n## Resolution\n1. Confirm the user still has Full Access permission on the shared mailbox via the admin console.\n2. Manually add the shared mailbox: File > Account Settings > Add additional mailbox.\n3. Restart Outlook and allow the folder list to rebuild.\n4. If it still does not appear, remove and re-add the mailbox permission, then repeat step 2.\n\n## Escalation\nIf permissions are confirmed correct but the mailbox never appears, escalate to Collaboration Services.",
+    "category": "software",
+    "service": "corporate-email",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  },
+  {
+    "article_number": "KB0026",
+    "title": "VPN client fails to install on managed laptop",
+    "body": "## Symptom\nVPN client installer fails partway through or the client will not launch after installation on a company-managed laptop.\n\n## Resolution\n1. Confirm the installer is being run from the Company Software Center, not a downloaded copy.\n2. Check that any previous VPN client version has been fully uninstalled first.\n3. Temporarily disable third-party antivirus during installation, then re-enable it after.\n4. Restart the machine and retry installation via Software Center.\n\n## Related error codes\n- ERR_VPN_INSTALL_012",
+    "category": "network",
+    "service": "corporate-vpn",
+    "workflow_state": "published",
+    "version": 1,
+    "security_level": "internal"
+  }
+]
