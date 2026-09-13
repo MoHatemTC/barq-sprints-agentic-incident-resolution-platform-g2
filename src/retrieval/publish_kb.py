@@ -16,6 +16,7 @@ Usage:
 
 import sys
 import json
+import html
 import argparse
 import httpx
 from pathlib import Path
@@ -23,7 +24,29 @@ from pathlib import Path
 from ..config import SERVICENOW, PATHS
 from .servicenow_auth import ServiceNowOAuthClient, ServiceNowAuthError
 from .sources.local_json_source import load_articles_from_json
+from src.servicenow.client import _same
 from src.servicenow.exceptions import ServiceNowWriteNotAppliedError
+
+_CATEGORY_MAPPING_PATH = "data/kb_category_mapping.json"
+
+
+def _load_category_mapping() -> dict:
+    """
+    category name -> kb_category sys_id. kb_category is a reference field,
+    not free text -- a raw string like "network" gets stored as a broken
+    reference (see PR discussion with Aya / mostafa on the controlled
+    vocabulary decision). This mapping is a stopgap using kb_category
+    records created manually in the KB until S1.1/S1.2 own this properly.
+    Categories with no entry here are simply omitted from the payload
+    rather than sent as a broken reference.
+    """
+    if not Path(_CATEGORY_MAPPING_PATH).exists():
+        return {}
+    with open(_CATEGORY_MAPPING_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+_CATEGORY_MAPPING = _load_category_mapping()
 
 
 def load_mapping(path: str = None) -> dict:
@@ -45,11 +68,15 @@ def _build_payload(article) -> dict:
     payload = {
         "short_description": article.title,
         "text": article.body,
-        "kb_category": article.category,
         "workflow_state": article.workflow_state,
     }
     if SERVICENOW.kb_sys_id:
         payload["kb_knowledge_base"] = SERVICENOW.kb_sys_id
+
+    category_sys_id = _CATEGORY_MAPPING.get(article.category)
+    if category_sys_id:
+        payload["kb_category"] = category_sys_id
+
     return payload
 
 
@@ -59,8 +86,6 @@ def _verify_write_applied(
     sys_id: str,
     payload: dict,
 ) -> None:
-    from src.servicenow.client import _same
-
     resp = client.get(
         f"{SERVICENOW.instance_url}/api/now/table/{SERVICENOW.kb_table}/{sys_id}",
         headers=auth.auth_headers(),
@@ -68,6 +93,19 @@ def _verify_write_applied(
     )
     resp.raise_for_status()
     result = resp.json()["result"]
+
+    # kb_knowledge_base and kb_category are reference fields -- ServiceNow
+    # returns {"link": ..., "value": ...} for these, not a bare string.
+    # Extract "value" so _same() compares like-for-like with what we sent.
+    reference_fields = {"kb_knowledge_base", "kb_category"}
+    for field in reference_fields:
+        if isinstance(result.get(field), dict):
+            result[field] = result[field].get("value")
+
+    # ServiceNow HTML-encodes text fields on write (" becomes &#34;).
+    # Unescape before comparing so _same() isn't fooled by encoding.
+    if "text" in result and isinstance(result["text"], str):
+        result["text"] = html.unescape(result["text"])
 
     dropped = [
         field

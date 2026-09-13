@@ -65,6 +65,12 @@ class _FakeClient:
         return _Response(self.read_result)
 
 
+# Fixed sys_id used across tests -- stands in for whatever the real
+# data/kb_category_mapping.json happens to contain, so these tests don't
+# depend on (or break when someone edits) that file.
+_NETWORK_CATEGORY_SYS_ID = "fake-network-category-sys-id"
+
+
 @pytest.fixture
 def publish_env(monkeypatch):
     saved = []
@@ -80,6 +86,9 @@ def publish_env(monkeypatch):
     monkeypatch.setattr(publish_kb, "ServiceNowOAuthClient", _FakeAuth)
     monkeypatch.setattr(publish_kb, "load_articles_from_json", lambda path: [_article()])
     monkeypatch.setattr(publish_kb, "save_mapping", lambda mapping: saved.append(dict(mapping)))
+    monkeypatch.setattr(
+        publish_kb, "_CATEGORY_MAPPING", {"network": _NETWORK_CATEGORY_SYS_ID}
+    )
     return saved
 
 
@@ -91,7 +100,7 @@ def test_post_read_back_matching_workflow_state_succeeds(monkeypatch, publish_en
     read_back = {
         "short_description": "VPN outage",
         "text": "Restart the VPN client.",
-        "kb_category": "network",
+        "kb_category": _NETWORK_CATEGORY_SYS_ID,
         "workflow_state": "published",
     }
     fake_client = _FakeClient(write_result={"sys_id": "new-sys-id"}, read_result=read_back)
@@ -110,7 +119,7 @@ def test_patch_read_back_matching_workflow_state_succeeds(monkeypatch, publish_e
     read_back = {
         "short_description": "VPN outage",
         "text": "Restart the VPN client.",
-        "kb_category": "network",
+        "kb_category": _NETWORK_CATEGORY_SYS_ID,
         "workflow_state": "published",
     }
     fake_client = _FakeClient(write_result={"sys_id": "existing-sys-id"}, read_result=read_back)
@@ -129,7 +138,7 @@ def test_post_read_back_draft_workflow_state_raises(monkeypatch, publish_env):
     read_back = {
         "short_description": "VPN outage",
         "text": "Restart the VPN client.",
-        "kb_category": "network",
+        "kb_category": _NETWORK_CATEGORY_SYS_ID,
         "workflow_state": "draft",
     }
     fake_client = _FakeClient(write_result={"sys_id": "new-sys-id"}, read_result=read_back)
@@ -148,7 +157,7 @@ def test_patch_read_back_draft_workflow_state_raises(monkeypatch, publish_env):
     read_back = {
         "short_description": "VPN outage",
         "text": "Restart the VPN client.",
-        "kb_category": "network",
+        "kb_category": _NETWORK_CATEGORY_SYS_ID,
         "workflow_state": "draft",
     }
     fake_client = _FakeClient(write_result={"sys_id": "existing-sys-id"}, read_result=read_back)
