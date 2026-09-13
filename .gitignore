@@ -36,3 +36,7 @@ logs/
 
 # Temporary local test datasets
 tmp/
+
+# Instance-specific ServiceNow mappings
+data/servicenow_kb_mapping.json
+data/kb_category_mapping.json

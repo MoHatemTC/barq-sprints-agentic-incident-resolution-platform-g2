@@ -53,6 +53,13 @@ def test_dedupe_keeps_highest_non_retired_version_for_version_pairs():
     assert selected["KB0022"]["workflow_state"] == "published"
 
 
+def test_dedupe_is_order_independent_for_equal_versions():
+    first = {"article_number": "KB9999", "version": 1, "workflow_state": "published", "title": "A"}
+    second = {"article_number": "KB9999", "version": 1, "workflow_state": "published", "title": "B"}
+
+    assert dedupe_articles([first, second]) == dedupe_articles([second, first])
+
+
 def test_local_loader_uses_deduped_current_articles():
     articles = load_articles_from_json(str(CORPUS_PATH))
     selected = {article.number: article for article in articles}

@@ -1,17 +1,4 @@
-"""
-Splits article body text into (section, chunk_text) pairs. Each numbered
-procedure/section stays together in a single chunk -- never split
-mid-procedure -- unless a section exceeds the configured chunk size, in
-which case it is further split into overlapping windows (CHUNK_SIZE /
-CHUNK_OVERLAP, from config) so no single chunk grows unbounded. Section
-label is preserved for the payload's `section` field, including on any
-sub-chunks produced from an oversized section.
-
-HTML preprocessing runs before section splitting, so ServiceNow-style HTML
-KB content is converted to clean Markdown (preserving code blocks and
-technical tokens) before chunking ever sees it. Plain Markdown/text input
-passes through preprocessing unchanged.
-"""
+"""Split preprocessed article content into labelled, bounded chunks."""
 
 import re
 
@@ -20,11 +7,7 @@ from src.retrieval.preprocessing import strip_article_html
 
 
 def _split_with_overlap(text: str, chunk_size: int, chunk_overlap: int) -> list[str]:
-    """
-    Splits text into windows of at most chunk_size characters, with
-    chunk_overlap characters of overlap between consecutive windows.
-    Returns [text] unchanged if it already fits within chunk_size.
-    """
+    """Split oversized text into overlapping windows."""
     if len(text) <= chunk_size:
         return [text]
 
@@ -45,18 +28,7 @@ def chunk_article(
     chunk_size: int = None,
     chunk_overlap: int = None,
 ) -> list[tuple[str, str]]:
-    """
-    Returns a list of (section_label, chunk_text) tuples.
-    Splits on markdown '## Header' boundaries; each section becomes one
-    chunk, unless it exceeds chunk_size, in which case it is further split
-    into overlapping sub-chunks (still tagged with the same section label).
-    If no headers are found, the whole body is treated as a single 'body'
-    section subject to the same size/overlap splitting.
-
-    chunk_size / chunk_overlap default to the values in src.config.CHUNKING
-    (CHUNK_SIZE / CHUNK_OVERLAP env vars); the parameters exist so tests
-    can exercise specific values without relying on process-wide env vars.
-    """
+    """Return `(section, text)` chunks using configured size and overlap."""
     chunk_size = CHUNKING.chunk_size if chunk_size is None else chunk_size
     chunk_overlap = CHUNKING.chunk_overlap if chunk_overlap is None else chunk_overlap
 

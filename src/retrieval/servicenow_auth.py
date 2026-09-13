@@ -1,11 +1,4 @@
-"""
-Minimal OAuth token client for ServiceNow's Table API.
-
-Uses the OAuth password grant against the integration identity created in
-S1.2 (Mostafa). No admin credentials are used or accepted here -- this
-client only works with an OAuth client id/secret + service account
-username/password, per FR-06.
-"""
+"""OAuth password-grant token cache for ServiceNow Table API calls."""
 
 import time
 import httpx
@@ -18,11 +11,7 @@ class ServiceNowAuthError(RuntimeError):
 
 
 class ServiceNowOAuthClient:
-    """
-    Fetches and caches an OAuth access token, refreshing automatically
-    when it's close to expiry. A long-running publish job (many articles)
-    should never fail mid-run just because the token aged out.
-    """
+    """Fetch and refresh access tokens before they expire."""
 
     def __init__(self):
         self._access_token = None
@@ -54,7 +43,7 @@ class ServiceNowOAuthClient:
         resp.raise_for_status()
         data = resp.json()
         self._access_token = data["access_token"]
-        # refresh 60s before actual expiry to avoid edge-of-window failures
+        # Avoid a token expiring during a request.
         self._expires_at = time.time() + int(data.get("expires_in", 1800)) - 60
 
     def get_token(self) -> str:

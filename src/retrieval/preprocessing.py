@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from bs4 import BeautifulSoup, NavigableString, Tag
+from bs4 import BeautifulSoup, NavigableString
 
 
 def strip_article_html(content: str) -> str:
@@ -8,7 +8,7 @@ def strip_article_html(content: str) -> str:
     if not content:
         return ""
 
-    # Already-Markdown/plain-text content should remain unchanged.
+    # Avoid parsing content that is already plain text or Markdown.
     if "<" not in content or ">" not in content:
         return content.strip()
 

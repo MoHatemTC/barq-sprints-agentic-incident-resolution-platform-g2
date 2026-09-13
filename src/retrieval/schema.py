@@ -1,21 +1,17 @@
-"""
-Canonical, normalized article representation used throughout the ingestion
-pipeline -- regardless of whether the article came from a local JSON file
-(testing) or ServiceNow's Table API (final, via S1.5's client).
-"""
+"""Canonical article representation shared by retrieval sources."""
 
 from dataclasses import dataclass
 
 
 @dataclass
 class Article:
-    sys_id: str          # ServiceNow internal ID (placeholder until S1.5 hand-off)
-    number: str           # ServiceNow KB number, e.g. "KB0010001"
-    article_id: str       # our own stable ID used for deterministic point IDs
+    sys_id: str
+    number: str
+    article_id: str
     title: str
-    body: str              # raw article content (HTML or markdown, pre-chunking)
+    body: str
     category: str
     service: str
-    workflow_state: str   # draft | published | retired
+    workflow_state: str
     version: int
     security_level: str

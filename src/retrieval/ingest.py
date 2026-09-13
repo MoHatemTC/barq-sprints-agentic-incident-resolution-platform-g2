@@ -4,7 +4,6 @@ embed (dense + sparse) -> upsert to Qdrant. Deterministic point IDs make
 re-running this idempotent.
 """
 
-import os
 import time
 import hashlib
 from qdrant_client import QdrantClient
@@ -17,11 +16,8 @@ from .embedding import embed_dense, embed_sparse, get_model_fingerprint, get_den
 from .chunking import chunk_article
 from .schema import Article
 from .sources.local_json_source import load_articles_from_json
-# Note: dedupe_articles() is applied inside local_json_source.py (and
-# servicenow_source.py once implemented) so every source returns an
-# already-deduped article list. Not called again here on purpose.
 
-# Qdrant point IDs must be an unsigned integer or a UUID -- not an arbitrary string.
+# Qdrant point IDs must be unsigned integers or UUIDs.
 MODEL_FINGERPRINT_MARKER_ID = "00000000-0000-0000-0000-000000000001"
 
 

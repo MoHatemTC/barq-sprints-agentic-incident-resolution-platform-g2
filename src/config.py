@@ -12,14 +12,51 @@ same name, so CI or a different environment can change behavior without
 editing this file.
 """
 
+import json
 import os
+import re
 import certifi
 os.environ["SSL_CERT_FILE"] = certifi.where()
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+_KB_METADATA_FIELDS = {"service", "version", "security_level", "article_number"}
+_SERVICENOW_FIELD_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+
+
+def _metadata_field_map() -> dict[str, str]:
+    """Return canonical article field -> configured ServiceNow column name.
+
+    The Knowledge table does not currently have the S1.4 metadata columns.
+    Keeping this mapping opt-in prevents the publisher from guessing custom
+    column names while letting the ServiceNow schema be wired in later.
+    """
+    raw = os.environ.get("SERVICENOW_KB_METADATA_FIELD_MAP", "{}")
+    try:
+        mapping = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError("SERVICENOW_KB_METADATA_FIELD_MAP must be JSON") from exc
+
+    if not isinstance(mapping, dict):
+        raise ValueError("SERVICENOW_KB_METADATA_FIELD_MAP must be a JSON object")
+
+    unknown = set(mapping) - _KB_METADATA_FIELDS
+    if unknown:
+        raise ValueError(
+            "SERVICENOW_KB_METADATA_FIELD_MAP has unsupported source fields: "
+            f"{sorted(unknown)}"
+        )
+
+    for source_field, servicenow_field in mapping.items():
+        if not isinstance(servicenow_field, str) or not _SERVICENOW_FIELD_NAME.fullmatch(servicenow_field):
+            raise ValueError(
+                f"Invalid ServiceNow field name for {source_field}: {servicenow_field!r}"
+            )
+    return mapping
 
 
 @dataclass(frozen=True)
@@ -39,6 +76,13 @@ class ServiceNowConfig:
     instance_url: str = os.environ.get("SERVICENOW_INSTANCE_URL", "").rstrip("/")
     kb_sys_id: str = os.environ.get("SERVICENOW_KB_SYS_ID", "")
     kb_table: str = os.environ.get("SERVICENOW_KB_TABLE", "kb_knowledge")
+    # Optional, canonical corpus field -> actual kb_knowledge column mapping.
+    # No defaults: the ServiceNow custom columns are owned by S1.1/S1.2.
+    kb_metadata_field_map: dict[str, str] = field(default_factory=_metadata_field_map)
+    # Optional approved publish action. It must be a relative instance path
+    # containing {sys_id}, for example /api/x_scope/kb_publish/{sys_id}.
+    # Empty means Table API publication must succeed by itself.
+    kb_publish_action_path: str = os.environ.get("SERVICENOW_KB_PUBLISH_ACTION_PATH", "")
     # Secrets -- intentionally NO default. Missing values should fail
     # loudly in servicenow_auth.py, not silently authenticate as "".
     oauth_client_id: str = os.environ.get("SERVICENOW_OAUTH_CLIENT_ID", "")
@@ -53,6 +97,9 @@ class PathsConfig:
     coverage_matrix: str = os.environ.get("COVERAGE_MATRIX_PATH", "data/coverage_matrix.csv")
     servicenow_kb_mapping: str = os.environ.get(
         "SERVICENOW_KB_MAPPING_PATH", "data/servicenow_kb_mapping.json"
+    )
+    servicenow_kb_category_mapping: str = os.environ.get(
+        "SERVICENOW_KB_CATEGORY_MAPPING_PATH", "data/kb_category_mapping.json"
     )
 
 

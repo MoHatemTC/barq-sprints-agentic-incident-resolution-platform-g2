@@ -1,9 +1,9 @@
-"""
-Generates dense + sparse vectors for a chunk of article text.
-"""
+"""Generate dense and sparse vectors for retrieval chunks."""
 
 import os
+
 import certifi
+
 os.environ["SSL_CERT_FILE"] = certifi.where()
 
 from sentence_transformers import SentenceTransformer
