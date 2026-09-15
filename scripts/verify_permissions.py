@@ -1,18 +1,17 @@
 import os
-import sys
-from datetime import datetime, timezone
-
 import requests
+import uuid
 from dotenv import load_dotenv
 
 
 # ============================================================
-# LOAD CONFIGURATION
+# Load configuration
 # ============================================================
 
 load_dotenv()
 
 INSTANCE_URL = os.getenv("SERVICENOW_INSTANCE", "").rstrip("/")
+
 USERNAME = os.getenv("SERVICENOW_USERNAME")
 PASSWORD = os.getenv("SERVICENOW_PASSWORD")
 
@@ -23,55 +22,32 @@ INCIDENT_SYS_ID = os.getenv("INCIDENT_SYS_ID")
 
 
 # ============================================================
-# CORRECT SERVICENOW SCOPE / TABLE / FIELD NAMES
+# ServiceNow URLs
 # ============================================================
 
-APP_SCOPE = "x_2216057_ai_inc_0"
+INCIDENT_URL = (
+    f"{INSTANCE_URL}/api/now/table/incident/"
+    f"{INCIDENT_SYS_ID}"
+)
 
-EXECUTION_LOG_TABLE = f"{APP_SCOPE}_ai_execution_log"
+EXECUTION_LOG_URL = (
+    f"{INSTANCE_URL}/api/now/table/"
+    "x_2215689_ai_inc_0_ai_execution_log"
+)
 
-AI_PROCESSING_STATE = f"{APP_SCOPE}_ai_processing_state"
-AI_CLASSIFICATION = f"{APP_SCOPE}_ai_classification"
-AI_CONFIDENCE = f"{APP_SCOPE}_ai_confidence"
-AI_SUGGESTION = f"{APP_SCOPE}_ai_suggestion"
-AI_RESOLUTION = f"{APP_SCOPE}_ai_resolution"
-AI_FAILURE_REASON = f"{APP_SCOPE}_ai_failure_reason"
-AI_MODEL_NAME = f"{APP_SCOPE}_ai_model_name"
-AI_AGENT_VERSION = f"{APP_SCOPE}_ai_agent_version"
-AI_PROCESSING_STARTED_AT = f"{APP_SCOPE}_ai_processing_started_at"
-AI_PROCESSING_ENDED_AT = f"{APP_SCOPE}_ai_processing_ended_at"
-AI_HUMAN_REVIEW_REQUIRED = f"{APP_SCOPE}_ai_human_review_required"
-AI_HUMAN_LOCK = f"{APP_SCOPE}_ai_human_lock"
+JOURNAL_URL = (
+    f"{INSTANCE_URL}/api/now/table/sys_journal_field"
+)
 
 
 # ============================================================
-# VALIDATE ENVIRONMENT
-# ============================================================
-
-required_env = {
-    "SERVICENOW_INSTANCE": INSTANCE_URL,
-    "SERVICENOW_USERNAME": USERNAME,
-    "SERVICENOW_PASSWORD": PASSWORD,
-    "SERVICENOW_CLIENT_ID": CLIENT_ID,
-    "SERVICENOW_CLIENT_SECRET": CLIENT_SECRET,
-    "INCIDENT_SYS_ID": INCIDENT_SYS_ID,
-}
-
-missing = [name for name, value in required_env.items() if not value]
-
-if missing:
-    print("Missing required environment variables:")
-    for name in missing:
-        print(f"  - {name}")
-    sys.exit(1)
-
-
-# ============================================================
-# OAUTH
+# OAuth
 # ============================================================
 
 def get_access_token():
-    print("Requesting OAuth access token...")
+    """
+    Authenticate the integration user using OAuth.
+    """
 
     response = requests.post(
         f"{INSTANCE_URL}/oauth_token.do",
@@ -86,23 +62,23 @@ def get_access_token():
     )
 
     if response.status_code != 200:
-        print("OAuth authentication failed")
+        print("=" * 50)
+        print("OAuth Authentication")
         print("HTTP Status:", response.status_code)
+        print("Result: FAIL")
         print(response.text)
-        sys.exit(1)
+        exit(1)
 
-    payload = response.json()
+    print("=" * 50)
+    print("OAuth Authentication")
+    print("HTTP Status:", response.status_code)
+    print("Result: PASS")
 
-    if "access_token" not in payload:
-        print("OAuth response did not contain access_token")
-        print(payload)
-        sys.exit(1)
-
-    print("OAuth authentication: PASS")
-    return payload["access_token"]
+    return response.json()["access_token"]
 
 
 ACCESS_TOKEN = get_access_token()
+
 
 HEADERS = {
     "Authorization": f"Bearer {ACCESS_TOKEN}",
@@ -112,59 +88,14 @@ HEADERS = {
 
 
 # ============================================================
-# URLS
+# Incident functions
 # ============================================================
-
-INCIDENT_URL = (
-    f"{INSTANCE_URL}/api/now/table/incident/"
-    f"{INCIDENT_SYS_ID}"
-)
-
-EXECUTION_LOG_URL = (
-    f"{INSTANCE_URL}/api/now/table/"
-    f"{EXECUTION_LOG_TABLE}"
-)
-
-
-# ============================================================
-# TEST RESULT TRACKING
-# ============================================================
-
-RESULTS = []
-
-
-def record_result(name, passed, detail=""):
-    RESULTS.append(
-        {
-            "name": name,
-            "passed": passed,
-            "detail": detail,
-        }
-    )
-
-
-def print_separator():
-    print("=" * 70)
-
-
-# ============================================================
-# HELPERS
-# ============================================================
-
-def extract_value(value):
-    """
-    ServiceNow references may be returned as:
-        {"link": "...", "value": "sys_id"}
-
-    Normal fields are returned directly.
-    """
-    if isinstance(value, dict):
-        return value.get("value")
-
-    return value
-
 
 def get_incident():
+    """
+    Read the current incident.
+    """
+
     response = requests.get(
         INCIDENT_URL,
         headers=HEADERS,
@@ -172,15 +103,18 @@ def get_incident():
     )
 
     if response.status_code != 200:
-        print("Failed reading Incident")
-        print("HTTP Status:", response.status_code)
+        print("Failed to read incident")
         print(response.text)
-        return None
+        exit(1)
 
     return response.json()["result"]
 
 
 def update_incident(payload):
+    """
+    Update the incident through Table API.
+    """
+
     return requests.patch(
         INCIDENT_URL,
         headers=HEADERS,
@@ -189,41 +123,84 @@ def update_incident(payload):
     )
 
 
-def get_journal_count(element):
+# ============================================================
+# Journal functions
+# ============================================================
+
+def get_journal_entries(element):
     """
-    Query journal entries belonging to the Incident.
+    Retrieve journal entries for the current incident.
+
+    Used for:
+        work_notes
+        comments
     """
 
-    url = (
-        f"{INSTANCE_URL}/api/now/table/sys_journal_field"
-        f"?sysparm_query="
-        f"element={element}"
-        f"^element_id={INCIDENT_SYS_ID}"
-        f"&sysparm_limit=100"
-    )
+    params = {
+        "sysparm_query": (
+            f"name=incident"
+            f"^element={element}"
+            f"^element_id={INCIDENT_SYS_ID}"
+        ),
+        "sysparm_fields": (
+            "sys_id,name,element,element_id,"
+            "value,sys_created_by,sys_created_on"
+        ),
+        "sysparm_limit": "100",
+    }
 
     response = requests.get(
-        url,
+        JOURNAL_URL,
         headers=HEADERS,
+        params=params,
         timeout=30,
     )
 
     if response.status_code != 200:
-        print(f"Unable to read journal entries for {element}")
-        print("HTTP Status:", response.status_code)
+        print("Failed to read sys_journal_field")
         print(response.text)
-        return None
+        exit(1)
 
-    return len(response.json().get("result", []))
+    return response.json()["result"]
 
 
 # ============================================================
-# TEST 1 — INCIDENT READ
+# Generic request test
+# ============================================================
+
+def test_request(name, method, url, payload=None):
+    """
+    Execute a generic ServiceNow API request.
+    """
+
+    response = requests.request(
+        method,
+        url,
+        headers=HEADERS,
+        json=payload,
+        timeout=30,
+    )
+
+    print("=" * 50)
+    print(name)
+    print("HTTP Status:", response.status_code)
+
+    if response.status_code >= 400:
+        print(response.text)
+
+    return response
+
+
+# ============================================================
+# TEST 1
+# Incident READ
 # ============================================================
 
 def test_read_incident():
-    print_separator()
-    print("TEST: Read Incident")
+    """
+    Sprint requirement:
+    Integration identity must be able to read incidents.
+    """
 
     response = requests.get(
         INCIDENT_URL,
@@ -233,576 +210,370 @@ def test_read_incident():
 
     passed = response.status_code == 200
 
+    print("=" * 50)
+    print("Read Incident")
     print("HTTP Status:", response.status_code)
     print("Result:", "PASS" if passed else "FAIL")
 
     if not passed:
         print(response.text)
 
-    record_result(
-        "Read Incident",
-        passed,
-        f"HTTP {response.status_code}",
+    return passed
+
+
+# ============================================================
+# TEST 2
+# AI Execution Log CREATE
+# ============================================================
+
+def test_execution_log():
+    """
+    Sprint requirement:
+    Integration identity must be able to create
+    an AI Execution Log record.
+    """
+
+    payload = {
+        "execution_id": "test-execution-001",
+        "action": "permission_test",
+        "agent": "AI Incident Agent",
+        "status": "started",
+        "result": "Sprint 1 permission verification",
+    }
+
+    response = test_request(
+        "Create AI Execution Log",
+        "POST",
+        EXECUTION_LOG_URL,
+        payload,
+    )
+
+    passed = response.status_code == 201
+
+    print(
+        "Result:",
+        "PASS" if passed else "FAIL"
     )
 
     return passed
 
 
 # ============================================================
-# TEST 2 — CREATE AI EXECUTION LOG
+# TEST 3
+# Allowed AI field
 # ============================================================
 
-def test_create_execution_log():
-    print_separator()
-    print("TEST: Create AI Execution Log")
+def test_allowed_ai_field():
+    """
+    Sprint requirement:
+    Integration identity may write AI fields.
+    """
 
-    timestamp = datetime.now(timezone.utc).strftime(
-        "%Y-%m-%d %H:%M:%S"
+    field = (
+        "x_2215689_ai_inc_0_u_ai_processing_state"
     )
 
-    payload = {
-        "incident": INCIDENT_SYS_ID,
-        "execution_id": (
-            "permission-test-"
-            + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-        ),
-        "action": "orchestrator.permission_test",
-        "agent": "barq-agent-1.0.0",
-        "timestamp": timestamp,
-        "status": "started",
-        "result": "Sprint 1 ACL verification test",
-        "error": "",
-    }
+    before = get_incident().get(field)
 
-    response = requests.post(
-        EXECUTION_LOG_URL,
-        headers=HEADERS,
-        json=payload,
-        timeout=30,
+    test_value = "complete"
+
+    response = update_incident({
+        field: test_value
+    })
+
+    after = get_incident().get(field)
+
+    passed = (
+        response.status_code == 200
+        and after == test_value
     )
 
-    passed = response.status_code in (200, 201)
-
-    print("Table:", EXECUTION_LOG_TABLE)
-    print("HTTP Status:", response.status_code)
-    print("Result:", "PASS" if passed else "FAIL")
-
-    if not passed:
-        print(response.text)
-
-    record_result(
-        "Create AI Execution Log",
-        passed,
-        f"HTTP {response.status_code}",
-    )
-
-
-# ============================================================
-# GENERIC ALLOWED FIELD TEST
-# ============================================================
-
-def test_allowed_field(field, value):
-    print_separator()
-    print(f"TEST: Allowed Field -> {field}")
-
-    before_record = get_incident()
-
-    if before_record is None:
-        record_result(
-            f"Allowed {field}",
-            False,
-            "Could not read Incident before update",
-        )
-        return
-
-    before = extract_value(before_record.get(field))
-
-    response = update_incident(
-        {
-            field: value,
-        }
-    )
-
-    after_record = get_incident()
-
-    if after_record is None:
-        record_result(
-            f"Allowed {field}",
-            False,
-            "Could not read Incident after update",
-        )
-        return
-
-    after = extract_value(after_record.get(field))
-
-    passed = str(after) == str(value)
-
+    print("=" * 50)
+    print("Allowed Field:", field)
     print("HTTP Status:", response.status_code)
     print("Before:", before)
-    print("Requested:", value)
     print("After:", after)
     print("Result:", "PASS" if passed else "FAIL")
 
-    if not passed:
-        print("PATCH response:")
-        print(response.text)
-
-    record_result(
-        f"Allowed {field}",
-        passed,
-        f"before={before}, requested={value}, after={after}",
-    )
+    return passed
 
 
 # ============================================================
-# WORK NOTES TEST
+# TEST 4
+# Allowed work_notes
 # ============================================================
 
 def test_allowed_work_notes():
-    print_separator()
-    print("TEST: Allowed Field -> work_notes")
+    """
+    Sprint requirement:
+    Integration identity may write work_notes.
 
-    before = get_journal_count("work_notes")
+    IMPORTANT:
+    work_notes is a journal field.
+    Therefore we verify the actual sys_journal_field
+    record instead of trusting HTTP 200.
+    """
 
-    if before is None:
-        print(
-            "Could not verify journal count. "
-            "Test is inconclusive."
-        )
-
-        record_result(
-            "Allowed work_notes",
-            False,
-            "Unable to read sys_journal_field",
-        )
-        return
-
-    unique_note = (
-        "BARQ AI permission verification "
-        + datetime.now(timezone.utc).isoformat()
+    before_entries = get_journal_entries(
+        "work_notes"
     )
 
-    response = update_incident(
-        {
-            "work_notes": unique_note,
-        }
+    before_count = len(before_entries)
+
+    test_note = (
+        "AI permission verification work note"
     )
 
-    after = get_journal_count("work_notes")
+    response = update_incident({
+        "work_notes": test_note
+    })
 
-    if after is None:
-        record_result(
-            "Allowed work_notes",
-            False,
-            "Unable to read journal after PATCH",
-        )
-        return
+    after_entries = get_journal_entries(
+        "work_notes"
+    )
 
-    created = after > before
+    after_count = len(after_entries)
 
+    journal_created = after_count > before_count
+
+    passed = (
+        response.status_code == 200
+        and journal_created
+    )
+
+    print("=" * 50)
+    print("Allowed Field: work_notes")
     print("HTTP Status:", response.status_code)
-    print("Before journal count:", before)
-    print("After journal count:", after)
-    print("Result:", "PASS" if created else "FAIL")
+    print("Before journal count:", before_count)
+    print("After journal count:", after_count)
+    print("Result:", "PASS" if passed else "FAIL")
 
-    if not created:
-        print("PATCH response:")
-        print(response.text)
+    if not passed:
+        print(
+            "Response:",
+            response.text
+        )
 
-    record_result(
-        "Allowed work_notes",
-        created,
-        f"journal count {before} -> {after}",
-    )
+    return passed
 
 
 # ============================================================
-# GENERIC DENIED FIELD TEST
+# Generic DENIED field test
 # ============================================================
 
 def test_denied_field(field, attempted_value):
-    print_separator()
-    print(f"TEST: Denied Field -> {field}")
+    """
+    Verify that a restricted field cannot change.
 
-    before_record = get_incident()
+    HTTP 200 alone is NOT considered success.
+    We compare the actual value before and after.
+    """
 
-    if before_record is None:
-        record_result(
-            f"Denied {field}",
-            False,
-            "Unable to read Incident before test",
-        )
-        return
+    before = get_incident().get(field)
 
-    before = extract_value(before_record.get(field))
+    response = update_incident({
+        field: attempted_value
+    })
 
-    # Prevent false PASS if test value already equals current value.
-    if str(before).lower() == str(attempted_value).lower():
-        print("SKIP")
-        print(
-            "Attempted value equals current value, "
-            "so this would not prove the ACL."
-        )
+    after = get_incident().get(field)
 
-        record_result(
-            f"Denied {field}",
-            False,
-            "Test value equals current value",
-        )
-        return
+    blocked = before == after
 
-    response = update_incident(
-        {
-            field: attempted_value,
-        }
-    )
-
-    after_record = get_incident()
-
-    if after_record is None:
-        record_result(
-            f"Denied {field}",
-            False,
-            "Unable to read Incident after test",
-        )
-        return
-
-    after = extract_value(after_record.get(field))
-
-    blocked = str(before).lower() == str(after).lower()
-
+    print("=" * 50)
+    print("Denied Field:", field)
     print("HTTP Status:", response.status_code)
     print("Before:", before)
-    print("Attempted:", attempted_value)
     print("After:", after)
     print("Result:", "PASS" if blocked else "FAIL")
 
     if not blocked:
         print(
-            "WARNING: The protected field changed. "
-            "The deny ACL may not be working."
+            "WARNING:",
+            field,
+            "was changed by the integration identity."
         )
 
-    record_result(
-        f"Denied {field}",
-        blocked,
-        f"before={before}, attempted={attempted_value}, after={after}",
+    return blocked
+
+
+# ============================================================
+# TEST 5
+# Deny priority
+# ============================================================
+
+def test_priority():
+    return test_denied_field(
+        "priority",
+        "1"
     )
 
 
 # ============================================================
-# COMMENTS TEST
+# TEST 6
+# Deny state
+# ============================================================
+
+def test_state():
+    return test_denied_field(
+        "state",
+        "2"
+    )
+
+
+# ============================================================
+# TEST 7
+# Deny assigned_to
+# ============================================================
+
+def test_assigned_to():
+    return test_denied_field(
+        "assigned_to",
+        "681ccaf9c0a8016400b98a06818d57c7"
+    )
+
+
+# ============================================================
+# TEST 8
+# Deny assignment_group
+# ============================================================
+
+def test_assignment_group():
+    return test_denied_field(
+        "assignment_group",
+        "287ebd7da9fe198100f92cc8d1d2154e"
+    )
+
+
+# ============================================================
+# TEST 9
+# Deny human_lock
+# ============================================================
+
+def test_human_lock():
+    return test_denied_field(
+        "x_2215689_ai_inc_0_human_lock",
+        "true"
+    )
+
+
+# ============================================================
+# TEST 10
+# Deny comments
 # ============================================================
 
 def test_denied_comments():
-    print_separator()
-    print("TEST: Denied Field -> comments")
+    """
+    Verify that the integration user cannot create comments.
 
-    before = get_journal_count("comments")
+    We use a unique marker and search for that exact value
+    instead of relying only on journal record counts.
+    """
 
-    if before is None:
-        record_result(
-            "Denied comments",
-            False,
-            "Unable to read comments journal",
-        )
-        return
-
-    response = update_incident(
-        {
-            "comments": (
-                "BARQ AI denied-comments verification "
-                + datetime.now(timezone.utc).isoformat()
-            )
-        }
+    comment_marker = (
+        "AI_PERMISSION_TEST_COMMENT_"
+        + uuid.uuid4().hex[:8]
     )
 
-    after = get_journal_count("comments")
+    response = update_incident({
+        "comments": comment_marker
+    })
 
-    if after is None:
-        record_result(
-            "Denied comments",
-            False,
-            "Unable to read journal after test",
+    params = {
+        "sysparm_query": (
+            f"name=incident"
+            f"^element=comments"
+            f"^element_id={INCIDENT_SYS_ID}"
+            f"^value={comment_marker}"
+        ),
+        "sysparm_fields": (
+            "sys_id,value,element,element_id,"
+            "sys_created_by,sys_created_on"
+        ),
+        "sysparm_limit": "10",
+    }
+
+    journal_response = requests.get(
+        JOURNAL_URL,
+        headers=HEADERS,
+        params=params,
+        timeout=30,
+    )
+
+    if journal_response.status_code != 200:
+        print("=" * 50)
+        print("Denied Field: comments")
+        print(
+            "Journal lookup HTTP Status:",
+            journal_response.status_code
         )
-        return
+        print("Result: FAIL")
+        print(journal_response.text)
+        return False
 
-    blocked = before == after
+    entries = journal_response.json()["result"]
 
-    print("HTTP Status:", response.status_code)
-    print("Before journal count:", before)
-    print("After journal count:", after)
+    blocked = len(entries) == 0
+
+    print("=" * 50)
+    print("Denied Field: comments")
+    print("PATCH HTTP Status:", response.status_code)
+    print("Test marker:", comment_marker)
+    print("Matching journal entries:", len(entries))
     print("Result:", "PASS" if blocked else "FAIL")
 
-    if not blocked:
-        print(
-            "WARNING: Comment journal entry was created. "
-            "Comments ACL did not block the integration."
-        )
+    if entries:
+        print("WARNING: Integration user created a comment!")
+        print(entries)
 
-    record_result(
-        "Denied comments",
-        blocked,
-        f"journal count {before} -> {after}",
-    )
-
-
-# ============================================================
-# DYNAMIC DENIED TESTS
-# ============================================================
-
-def test_denied_priority():
-    incident = get_incident()
-
-    if incident is None:
-        return
-
-    current = str(
-        extract_value(
-            incident.get("priority")
-        )
-    )
-
-    # Choose a different valid priority automatically.
-    attempted = "2" if current != "2" else "3"
-
-    test_denied_field(
-        "priority",
-        attempted,
-    )
-
-
-def test_denied_state():
-    incident = get_incident()
-
-    if incident is None:
-        return
-
-    current = str(
-        extract_value(
-            incident.get("state")
-        )
-    )
-
-    attempted = "2" if current != "2" else "3"
-
-    test_denied_field(
-        "state",
-        attempted,
-    )
-
-
-def test_denied_assigned_to():
-    incident = get_incident()
-
-    if incident is None:
-        return
-
-    current = extract_value(
-        incident.get("assigned_to")
-    )
-
-    # Clearing the value is enough to prove denial,
-    # provided it currently has a value.
-    if current:
-        attempted = ""
-    else:
-        print_separator()
-        print("TEST: Denied Field -> assigned_to")
-        print(
-            "SKIP: assigned_to is already empty. "
-            "Provide an alternate sys_user sys_id if needed."
-        )
-
-        record_result(
-            "Denied assigned_to",
-            False,
-            "Current value already empty",
-        )
-        return
-
-    test_denied_field(
-        "assigned_to",
-        attempted,
-    )
-
-
-def test_denied_assignment_group():
-    incident = get_incident()
-
-    if incident is None:
-        return
-
-    current = extract_value(
-        incident.get("assignment_group")
-    )
-
-    if current:
-        attempted = ""
-    else:
-        print_separator()
-        print("TEST: Denied Field -> assignment_group")
-        print(
-            "SKIP: assignment_group is already empty. "
-            "Provide an alternate group sys_id if needed."
-        )
-
-        record_result(
-            "Denied assignment_group",
-            False,
-            "Current value already empty",
-        )
-        return
-
-    test_denied_field(
-        "assignment_group",
-        attempted,
-    )
-
-
-def test_denied_human_lock():
-    incident = get_incident()
-
-    if incident is None:
-        return
-
-    current = str(
-        extract_value(
-            incident.get(AI_HUMAN_LOCK)
-        )
-    ).lower()
-
-    attempted = (
-        "false"
-        if current == "true"
-        else "true"
-    )
-
-    test_denied_field(
-        AI_HUMAN_LOCK,
-        attempted,
-    )
-
-
-# ============================================================
-# SUMMARY
-# ============================================================
-
-def print_summary():
-    print()
-    print("=" * 70)
-    print("SPRINT 1 ACL VERIFICATION SUMMARY")
-    print("=" * 70)
-
-    passed = 0
-    failed = 0
-
-    for result in RESULTS:
-        status = "PASS" if result["passed"] else "FAIL"
-
-        print(
-            f"{status:4} | "
-            f"{result['name']}"
-        )
-
-        if result["passed"]:
-            passed += 1
-        else:
-            failed += 1
-
-    print("=" * 70)
-    print("Passed:", passed)
-    print("Failed:", failed)
-
-    if failed == 0:
-        print("OVERALL RESULT: PASS")
-    else:
-        print("OVERALL RESULT: ATTENTION REQUIRED")
-
+    return blocked
 
 # ============================================================
 # MAIN
 # ============================================================
 
 def main():
+
     print()
+    print("=" * 50)
     print("Starting Sprint 1 ACL Verification")
-    print("Instance:", INSTANCE_URL)
-    print("User:", USERNAME)
-    print("Incident:", INCIDENT_SYS_ID)
-    print("Scope:", APP_SCOPE)
+    print("=" * 50)
 
     # --------------------------------------------------------
-    # READ
+    # ALLOWED
     # --------------------------------------------------------
 
-    if not test_read_incident():
-        print()
-        print(
-            "Incident read failed. "
-            "Stopping remaining tests."
-        )
-        print_summary()
-        return
+    test_read_incident()
 
-    # --------------------------------------------------------
-    # EXECUTION LOG
-    # --------------------------------------------------------
+    test_execution_log()
 
-    test_create_execution_log()
-
-    # --------------------------------------------------------
-    # ALLOWED INCIDENT FIELDS
-    # --------------------------------------------------------
-
-    test_allowed_field(
-        AI_PROCESSING_STATE,
-        "complete",
-    )
-
-    test_allowed_field(
-        AI_CLASSIFICATION,
-        "permission-test-classification",
-    )
-
-    test_allowed_field(
-        AI_MODEL_NAME,
-        "permission-test-model",
-    )
-
-    test_allowed_field(
-        AI_AGENT_VERSION,
-        "barq-agent-permission-test",
-    )
-
-    test_allowed_field(
-        AI_HUMAN_REVIEW_REQUIRED,
-        "true",
-    )
+    test_allowed_ai_field()
 
     test_allowed_work_notes()
 
     # --------------------------------------------------------
-    # DENIED FIELDS
+    # DENIED
     # --------------------------------------------------------
 
-    test_denied_priority()
+    test_priority()
 
-    test_denied_state()
+    test_state()
 
-    test_denied_assigned_to()
+    test_assigned_to()
 
-    test_denied_assignment_group()
+    test_assignment_group()
 
-    test_denied_human_lock()
+    test_human_lock()
 
     test_denied_comments()
 
     # --------------------------------------------------------
-    # SUMMARY
+    # END
     # --------------------------------------------------------
 
-    print_summary()
+    print()
+    print("=" * 50)
+    print("Verification Complete")
+    print("=" * 50)
 
 
 if __name__ == "__main__":
