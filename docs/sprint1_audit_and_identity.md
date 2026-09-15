@@ -1,233 +1,387 @@
-# BARQ — Agentic Incident Resolution Platform G2
+# Sprint 1 — Audit, OAuth Integration Identity & Least-Privilege Security
 
-A production-grade ServiceNow incident resolution platform featuring LangGraph orchestration, hybrid RAG, safety guardrails, observability, least-privilege access control, and human-in-the-loop approval.
+## Task
 
-**Current sprint:** Sprint 1
-**S1.2 status:**  Completed — AI Execution Log, OAuth Integration Identity & Least-Privilege ACLs
+**BARQ G2 — Sprint 1 (S1.2)**
+**AI Execution Log Table, OAuth Integration Identity & Least-Privilege ACLs**
 
----
-
-
-## S1.2 — Security, Audit & Integration Identity
-
-Sprint 1 task S1.2 establishes the ServiceNow audit trail and restricted integration identity used by the AI Incident Orchestrator.
-
-The implementation follows a least-privilege model: the AI integration identity can perform only the operations required by the orchestration platform while sensitive incident-management fields remain protected.
-
-### AI Execution Log
-
-A scoped **AI Execution Log** table was created in the AI Incident Orchestrator ServiceNow application.
-
-Execution records capture:
-
-* Incident reference
-* Execution ID
-* Action
-* Agent
-* Timestamp
-* Status
-* Result
-* Error
-
-Execution IDs are queryable, and execution history is available from the associated incident.
-
-The execution status taxonomy supports at least:
-
-* `started`
-* `succeeded`
-* `failed`
-* `blocked`
-* `awaiting approval`
-
-The action model supports orchestration activity including downstream graph nodes and tool calls.
+**Status:** ✅ Completed
 
 ---
 
-## OAuth Integration Identity
+## 1. Overview
 
-A dedicated ServiceNow OAuth application and integration identity are used for machine-to-machine access.
+Sprint 1 task S1.2 establishes the ServiceNow security, audit, and integration-identity foundation for the BARQ AI Incident Orchestrator.
 
-The integration user:
+The implementation includes:
 
-* Is a dedicated service account
-* Does **not** have the `admin` role
-* Uses a purpose-built integration role
-* Authenticates using OAuth rather than administrator credentials
-* Is restricted by ServiceNow ACLs
-* Can write audit events to the AI Execution Log
+* AI Execution Log table
+* OAuth application registration
+* Dedicated non-admin integration identity
+* Purpose-built integration role
+* Least-privilege table and field ACLs
+* Human-lock protection
+* Empirical permission verification using the ServiceNow Table API
+* OAuth token lifecycle and expiry handling documentation
 
-OAuth token lifecycle behavior, refresh handling, and mid-run token expiry behavior are documented in:
+The resulting security model allows the AI integration to perform only the operations required by the orchestration workflow while protecting sensitive incident-management fields from automated modification.
+
+---
+
+## 2. AI Execution Log
+
+A scoped AI Execution Log table was created inside the AI Incident Orchestrator application.
+
+The table provides an auditable history of AI orchestration activity and allows execution records to be traced back to the associated ServiceNow incident.
+
+### Fields
+
+| Field        | Purpose                                                     |
+| ------------ | ----------------------------------------------------------- |
+| Incident     | Reference to the associated incident                        |
+| Execution ID | Unique identifier for an orchestration execution            |
+| Action       | Graph node, operation, or tool call performed               |
+| Agent        | Agent or orchestration component responsible for the action |
+| Timestamp    | Time the execution event occurred                           |
+| Status       | Current state of the execution step                         |
+| Result       | Output or result produced by the execution                  |
+| Error        | Error information when execution fails                      |
+
+The Execution ID field is queryable through the ServiceNow Table API.
+
+Execution history is also available from the incident through the configured related list.
+
+---
+
+## 3. Execution Status Taxonomy
+
+The execution log supports the required status values:
+
+| Status              | Meaning                                                       |
+| ------------------- | ------------------------------------------------------------- |
+| `started`           | Execution or action has begun                                 |
+| `succeeded`         | Execution completed successfully                              |
+| `failed`            | Execution encountered an error                                |
+| `blocked`           | Execution was prevented by a safety, security, or policy rule |
+| `awaiting approval` | Execution is waiting for human authorization                  |
+
+This taxonomy allows the orchestration layer to represent both normal execution and human-in-the-loop control states.
+
+---
+
+## 4. Action Taxonomy
+
+The `action` field supports orchestration activity at multiple levels.
+
+Examples include:
+
+* LangGraph node execution
+* Tool invocation
+* ServiceNow API operation
+* Retrieval operation
+* Safety or policy evaluation
+* Approval request
+* Approval result
+* Incident update
+* Audit-log creation
+
+This allows downstream graph nodes and tool calls to be represented consistently in the execution history.
+
+---
+
+## 5. OAuth Integration Identity
+
+A dedicated OAuth application was registered in ServiceNow for the AI Incident Orchestrator.
+
+A separate integration identity is used for API access.
+
+The integration identity:
+
+* Is not an administrator
+* Is configured as a service account
+* Uses a purpose-built role
+* Does not inherit the `admin` role
+* Is restricted through ServiceNow ACLs
+* Can access only the resources required by the orchestration workflow
+
+No administrator credentials are stored in source code, configuration files, documentation, or templates.
+
+---
+
+## 6. OAuth Token Lifecycle
+
+The integration uses OAuth access tokens for ServiceNow API authentication.
+
+### Access Token Handling
+
+The integration obtains an OAuth access token before making authenticated ServiceNow requests.
+
+The token is passed using the standard authorization header:
 
 ```text
-docs/sprint1_audit_and_identity.md
+Authorization: Bearer <access_token>
 ```
 
-No administrator credentials, OAuth secrets, passwords, or access tokens are committed to the repository.
+Tokens are never hard-coded into application source files or committed to Git.
+
+Sensitive OAuth values are loaded from local environment configuration.
 
 ---
 
-## Least-Privilege ACL Model
+## 7. Refresh Handling
 
-ServiceNow ACLs restrict the integration identity to the fields required by the AI orchestration workflow.
+When an access token expires, the integration requests a new token using the configured OAuth flow.
 
-### Permitted Operations
+The application must not fall back to an administrator username or password when token refresh fails.
 
-The integration identity can write:
+If a refresh operation fails:
+
+1. The ServiceNow request is stopped.
+2. The failure is recorded.
+3. The current orchestration execution is marked appropriately.
+4. The integration does not retry using elevated credentials.
+
+This preserves the least-privilege security boundary.
+
+---
+
+## 8. Mid-Run Token Expiry
+
+An OAuth token can expire while an orchestration run is still active.
+
+The expected behavior is:
+
+1. An API request returns an authentication failure.
+2. The integration requests a fresh OAuth token.
+3. The original API operation is retried once with the new token.
+4. If authentication still fails, the operation terminates.
+5. The failure is recorded in the execution log.
+
+The integration never switches to an administrator account as a recovery mechanism.
+
+---
+
+## 9. Least-Privilege Role
+
+A dedicated ServiceNow role was created for the AI integration identity.
+
+Its purpose is to grant only the permissions required by the orchestration system.
+
+The integration identity requires access to:
 
 * AI-specific incident fields
 * Work notes
 * AI Execution Log records
 
-### Explicitly Restricted Incident Fields
-
-The integration identity is denied write access to:
-
-* `state`
-* `assigned_to`
-* `assignment_group`
-* `priority`
-* `comments`
-
-The human-lock field is also protected from the integration identity and remains controlled by human users.
-
-This prevents the AI orchestration layer from silently changing ownership, workflow state, priority, human comments, or human-control safeguards.
+It does not require general incident-administration privileges.
 
 ---
 
-## Empirical Permission Verification
+## 10. Permission Matrix
 
-Permissions are verified through the ServiceNow Table API rather than being assumed from ACL configuration.
+The following matrix represents the tested security model for the integration identity.
 
-The verification harness is located at:
+| Resource / Field            | Operation | Expected | Observed | Reason                                               |
+| --------------------------- | --------- | -------: | -------: | ---------------------------------------------------- |
+| AI-specific incident fields | Write     |    ALLOW |    ALLOW | Required for AI orchestration metadata               |
+| Work notes                  | Write     |    ALLOW |    ALLOW | Required for auditable AI-generated incident updates |
+| AI Execution Log            | Create    |    ALLOW |    ALLOW | Required for execution audit trail                   |
+| `state`                     | Write     |     DENY |     DENY | Workflow state remains protected                     |
+| `assigned_to`               | Write     |     DENY |     DENY | AI cannot reassign ownership                         |
+| `assignment_group`          | Write     |     DENY |     DENY | AI cannot change operational ownership               |
+| `priority`                  | Write     |     DENY |     DENY | AI cannot independently alter incident priority      |
+| `comments`                  | Write     |     DENY |     DENY | Customer-facing comments remain human-controlled     |
+| Human-lock flag             | Write     |     DENY |     DENY | AI cannot override human control                     |
+
+---
+
+## 11. Allowed Operations
+
+The integration identity is permitted to perform only the operations required by the AI Incident Orchestrator.
+
+### AI Fields
+
+The integration identity can write to the AI-specific incident fields created for the orchestration workflow.
+
+These fields store orchestration state and metadata rather than core human-managed incident properties.
+
+### Work Notes
+
+The integration identity can write to `work_notes`.
+
+This allows AI-generated actions and investigation results to be recorded in the internal incident journal.
+
+### AI Execution Log
+
+The integration identity can create execution-log records.
+
+This is necessary so every AI execution step can be audited.
+
+---
+
+## 12. Explicitly Denied Operations
+
+The integration identity is explicitly prevented from writing to sensitive incident fields.
+
+### State
+
+The AI integration cannot directly modify:
+
+```text
+state
+```
+
+This prevents automated execution from changing the lifecycle state of an incident without the required human or workflow controls.
+
+### Assignment
+
+The integration cannot modify:
+
+```text
+assigned_to
+assignment_group
+```
+
+Assignment and ownership remain under human or authorized ServiceNow workflow control.
+
+### Priority
+
+The integration cannot modify:
+
+```text
+priority
+```
+
+This prevents the AI system from independently changing incident severity or operational prioritization.
+
+### Comments
+
+The integration cannot modify:
+
+```text
+comments
+```
+
+Customer-facing comments remain protected from direct automated writes.
+
+---
+
+## 13. Human-Lock Protection
+
+The human-lock flag represents explicit human control over AI execution.
+
+The integration identity is denied write access to this field.
+
+Only authorized human users may modify the human-lock value.
+
+This prevents an automated process from disabling or bypassing a human-imposed execution restriction.
+
+---
+
+## 14. Empirical Verification Harness
+
+Permission behavior is validated using:
 
 ```text
 scripts/verify_permissions.py
 ```
 
-It executes both permitted and prohibited operations and records the observed ServiceNow responses.
+The verification script executes real ServiceNow Table API requests using the integration identity.
 
-The harness verifies that:
+It tests both:
 
-* AI fields can be written
-* Work notes can be written
-* AI Execution Log records can be created
-* Restricted fields cannot be modified
-* Human-lock modification by the integration identity is rejected
+* Operations that should succeed
+* Operations that should be denied
 
-Run the verification harness with:
-
-```bash
-python scripts/verify_permissions.py
-```
-
-Observed results and least-privilege reasoning are documented in:
-
-```text
-docs/sprint1_audit_and_identity.md
-```
+This provides empirical evidence of the configured ACL behavior rather than relying only on ServiceNow configuration review.
 
 ---
 
-## Project Structure
+## 15. Verification Strategy
 
-```text
-barq-sprints-agentic-incident-resolution-platform-g2/
-│
-├── docker-compose.yml                    # S1.4 — Qdrant + PostgreSQL + Redis
-├── .env.example                          # committed with empty values only
-├── .gitignore                            # .env and local secrets excluded
-├── README.md
-├── requirements.txt
-│
-├── servicenow/
-│   └── ai_incident_orchestrator/
-│       ├── .gitkeep
-│       └── *.xml                         # S1.1/S1.2/S1.3 ServiceNow update sets
-│
-├── src/
-│   ├── __init__.py
-│   │
-│   ├── servicenow/                       # S1.5 — Table API client
-│   │   └── __init__.py
-│   │
-│   └── retrieval/                        # S1.4
-│       └── __init__.py
-│
-├── scripts/
-│   └── verify_permissions.py             # S1.2 — empirical ACL verification
-│
-├── data/
-│   └── coverage_matrix.csv               # S1.4 — retrieval ground truth
-│
-├── tests/
-│   └── __init__.py                       # S1.5
-│
-└── docs/
-    ├── sprint1_audit_and_identity.md      # S1.2 — ACL matrix + OAuth lifecycle
-    └── sprint1_servicenow_client.md       # S1.5
-```
+The verification harness performs operations such as:
+
+### Expected to Succeed
+
+* Update an AI-specific incident field
+* Add a work note
+* Create an AI Execution Log record
+
+### Expected to Fail
+
+* Modify incident state
+* Modify assigned user
+* Modify assignment group
+* Modify priority
+* Modify comments
+* Modify the human-lock field
+
+Each operation records the observed HTTP response and determines whether the behavior matches the intended security model.
 
 ---
 
-## S1.2 Deliverables
+## 16. Least-Privilege Reasoning
 
-The completed S1.2 implementation contains the following deliverables:
+The integration identity follows the principle of least privilege.
 
-```text
-servicenow/ai_incident_orchestrator/
-docs/sprint1_audit_and_identity.md
-scripts/verify_permissions.py
-```
+Every granted permission exists because the orchestration system requires it to perform a defined function.
 
-### ServiceNow Configuration
+### Why AI fields are writable
 
-`servicenow/ai_incident_orchestrator/` contains the ServiceNow scoped-application changes associated with:
+AI-specific fields store orchestration metadata and results.
 
-* AI Execution Log table
-* Execution log field model
-* Incident execution-history relationship
-* OAuth integration setup
-* Dedicated integration role
-* Table ACLs
-* Field-level ACLs
-* Human-lock protection
+The AI integration must be able to maintain these values.
 
-### Audit & Identity Documentation
+### Why work notes are writable
 
-`docs/sprint1_audit_and_identity.md` documents:
+Work notes provide an internal audit trail of AI-generated investigation and execution activity.
 
-* OAuth integration identity
-* Token lifecycle
-* Refresh behavior
-* Mid-run token expiry handling
-* Permission matrix
-* Observed Table API results
-* Granted permissions
-* Denied permissions
-* Least-privilege reasoning
+### Why execution logs are writable
 
-### Permission Test Harness
+Execution logging is required to provide traceability across graph nodes, agents, and tool calls.
 
-`scripts/verify_permissions.py` validates ServiceNow permissions empirically using the Table API.
+### Why state is denied
 
-The script is intended to demonstrate that expected writes succeed and restricted writes fail under the integration identity.
+Changing incident state is an operationally significant action that should remain under controlled workflow or human authority.
+
+### Why assignment fields are denied
+
+Assignment changes affect ownership and operational responsibility.
+
+The AI integration does not require these permissions.
+
+### Why priority is denied
+
+Priority affects escalation and operational response.
+
+The AI integration does not require direct control over it.
+
+### Why comments are denied
+
+Comments may be customer-visible and therefore remain under human control.
+
+### Why human-lock is denied
+
+Allowing the AI to disable its own human-control mechanism would violate the safety boundary.
 
 ---
 
-## Security Requirements
+## 17. Credential Security
 
-The repository follows the following credential-handling rules:
+No administrator credentials are used by the integration.
 
-* Never commit `.env`
-* Never commit ServiceNow passwords
-* Never commit OAuth client secrets
-* Never commit access tokens
-* Never commit refresh tokens
-* Never use an administrator account for the AI integration
-* Never place credentials directly inside Python source files
-* Never place credentials inside ServiceNow configuration documentation
+The repository must never contain:
 
-Only environment-variable names and empty example values belong in `.env.example`.
+* ServiceNow administrator passwords
+* Integration-user passwords
+* OAuth client secrets
+* OAuth access tokens
+* OAuth refresh tokens
+* Hard-coded authentication headers
+
+Local secrets are stored through environment configuration and excluded from version control.
+
+The committed `.env.example` contains only variable names with empty values.
 
 Example:
 
@@ -239,240 +393,86 @@ SERVICENOW_USERNAME=
 SERVICENOW_PASSWORD=
 ```
 
-Local secrets must be stored only in:
+The actual `.env` file must remain excluded through `.gitignore`.
+
+---
+
+## 18. Security Boundary
+
+The resulting integration security model is:
 
 ```text
-.env
-```
-
-and `.env` must remain ignored by Git.
-
----
-
-## Setup
-
-### Prerequisites
-
-* Python 3.11+
-* Git
-* Docker / Docker Compose for S1.4 infrastructure
-* Access to the configured ServiceNow PDI
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2.git
-cd barq-sprints-agentic-incident-resolution-platform-g2
-```
-
-### 2. Create and Activate a Virtual Environment
-
-```bash
-python -m venv venv
-```
-
-Windows PowerShell:
-
-```powershell
-.\venv\Scripts\Activate.ps1
-```
-
-macOS / Linux:
-
-```bash
-source venv/bin/activate
-```
-
-### 3. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Configure Environment Variables
-
-Copy the environment template and fill in the values locally.
-
-Windows PowerShell:
-
-```powershell
-Copy-Item .env.example .env
-```
-
-macOS / Linux:
-
-```bash
-cp .env.example .env
-```
-
-`.env` must never be committed.
-
----
-
-## Start the Infrastructure Stack
-
-S1.4 infrastructure uses Qdrant, PostgreSQL, and Redis.
-
-Start the stack:
-
-```bash
-docker compose up -d
-```
-
-Check container health:
-
-```bash
-docker compose ps
-```
-
-Stop the stack:
-
-```bash
-docker compose down
-```
-
----
-
-## Verification
-
-### Verify ServiceNow Permissions
-
-Run the S1.2 empirical permission harness:
-
-```bash
-python scripts/verify_permissions.py
-```
-
-The expected security model is:
-
-```text
-Integration Identity
+AI Integration Identity
         │
-        ├── AI fields ................ ALLOW
-        ├── Work notes ............... ALLOW
-        ├── AI Execution Log ......... ALLOW
+        ├── AI-specific fields .......... ALLOW
+        ├── Work notes .................. ALLOW
+        ├── AI Execution Log ............ ALLOW
         │
-        ├── State .................... DENY
-        ├── Assigned To .............. DENY
-        ├── Assignment Group ......... DENY
-        ├── Priority ................. DENY
-        ├── Comments ................. DENY
-        └── Human Lock ............... DENY
+        ├── State ....................... DENY
+        ├── Assigned To ................. DENY
+        ├── Assignment Group ............ DENY
+        ├── Priority .................... DENY
+        ├── Comments .................... DENY
+        └── Human Lock .................. DENY
 ```
 
-### Run Automated Tests
-
-```bash
-pytest
-```
+This creates a clear boundary between AI automation and human-controlled incident operations.
 
 ---
 
-## S1.2 Definition of Done
+## 19. Deliverables
 
-S1.2 is considered complete because:
-
-*  AI Execution Log table exists in the scoped ServiceNow application
-*  Execution records can be associated with incidents
-*  Execution IDs are queryable
-*  Execution history is available from incidents
-*  Required execution statuses are supported
-*  OAuth integration application is configured
-*  Dedicated non-admin service identity exists
-*  Purpose-built integration role exists
-*  Required AI fields are writable
-*  Work notes are writable
-*  Execution log records are writable
-*  `state` writes are denied
-*  `assigned_to` writes are denied
-*  `assignment_group` writes are denied
-*  `priority` writes are denied
-*  `comments` writes are denied
-*  Human-lock writes from the integration identity are denied
-*  Permissions are tested empirically through the Table API
-*  Permission results and least-privilege reasoning are documented
-*  No administrator credentials are stored in code or configuration
-
----
-
-## Contributing
-
-### Dependencies
-
-Whenever a new Python package is installed, regenerate `requirements.txt`:
-
-```bash
-pip install <package>
-pip freeze > requirements.txt
-```
-
-Commit the updated `requirements.txt` together with the change that requires it.
-
-After pulling changes that modify dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
----
-
-## Branching & Pull Requests
-
-Do **not** commit directly to `main`.
-
-Every change must go through a feature branch and pull request.
-
-Create a branch:
-
-```bash
-git checkout main
-git pull origin main
-git checkout -b <your-branch-name>
-```
-
-Commit and push:
-
-```bash
-git add .
-git commit -m "<type>: <short description>"
-git push -u origin <your-branch-name>
-```
-
-Then:
-
-1. Open a pull request against `main`.
-2. Request review.
-3. Address review comments.
-4. Merge only after approval.
-
-For S1.2, the working branch is:
+The completed S1.2 deliverables are:
 
 ```text
-feature/s1-2-execution-log-oauth-acl
+servicenow/ai_incident_orchestrator/
+docs/sprint1_audit_and_identity.md
+scripts/verify_permissions.py
 ```
 
----
+The ServiceNow application configuration contains the scoped table, OAuth configuration, integration identity role, and associated ACL configuration.
 
-## Architecture Principles
+The verification script provides empirical permission testing.
 
-The BARQ AI Incident Orchestrator follows several core principles:
-
-**Least privilege** — AI identities receive only the permissions necessary to perform their intended operations.
-
-**Auditable execution** — orchestration actions are recorded through the AI Execution Log.
-
-**Human control** — sensitive workflow decisions and human-lock controls cannot be overridden by the integration identity.
-
-**Credential isolation** — secrets remain outside source control.
-
-**Empirical security verification** — permissions are validated through actual API requests rather than inferred solely from configuration.
-
-**Separation of responsibilities** — ServiceNow security, orchestration, retrieval, observability, and infrastructure concerns remain independently testable.
+This document records the resulting permission matrix, OAuth behavior, and least-privilege rationale.
 
 ---
 
-## Project
+## 20. Definition of Done
 
-**BARQ — Agentic Incident Resolution Platform G2**
+S1.2 satisfies the sprint definition of done:
 
-Sprint 1 establishes the ServiceNow foundation, security model, audit trail, integration infrastructure, and API interfaces required for later LangGraph-based incident orchestration.
+* ✅ AI Execution Log table created
+* ✅ Incident reference configured
+* ✅ Execution ID is queryable
+* ✅ Execution history is available from incidents
+* ✅ Required status taxonomy implemented
+* ✅ Action taxonomy supports graph nodes and tool calls
+* ✅ OAuth application configured
+* ✅ Dedicated integration identity created
+* ✅ Integration identity does not have admin privileges
+* ✅ Purpose-built integration role configured
+* ✅ AI-specific fields are writable
+* ✅ Work notes are writable
+* ✅ AI Execution Log records are writable
+* ✅ State changes are denied
+* ✅ Assigned-to changes are denied
+* ✅ Assignment-group changes are denied
+* ✅ Priority changes are denied
+* ✅ Comment writes are denied
+* ✅ Human-lock writes by the integration identity are denied
+* ✅ Permissions are verified empirically through the Table API
+* ✅ OAuth token lifecycle is documented
+* ✅ Mid-run token expiry behavior is documented
+* ✅ Least-privilege reasoning is documented
+* ✅ No administrator credentials exist in code or configuration
+
+---
+
+## 21. Conclusion
+
+Sprint 1 S1.2 establishes a secure and auditable ServiceNow integration boundary for the BARQ AI Incident Orchestrator.
+
+The AI integration has sufficient access to maintain AI metadata, write internal work notes, and record execution history while remaining unable to modify sensitive incident-management fields.
+
+The implementation provides the auditability, least-privilege enforcement, and human-control guarantees required for future orchestration work.
