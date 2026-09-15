@@ -3,7 +3,7 @@
 A production-grade ServiceNow incident resolution platform featuring LangGraph orchestration, hybrid RAG, safety guardrails, observability, least-privilege access control, and human-in-the-loop approval.
 
 **Current sprint:** Sprint 1
-**S1.2 status:** ✅ Completed — AI Execution Log, OAuth Integration Identity & Least-Privilege ACLs
+**S1.2 status:**  Completed — AI Execution Log, OAuth Integration Identity & Least-Privilege ACLs
 
 
 
