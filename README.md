@@ -5,17 +5,7 @@ A production-grade ServiceNow incident resolution platform featuring LangGraph o
 **Current sprint:** Sprint 1
 **S1.2 status:** ✅ Completed — AI Execution Log, OAuth Integration Identity & Least-Privilege ACLs
 
----
 
-## Sprint 1 Progress
-
-| Task | Description                                                               | Status                |
-| ---- | ------------------------------------------------------------------------- | --------------------- |
-| S1.1 | Scoped AI Incident Orchestrator Application & Incident Field Model        | ✅ Completed           |
-| S1.2 | AI Execution Log Table, OAuth Integration Identity & Least-Privilege ACLs | ✅ Completed           |
-| S1.3 | ServiceNow platform work                                                  | In progress / pending |
-| S1.4 | Qdrant, PostgreSQL, Redis & retrieval infrastructure                      | In progress / pending |
-| S1.5 | ServiceNow Table API client                                               | In progress / pending |
 
 ---
 
