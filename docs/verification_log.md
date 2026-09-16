@@ -58,13 +58,20 @@ Result: still 86, consistent.
 
 ## 6. Full container down/up cycle (separate run, same corpus size)
 
-```
+## 6. Full container down/up cycle (persistence check, no re-ingestion)
+
+\`\`\`
 $ docker compose down
 $ docker compose up -d
-$ python -m src.retrieval.ingest
-Ingestion complete: {'point_count': 86, ...}
-```
-Result: 86 points retained across a full `down` → `up` cycle.
+$ python -c "from src.config import QDRANT; from qdrant_client import QdrantClient; \
+c = QdrantClient(url=QDRANT.url, check_compatibility=False); \
+print(c.get_collection(QDRANT.collection_name).points_count)"
+86
+\`\`\`
+Result: 86 points retained across a full `down` → `up` cycle, confirmed
+via direct query with **no ingestion run in between** — the strongest
+persistence evidence, since `down` fully removes the container (not just
+restarts it) while the named volume survives.
 
 ## 7. Retrieval smoke test
 
