@@ -37,6 +37,7 @@ def _task(
     agent: StubAgentExecutor,
     *,
     max_retries: int = 2,
+    shutdown_timeout_seconds: int = 60,
 ):
     app = create_celery_app(
         WorkerConfig(
@@ -52,7 +53,7 @@ def _task(
             retry_max_delay_seconds=60,
             task_acks_late=True,
             task_reject_on_worker_lost=True,
-            worker_shutdown_timeout_seconds=60,
+            worker_shutdown_timeout_seconds=shutdown_timeout_seconds,
         )
     )
     recorder = RecordingStateRecorder()
@@ -238,6 +239,43 @@ def test_task_dead_letters_exhausted_unexpected_retryable_failure_once():
     assert len(recorder.failures) == 1
     assert recorder.failures[0].incident == incident
     assert recorder.failures[0].error is error
+    assert len(dlq.transitions) == 1
+    assert dlq.transitions[0].incident == incident
+    assert dlq.transitions[0].error is error
+
+
+def test_shutdown_timeout_does_not_change_task_retry_behavior():
+    incident = _incident()
+    error = RetryableAgentFailure("temporary")
+    task, recorder, dlq = _task(
+        StubAgentExecutor(error=error),
+        shutdown_timeout_seconds=120,
+    )
+
+    with patch.object(task, "retry", return_value="retry-scheduled") as retry:
+        result = task.apply(args=(incident,), retries=0, throw=True)
+
+    assert result.result == "retry-scheduled"
+    retry.assert_called_once_with(exc=error, countdown=5, max_retries=2)
+    assert len(recorder.retries) == 1
+    assert recorder.failures == []
+    assert dlq.transitions == []
+
+
+def test_shutdown_timeout_does_not_change_task_dlq_behavior():
+    incident = _incident()
+    error = TerminalAgentFailure("invalid")
+    task, recorder, dlq = _task(
+        StubAgentExecutor(error=error),
+        shutdown_timeout_seconds=120,
+    )
+
+    result = task.apply(args=(incident,), retries=0)
+
+    assert result.state == "FAILURE"
+    assert result.result is error
+    assert recorder.retries == []
+    assert len(recorder.failures) == 1
     assert len(dlq.transitions) == 1
     assert dlq.transitions[0].incident == incident
     assert dlq.transitions[0].error is error

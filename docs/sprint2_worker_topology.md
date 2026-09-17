@@ -131,6 +131,18 @@ values have been selected.**
 Configuration parsing must reject invalid values clearly. Secrets must remain in
 the local `.env`, not in source, logs, tests, or this document.
 
+## Graceful shutdown ownership
+
+S2.3 maps `CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS` to Celery's
+`worker_soft_shutdown_timeout`. Celery owns the actual `SIGTERM`/`SIGINT`
+worker lifecycle, including stopping consumption and its soft-to-cold shutdown
+transition. S2.3 owns only the validated timeout policy and must not install
+custom process signal handlers.
+
+The timeout policy does not replace task soft/hard time limits, retry handling,
+or DLQ handling. Deployment owners must still agree the grace-period value and
+Docker termination grace period; these are not production defaults.
+
 ## Required integration contracts
 
 ### S2.1: FastAPI/webhook/enqueueing

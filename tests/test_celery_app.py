@@ -29,6 +29,7 @@ def test_celery_app_uses_validated_worker_configuration():
     assert app.conf.task_reject_on_worker_lost is False
     assert app.conf.task_soft_time_limit == 30
     assert app.conf.task_time_limit == 45
+    assert app.conf.worker_soft_shutdown_timeout == 60
 
 
 def test_celery_app_preserves_acknowledgement_and_worker_loss_settings():

@@ -49,6 +49,9 @@ def test_worker_config_parses_valid_environment():
         ("CELERY_TASK_SOFT_TIME_LIMIT_SECONDS", "0", "positive integer"),
         ("CELERY_TASK_MAX_RETRIES", "-1", "non-negative integer"),
         ("CELERY_TASK_ACKS_LATE", "yes", "true or false"),
+        ("CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS", "invalid", "non-negative integer"),
+        ("CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS", "0", "positive integer"),
+        ("CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS", "-1", "non-negative integer"),
     ],
 )
 def test_worker_config_rejects_invalid_values(name, value, message):
