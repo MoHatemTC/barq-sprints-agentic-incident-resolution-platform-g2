@@ -11,7 +11,7 @@ from typing import Protocol
 
 @dataclass(frozen=True)
 class AcceptedIncidentFixture:
-    """TEST-ONLY S1.3-derived accepted incident payload."""
+    """TEST-ONLY fixture matching the confirmed S2.1 webhook payload shape."""
 
     event_id: str
     sys_id: str

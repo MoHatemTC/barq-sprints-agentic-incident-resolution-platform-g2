@@ -83,6 +83,25 @@ def _incident() -> AcceptedIncidentFixture:
     )
 
 
+def test_task_accepts_confirmed_s2_1_incident_webhook_payload_shape():
+    incident = AcceptedIncidentFixture(
+        sys_id="a1b2c3d4e5f678901234567890abcdef",
+        event_id="evt_9f8e7d6c5b4a3210",
+        event_type="Insert",
+        number="INC0012345",
+    )
+    agent = StubAgentExecutor(result={"status": "complete"})
+    task, recorder, dlq = _task(agent)
+
+    result = task.apply(args=(incident,), throw=True)
+
+    assert result.result == {"status": "complete"}
+    assert agent.received_incidents == [incident]
+    assert recorder.retries == []
+    assert recorder.failures == []
+    assert dlq.transitions == []
+
+
 def test_task_returns_agent_result_on_success():
     incident = _incident()
     task, recorder, dlq = _task(StubAgentExecutor(result={"status": "complete"}))
