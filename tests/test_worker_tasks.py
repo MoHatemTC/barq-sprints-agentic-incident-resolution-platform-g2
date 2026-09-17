@@ -279,3 +279,39 @@ def test_shutdown_timeout_does_not_change_task_dlq_behavior():
     assert len(dlq.transitions) == 1
     assert dlq.transitions[0].incident == incident
     assert dlq.transitions[0].error is error
+
+
+def test_simulated_saturation_isolates_retry_and_dlq_state_per_event():
+    retry_incident = _incident()
+    terminal_incident = AcceptedIncidentFixture(
+        event_id="event-2",
+        sys_id="incident-2",
+        number="INC0010002",
+        event_type="Insert",
+    )
+    retry_error = RetryableAgentFailure("temporary")
+    terminal_error = TerminalAgentFailure("invalid")
+    retry_task, retry_recorder, retry_dlq = _task(
+        StubAgentExecutor(error=retry_error)
+    )
+    terminal_task, terminal_recorder, terminal_dlq = _task(
+        StubAgentExecutor(error=terminal_error)
+    )
+
+    with patch.object(retry_task, "retry", return_value="retry-scheduled"):
+        retry_result = retry_task.apply(args=(retry_incident,), retries=0, throw=True)
+    terminal_result = terminal_task.apply(args=(terminal_incident,), retries=0)
+
+    assert retry_result.result == "retry-scheduled"
+    assert len(retry_recorder.retries) == 1
+    assert retry_recorder.retries[0].incident is retry_incident
+    assert retry_recorder.failures == []
+    assert retry_dlq.transitions == []
+
+    assert terminal_result.state == "FAILURE"
+    assert terminal_result.result is terminal_error
+    assert terminal_recorder.retries == []
+    assert len(terminal_recorder.failures) == 1
+    assert terminal_recorder.failures[0].incident is terminal_incident
+    assert len(terminal_dlq.transitions) == 1
+    assert terminal_dlq.transitions[0].incident is terminal_incident

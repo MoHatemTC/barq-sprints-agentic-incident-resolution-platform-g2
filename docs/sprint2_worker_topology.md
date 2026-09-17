@@ -104,6 +104,16 @@ taxonomy and must not be guessed.
 | Graceful shutdown | On `SIGTERM`, the worker should stop accepting new work, allow active work to follow configured timeout behavior, and leave uncompleted accepted work recoverable. | Shutdown grace period and Docker worker-service configuration. |
 | Observability | Log queue/task identity, attempt number, classification, retry delay, timeout, and DLQ transition without leaking credentials or incident content. | Structured logging format and S2.5 tracing boundary. |
 
+## Saturation validation boundary
+
+S2.3 validates worker-side configuration and deterministic isolation of retry,
+failure, and DLQ state between independent task attempts. These checks do not
+start a worker, use Redis, or measure webhook latency.
+
+End-to-end webhook acceptance and latency under worker saturation remain an
+S2.1 integration/load-testing concern. No latency SLA is claimed by S2.3 until
+that producer-to-broker path is exercised with the agreed enqueue contract.
+
 ## Required S2.3 configuration values
 
 The following values are needed before worker code can be finalized. The names
