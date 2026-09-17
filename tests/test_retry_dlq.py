@@ -66,6 +66,26 @@ def test_retryable_failure_is_exhausted_at_limit():
     assert policy.decide(RetryableError(), retries_completed=3) is RetryDecision.EXHAUSTED
 
 
+def test_retryable_failure_remains_exhausted_after_limit():
+    policy = RetryPolicy(
+        base_delay_seconds=5,
+        max_delay_seconds=60,
+        max_retries=2,
+    )
+
+    decisions = [
+        policy.decide(RetryableError(), retries_completed=retries_completed)
+        for retries_completed in range(4)
+    ]
+
+    assert decisions == [
+        RetryDecision.RETRY,
+        RetryDecision.RETRY,
+        RetryDecision.EXHAUSTED,
+        RetryDecision.EXHAUSTED,
+    ]
+
+
 def test_terminal_failure_does_not_retry():
     policy = RetryPolicy(
         base_delay_seconds=5,
@@ -74,6 +94,7 @@ def test_terminal_failure_does_not_retry():
     )
 
     assert policy.decide(TerminalError(), retries_completed=0) is RetryDecision.TERMINAL
+    assert policy.decide(TerminalError(), retries_completed=3) is RetryDecision.TERMINAL
     assert policy.decide(
         servicenow_exceptions.ServiceNowPermissionError(403, "forbidden"),
         retries_completed=0,

@@ -29,3 +29,26 @@ def test_celery_app_uses_validated_worker_configuration():
     assert app.conf.task_reject_on_worker_lost is False
     assert app.conf.task_soft_time_limit == 30
     assert app.conf.task_time_limit == 45
+
+
+def test_celery_app_preserves_acknowledgement_and_worker_loss_settings():
+    config = WorkerConfig(
+        broker_url="redis://redis:6379/0",
+        main_queue="incident-events",
+        dlq_queue="incident-events-dlq",
+        worker_concurrency=4,
+        worker_prefetch_multiplier=1,
+        task_soft_time_limit_seconds=30,
+        task_time_limit_seconds=45,
+        task_max_retries=3,
+        retry_base_delay_seconds=5,
+        retry_max_delay_seconds=60,
+        task_acks_late=False,
+        task_reject_on_worker_lost=True,
+        worker_shutdown_timeout_seconds=60,
+    )
+
+    app = create_celery_app(config)
+
+    assert app.conf.task_acks_late is False
+    assert app.conf.task_reject_on_worker_lost is True
