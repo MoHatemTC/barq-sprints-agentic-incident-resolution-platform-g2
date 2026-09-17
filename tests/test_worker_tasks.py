@@ -19,6 +19,20 @@ from tests.worker_test_doubles import (
 )
 
 
+class UnexpectedRetryableProcessingFailure(Exception):
+    """TEST-ONLY/PENDING TEAM AGREEMENT unexpected retryable failure marker.
+
+    This uses the existing RetryPolicy ``retryable`` convention and does not
+    establish an S2.5 production exception contract.
+    """
+
+    retryable = True
+
+
+class UnexpectedProcessingFailure(Exception):
+    """TEST-ONLY/PENDING TEAM AGREEMENT unclassified unexpected failure."""
+
+
 def _task(
     agent: StubAgentExecutor,
     *,
@@ -161,6 +175,67 @@ def test_task_dead_letters_exhausted_soft_timeout_once():
     assert result.state == "FAILURE"
     assert result.result is error
     assert recorder.retries == []
+    assert recorder.failures[0].incident == incident
+    assert recorder.failures[0].error is error
+    assert len(dlq.transitions) == 1
+    assert dlq.transitions[0].incident == incident
+    assert dlq.transitions[0].error is error
+
+
+def test_task_isolates_unexpected_retryable_failure_without_terminating_worker():
+    incident = _incident()
+    error = UnexpectedRetryableProcessingFailure("unexpected temporary failure")
+    task, recorder, dlq = _task(StubAgentExecutor(error=error))
+
+    with patch.object(task, "retry", return_value="retry-scheduled") as retry:
+        result = task.apply(args=(incident,), retries=0, throw=True)
+
+    assert result.result == "retry-scheduled"
+    retry.assert_called_once_with(exc=error, countdown=5, max_retries=2)
+    assert len(recorder.retries) == 1
+    assert len(recorder.failures) == 0
+    assert dlq.transitions == []
+
+    healthy_task, healthy_recorder, healthy_dlq = _task(
+        StubAgentExecutor(result="healthy")
+    )
+    healthy_result = healthy_task.apply(args=(_incident(),), throw=True)
+
+    assert healthy_result.result == "healthy"
+    assert healthy_recorder.retries == []
+    assert healthy_recorder.failures == []
+    assert healthy_dlq.transitions == []
+
+
+def test_task_dead_letters_unclassified_unexpected_failure_as_terminal():
+    incident = _incident()
+    error = UnexpectedProcessingFailure("unexpected failure")
+    task, recorder, dlq = _task(StubAgentExecutor(error=error))
+
+    result = task.apply(args=(incident,), retries=0)
+
+    assert result.state == "FAILURE"
+    assert result.result is error
+    assert len(recorder.retries) == 0
+    assert len(recorder.failures) == 1
+    assert recorder.failures[0].incident == incident
+    assert recorder.failures[0].error is error
+    assert len(dlq.transitions) == 1
+    assert dlq.transitions[0].incident == incident
+    assert dlq.transitions[0].error is error
+
+
+def test_task_dead_letters_exhausted_unexpected_retryable_failure_once():
+    incident = _incident()
+    error = UnexpectedRetryableProcessingFailure("unexpected temporary failure")
+    task, recorder, dlq = _task(StubAgentExecutor(error=error), max_retries=2)
+
+    result = task.apply(args=(incident,), retries=2)
+
+    assert result.state == "FAILURE"
+    assert result.result is error
+    assert len(recorder.retries) == 0
+    assert len(recorder.failures) == 1
     assert recorder.failures[0].incident == incident
     assert recorder.failures[0].error is error
     assert len(dlq.transitions) == 1
