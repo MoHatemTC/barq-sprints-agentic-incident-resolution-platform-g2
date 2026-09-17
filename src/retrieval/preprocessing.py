@@ -6,7 +6,7 @@ from bs4 import BeautifulSoup, NavigableString
 def strip_article_html(content: str) -> str:
     """Convert article HTML to readable Markdown while preserving code."""
     if not content:
-        return ""
+        return "
 
     # Avoid parsing content that is already plain text or Markdown.
     if "<" not in content or ">" not in content:
@@ -45,7 +45,7 @@ def strip_article_html(content: str) -> str:
     # would otherwise become "`x` ." with a stray space before the period.
     # All real spacing/newlines are already preserved via the original text
     # nodes plus the explicit <br>/heading replacements above.
-    text = soup.get_text("", strip=False)
+    text = soup.get_text(", strip=False)
 
     # Normalize whitespace without changing technical tokens.
     lines = []

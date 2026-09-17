@@ -13,7 +13,7 @@ from ..schema import Article
 
 def _value(value):
     """Return the stored value from either Table API reference representation."""
-    return value.get("value", "") if isinstance(value, dict) else value
+    return value.get("value", ") if isinstance(value, dict) else value
 
 
 def article_from_servicenow(record: dict) -> Article:
@@ -25,10 +25,10 @@ def article_from_servicenow(record: dict) -> Article:
     back to the canonical fields used by indexing.
     """
     metadata = {
-        source_field: _value(record.get(servicenow_field, ""))
+        source_field: _value(record.get(servicenow_field, "))
         for source_field, servicenow_field in SERVICENOW.kb_metadata_field_map.items()
     }
-    article_number = metadata.get("article_number") or _value(record.get("number", ""))
+    article_number = metadata.get("article_number") or _value(record.get("number", "))
     version = metadata.get("version", 1)
     try:
         version = int(version)
@@ -36,16 +36,16 @@ def article_from_servicenow(record: dict) -> Article:
         version = 1
 
     return Article(
-        sys_id=_value(record.get("sys_id", "")),
+        sys_id=_value(record.get("sys_id", ")),
         number=article_number,
         article_id=article_number,
-        title=_value(record.get("short_description", "")),
-        body=_value(record.get("text", "")),
-        category=_value(record.get("kb_category", "")),
-        service=metadata.get("service", ""),
-        workflow_state=_value(record.get("workflow_state", "")),
+        title=_value(record.get("short_description", ")),
+        body=_value(record.get("text", ")),
+        category=_value(record.get("kb_category", ")),
+        service=metadata.get("service", "),
+        workflow_state=_value(record.get("workflow_state", ")),
         version=version,
-        security_level=metadata.get("security_level", ""),
+        security_level=metadata.get("security_level", "),
     )
 
 

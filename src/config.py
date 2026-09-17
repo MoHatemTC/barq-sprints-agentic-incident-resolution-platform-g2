@@ -73,8 +73,8 @@ class EmbeddingConfig:
 
 @dataclass(frozen=True)
 class ServiceNowConfig:
-    instance_url: str = os.environ.get("SERVICENOW_INSTANCE_URL", "").rstrip("/")
-    kb_sys_id: str = os.environ.get("SERVICENOW_KB_SYS_ID", "")
+    instance_url: str = os.environ.get("SERVICENOW_INSTANCE_URL", ").rstrip("/")
+    kb_sys_id: str = os.environ.get("SERVICENOW_KB_SYS_ID", ")
     kb_table: str = os.environ.get("SERVICENOW_KB_TABLE", "kb_knowledge")
     # Optional, canonical corpus field -> actual kb_knowledge column mapping.
     # No defaults: the ServiceNow custom columns are owned by S1.1/S1.2.
@@ -82,13 +82,13 @@ class ServiceNowConfig:
     # Optional approved publish action. It must be a relative instance path
     # containing {sys_id}, for example /api/x_scope/kb_publish/{sys_id}.
     # Empty means Table API publication must succeed by itself.
-    kb_publish_action_path: str = os.environ.get("SERVICENOW_KB_PUBLISH_ACTION_PATH", "")
+    kb_publish_action_path: str = os.environ.get("SERVICENOW_KB_PUBLISH_ACTION_PATH", ")
     # Secrets -- intentionally NO default. Missing values should fail
-    # loudly in servicenow_auth.py, not silently authenticate as "".
-    oauth_client_id: str = os.environ.get("SERVICENOW_OAUTH_CLIENT_ID", "")
-    oauth_client_secret: str = os.environ.get("SERVICENOW_OAUTH_CLIENT_SECRET", "")
-    oauth_username: str = os.environ.get("SERVICENOW_OAUTH_USERNAME", "")
-    oauth_password: str = os.environ.get("SERVICENOW_OAUTH_PASSWORD", "")
+    # loudly in servicenow_auth.py, not silently authenticate as ".
+    oauth_client_id: str = os.environ.get("SERVICENOW_OAUTH_CLIENT_ID", ")
+    oauth_client_secret: str = os.environ.get("SERVICENOW_OAUTH_CLIENT_SECRET", ")
+    oauth_username: str = os.environ.get("SERVICENOW_OAUTH_USERNAME", ")
+    oauth_password: str = os.environ.get("SERVICENOW_OAUTH_PASSWORD", ")
 
 
 @dataclass(frozen=True)

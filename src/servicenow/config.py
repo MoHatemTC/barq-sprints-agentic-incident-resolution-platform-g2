@@ -5,7 +5,7 @@ load_dotenv()
 
 def _required(name):
     # Read  env vars, failing it is missing or blank
-    value = os.getenv(name, "").strip()
+    value = os.getenv(name, ").strip()
     if not value:
         raise RuntimeError(f"Missing required environment variable: {name}")
     return value
