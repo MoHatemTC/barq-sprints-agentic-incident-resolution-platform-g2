@@ -1,17 +1,3 @@
-"""
-Central, non-secret configuration for the retrieval pipeline.
-
-Anything in this file is safe to commit and safe for any developer to read
-or change directly -- these are defaults, not credentials. Real secrets
-(ServiceNow OAuth client id/secret, username/password) stay in .env and
-are never given defaults here, so a missing secret fails loudly instead
-of silently falling back to something wrong.
-
-Every value can still be overridden via an environment variable of the
-same name, so CI or a different environment can change behavior without
-editing this file.
-"""
-
 import json
 import os
 import re
@@ -30,7 +16,6 @@ _SERVICENOW_FIELD_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
 def _metadata_field_map() -> dict[str, str]:
     """Return canonical article field -> configured ServiceNow column name.
-
     The Knowledge table does not currently have the S1.4 metadata columns.
     Keeping this mapping opt-in prevents the publisher from guessing custom
     column names while letting the ServiceNow schema be wired in later.
@@ -129,16 +114,16 @@ def _csv_env(name: str, default: str) -> tuple[str, ...]:
 RETRIEVAL_MODES = ("dense", "hybrid", "hybrid_rerank")
 
 
+
+
+# S2.4 query-side settings: mode switch, fusion, filters, reranking
 @dataclass(frozen=True)
 class RetrievalConfig:
-    """S2.4 query-side settings: mode switch, fusion, filters, reranking."""
-
-    # Which retrieval pipeline to run. "dense" is the baseline we measure against.
+    # Which retrieval pipeline to run : "dense" is the baseline we measure against
     mode: str = os.environ.get("RETRIEVAL_MODE", "hybrid_rerank")
-    # How many passages are finally returned (and passed to generation).
+    # How many passages are finally returned
     top_k: int = int(os.environ.get("RETRIEVAL_TOP_K", "5"))
-    # How many candidates each branch (dense / sparse) fetches BEFORE fusion
-    # and reranking. Must be >= top_k.
+    # How many candidates each branch (dense / sparse) fetches BEFORE fusion and reranking. Must be >= top_k.
     candidate_k: int = int(os.environ.get("RETRIEVAL_CANDIDATE_K", "20"))
     # Reciprocal Rank Fusion constant: score = sum(1 / (rrf_k + rank)).
     rrf_k: int = int(os.environ.get("RRF_K", "60"))
@@ -146,11 +131,11 @@ class RetrievalConfig:
     rerank_model: str = os.environ.get("RERANK_MODEL", "Xenova/ms-marco-MiniLM-L-6-v2")
 
     # Metadata pre-filters (applied inside the search, before any ranking).
-    # Only these workflow states may be retrieved ...
+    # Only these workflow states may be retrieved 
     allowed_workflow_states: tuple[str, ...] = field(
         default_factory=lambda: _csv_env("ALLOWED_WORKFLOW_STATES", "published")
     )
-    # ... and these security levels are never retrieved.
+    # security levels are never retrieved.
     blocked_security_levels: tuple[str, ...] = field(
         default_factory=lambda: _csv_env("BLOCKED_SECURITY_LEVELS", "restricted")
     )
@@ -158,10 +143,10 @@ class RetrievalConfig:
     # Latency budget (ms) that the ablation report compares p50/p95 against.
     latency_budget_ms: int = int(os.environ.get("LATENCY_BUDGET_MS", "500"))
 
-    # Optional: run Qdrant embedded on disk instead of Docker (empty = use QDRANT_URL).
+    # Optional: if you run Qdrant embedded on disk instead of Docker (empty = use QDRANT_URL).
     qdrant_local_path: str = os.environ.get("QDRANT_LOCAL_PATH", "")
 
-    # Track B: the service-desk manual gets its own collection and eval dataset.
+    # for evalution matrix later : the service-desk manual gets its own collection and eval dataset.
     manual_collection_name: str = os.environ.get("MANUAL_COLLECTION_NAME", "barq_manual")
     manual_pdf_path: str = os.environ.get(
         "MANUAL_PDF_PATH", "data/BARQ_IT_Service_Desk_Manual_Ed5.1.pdf"
