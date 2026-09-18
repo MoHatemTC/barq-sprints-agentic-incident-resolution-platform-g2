@@ -55,7 +55,11 @@ def test_recording_state_recorder_preserves_retry_and_failure_context():
     recorder = RecordingStateRecorder()
 
     recorder.record_retry(incident, retries_completed=1, error=retry_error)
-    recorder.record_failure(incident, error=failure_error)
+    recorder.record_failure(
+        incident,
+        retries_completed=2,
+        error=failure_error,
+    )
 
     assert recorder.retries[0].incident == incident
     assert recorder.retries[0].retries_completed == 1

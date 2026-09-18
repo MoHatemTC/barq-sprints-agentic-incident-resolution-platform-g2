@@ -96,6 +96,7 @@ class RecordingStateRecorder:
     def record_failure(
         self,
         incident: AcceptedIncidentFixture,
+        retries_completed: int,
         error: BaseException,
     ) -> None:
         self.failures.append(RecordedFailure(incident, error))

@@ -31,6 +31,7 @@ class PendingStateRecorderForTests(Protocol):
     def record_failure(
         self,
         accepted_incident: object,
+        retries_completed: int,
         error: BaseException,
     ) -> None:
         """Observe a terminal or exhausted failure write."""
@@ -89,7 +90,11 @@ def register_process_accepted_incident_task(
                     ),
                 )
 
-            seams.state_recorder.record_failure(accepted_incident, error)
+            seams.state_recorder.record_failure(
+                accepted_incident,
+                retries_completed,
+                error,
+            )
             seams.dlq.transition(accepted_incident, error)
             return decision, None
 

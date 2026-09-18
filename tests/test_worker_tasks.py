@@ -334,3 +334,37 @@ def test_simulated_saturation_isolates_retry_and_dlq_state_per_event():
     assert terminal_recorder.failures[0].incident is terminal_incident
     assert len(terminal_dlq.transitions) == 1
     assert terminal_dlq.transitions[0].incident is terminal_incident
+
+
+def test_task_uses_supplied_celery_app_without_creating_another():
+    supplied_app = create_celery_app(
+        WorkerConfig(
+            broker_url="redis://redis:6379/0",
+            main_queue="test-main",
+            dlq_queue="test-dlq",
+            worker_concurrency=1,
+            worker_prefetch_multiplier=1,
+            task_soft_time_limit_seconds=30,
+            task_time_limit_seconds=45,
+            task_max_retries=2,
+            retry_base_delay_seconds=5,
+            retry_max_delay_seconds=60,
+            task_acks_late=True,
+            task_reject_on_worker_lost=True,
+            worker_shutdown_timeout_seconds=60,
+        )
+    )
+
+    with patch("src.workers.tasks.create_celery_app") as create_app:
+        task = register_process_accepted_incident_task(
+            RetryPolicy(base_delay_seconds=5, max_delay_seconds=60, max_retries=2),
+            PendingIntegrationSeamsForTests(
+                agent=StubAgentExecutor(result="complete"),
+                state_recorder=RecordingStateRecorder(),
+                dlq=RecordingDlq(),
+            ),
+            app=supplied_app,
+        )
+
+    assert task.app is supplied_app
+    create_app.assert_not_called()
