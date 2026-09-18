@@ -9,6 +9,7 @@ import argparse
 from dataclasses import dataclass
 
 from qdrant_client import QdrantClient, models
+from qdrant_client.local.qdrant_local import QdrantLocal
 
 from ..config import QDRANT, RETRIEVAL
 from .embedding import embed_dense, embed_sparse
@@ -32,8 +33,13 @@ def get_client() -> QdrantClient:
     return QdrantClient(url=QDRANT.url, check_compatibility=False)
 
 
-# exact=True -> brute-force instead of approximate search. The corpus is tiny, so it costs nothing and makes rankings reproducible run after run.
-_EXACT = models.SearchParams(exact=True)
+def _search_params(client: QdrantClient):
+    # exact=True -> brute-force instead of approximate search. The corpus is tiny, so it costs
+    # nothing and makes rankings reproducible. In-memory / on-disk Qdrant is always exact and
+    # warns if we pass params, so only send them to a real server.
+    if isinstance(client._client, QdrantLocal):
+        return None
+    return models.SearchParams(exact=True)
 
 
 def _to_chunks(points) -> list[RetrievedChunk]:
@@ -60,7 +66,7 @@ def _search_one(client, collection, vector_name, vector, qfilter, limit) -> list
         query_filter=qfilter,      # <- pre-filter: applied while searching
         limit=limit,
         with_payload=True,
-        search_params=_EXACT,
+        search_params=_search_params(client),
     )
     return _to_chunks(result.points)
 
