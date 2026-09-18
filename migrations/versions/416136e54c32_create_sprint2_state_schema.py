@@ -26,47 +26,46 @@ def upgrade() -> None:
         sa.Column(
             "event_identifier",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "incident_sys_id",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "incident_number",
             sa.String(length=100),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "event_type",
             sa.String(length=100),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "contract_version",
             sa.String(length=50),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "received_at",
             sa.DateTime(timezone=True),
-            nullable=False
+            nullable=False,
         ),
     )
 
     op.create_index(
         "ix_events_event_identifier",
         "events",
-        ["event_identifier"]
+        ["event_identifier"],
     )
 
     op.create_index(
         "ix_events_incident_sys_id",
         "events",
-        ["incident_sys_id"]
+        ["incident_sys_id"],
     )
-
 
     op.create_table(
         "idempotency_keys",
@@ -74,19 +73,18 @@ def upgrade() -> None:
         sa.Column(
             "event_identifier",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
-            nullable=False
+            nullable=False,
         ),
         sa.UniqueConstraint(
             "event_identifier",
-            name="uq_event_identifier"
+            name="uq_event_identifier",
         ),
     )
-
 
     op.create_table(
         "executions",
@@ -94,61 +92,57 @@ def upgrade() -> None:
         sa.Column(
             "execution_identifier",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "incident_reference",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "status",
             sa.String(length=50),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "node_reached",
             sa.String(length=255),
-            nullable=True
+            nullable=True,
         ),
         sa.Column(
             "model_name",
             sa.String(length=255),
-            nullable=True
+            nullable=True,
         ),
         sa.Column(
             "agent_version",
             sa.String(length=100),
-            nullable=True
+            nullable=True,
         ),
         sa.Column(
             "started_at",
             sa.DateTime(timezone=True),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "ended_at",
             sa.DateTime(timezone=True),
-            nullable=True
-        ),
-        sa.UniqueConstraint(
-            "execution_identifier",
-            name="uq_execution_identifier"
+            nullable=True,
         ),
     )
 
     op.create_index(
         "ix_executions_execution_identifier",
         "executions",
-        ["execution_identifier"]
+        ["execution_identifier"],
+        unique=True,
     )
 
     op.create_index(
         "ix_executions_status",
         "executions",
-        ["status"]
+        ["status"],
     )
-
 
     op.create_table(
         "workflow_state",
@@ -156,31 +150,30 @@ def upgrade() -> None:
         sa.Column(
             "execution_reference",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "checkpoint",
             sa.Text(),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "created_at",
             sa.DateTime(timezone=True),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
-            nullable=False
+            nullable=False,
         ),
     )
 
     op.create_index(
         "ix_workflow_state_execution_reference",
         "workflow_state",
-        ["execution_reference"]
+        ["execution_reference"],
     )
-
 
     op.create_table(
         "approvals",
@@ -188,36 +181,56 @@ def upgrade() -> None:
         sa.Column(
             "execution_reference",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "evidence_presented",
             sa.Text(),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "reviewer_decision",
             sa.String(length=50),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "decision_timestamp",
             sa.DateTime(timezone=True),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "reviewer_identity",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
     )
 
     op.create_index(
         "ix_approvals_execution_reference",
         "approvals",
-        ["execution_reference"]
+        ["execution_reference"],
     )
 
+    # Approval records are immutable after creation.
+    op.execute(
+        """
+        CREATE OR REPLACE FUNCTION prevent_approval_update()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            RAISE EXCEPTION 'Approval records are immutable';
+        END;
+        $$ LANGUAGE plpgsql;
+        """
+    )
+
+    op.execute(
+        """
+        CREATE TRIGGER approval_immutable
+        BEFORE UPDATE ON approvals
+        FOR EACH ROW
+        EXECUTE FUNCTION prevent_approval_update();
+        """
+    )
 
     op.create_table(
         "failures",
@@ -225,36 +238,35 @@ def upgrade() -> None:
         sa.Column(
             "execution_reference",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "failing_node",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "error_class",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "message",
             sa.Text(),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "retry_count",
             sa.Integer(),
-            nullable=False
+            nullable=False,
         ),
     )
 
     op.create_index(
         "ix_failures_execution_reference",
         "failures",
-        ["execution_reference"]
+        ["execution_reference"],
     )
-
 
     op.create_table(
         "retry_state",
@@ -262,33 +274,46 @@ def upgrade() -> None:
         sa.Column(
             "execution_reference",
             sa.String(length=255),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "attempt_count",
             sa.Integer(),
-            nullable=False
+            nullable=False,
         ),
         sa.Column(
             "last_error",
             sa.Text(),
-            nullable=True
+            nullable=True,
         ),
         sa.Column(
             "next_attempt_time",
             sa.DateTime(timezone=True),
-            nullable=True
+            nullable=True,
         ),
     )
 
     op.create_index(
         "ix_retry_state_execution_reference",
         "retry_state",
-        ["execution_reference"]
+        ["execution_reference"],
     )
 
 
 def downgrade() -> None:
+
+    op.execute(
+        """
+        DROP TRIGGER IF EXISTS approval_immutable
+        ON approvals;
+        """
+    )
+
+    op.execute(
+        """
+        DROP FUNCTION IF EXISTS prevent_approval_update();
+        """
+    )
 
     op.drop_table("retry_state")
     op.drop_table("failures")

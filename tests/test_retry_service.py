@@ -4,6 +4,7 @@ from src.db.database import SessionLocal
 from src.db.retry_service import (
     create_retry_state,
     get_retry_state,
+    update_retry_state,
 )
 from src.db.models import RetryState
 
@@ -68,12 +69,46 @@ def test_retry_state_is_retrieved():
 
         retries = get_retry_state(
             db,
-            execution_reference
+            execution_reference,
         )
 
         assert len(retries) == 1
         assert retries[0].attempt_count == 2
         assert retries[0].last_error == "Connection failed"
+
+    finally:
+        db.close()
+        cleanup(execution_reference)
+
+
+def test_retry_state_is_updated():
+
+    execution_reference = "exec-retry-003"
+
+    cleanup(execution_reference)
+
+    db = SessionLocal()
+
+    try:
+        retry = create_retry_state(
+            db,
+            execution_reference,
+            attempt_count=1,
+            last_error="TimeoutError",
+        )
+
+        updated = update_retry_state(
+            db,
+            retry.id,
+            attempt_count=2,
+            last_error="Connection failed",
+        )
+
+        assert updated is not None
+        assert updated.id == retry.id
+        assert updated.execution_reference == execution_reference
+        assert updated.attempt_count == 2
+        assert updated.last_error == "Connection failed"
 
     finally:
         db.close()

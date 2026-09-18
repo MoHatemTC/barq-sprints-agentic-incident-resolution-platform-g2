@@ -31,3 +31,32 @@ def create_execution(
     db.refresh(execution)
 
     return execution
+
+
+def update_execution_status(
+    db: Session,
+    execution_identifier: str,
+    status: str,
+):
+    """
+    Update the status of an existing execution.
+    """
+
+    execution = (
+        db.query(Execution)
+        .filter(
+            Execution.execution_identifier
+            == execution_identifier
+        )
+        .first()
+    )
+
+    if execution is None:
+        return None
+
+    execution.status = status
+
+    db.commit()
+    db.refresh(execution)
+
+    return execution
