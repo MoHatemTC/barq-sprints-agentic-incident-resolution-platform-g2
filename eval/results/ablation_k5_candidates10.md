@@ -2,9 +2,9 @@
 
 | mode | precision@k | recall@k | hit@k | MRR | planted hits | p50 ms | p95 ms |
 |---|---|---|---|---|---|---|---|
-| dense | 0.376 | 0.906 | 0.969 | 0.969 | 0 | 67.7 | 135.9 |
-| hybrid | 0.395 | 0.938 | 0.969 | 0.922 | 0 | 73.7 | 124.8 |
-| hybrid_rerank | 0.427 | 0.938 | 0.969 | 0.948 | 0 | 652.7 | 1141.1 |
+| dense | 0.376 | 0.906 | 0.969 | 0.969 | 0 | 66.0 | 123.6 |
+| hybrid | 0.395 | 0.938 | 0.969 | 0.922 | 0 | 71.5 | 138.4 |
+| hybrid_rerank | 0.427 | 0.938 | 0.969 | 0.948 | 0 | 664.3 | 1167.5 |
 
 ### Margin over dense baseline
 
@@ -17,9 +17,9 @@
 
 | mode | p95 ms | headroom ms | within budget |
 |---|---|---|---|
-| dense | 135.9 | 364.1 | yes |
-| hybrid | 124.8 | 375.2 | yes |
-| hybrid_rerank | 1141.1 | -641.1 | NO |
+| dense | 123.6 | 376.4 | yes |
+| hybrid | 138.4 | 361.6 | yes |
+| hybrid_rerank | 1167.5 | -667.5 | NO |
 
 ### By query source (v1.1: coverage-matrix incidents vs identifier-only probes)
 
@@ -32,6 +32,9 @@
 | identifier_probe | hybrid | 0.395 | 1.000 | 1.000 | 1.000 |
 | identifier_probe | hybrid_rerank | 0.438 | 1.000 | 1.000 | 1.000 |
 
-### Sparse rescues dense (dense missed or ranked worse; hybrid found it)
+### Sparse rescues dense (an expected article missing from dense top-k that hybrid retrieved, or a rank improvement)
 
-_none at this k_
+| incident | query | expected | kind | article dense missed | dense rank | hybrid rank |
+|---|---|---|---|---|---|---|
+| INC1025 | Employee requests VPN access and email account setup on first day | KB0001, KB0018 | recovered | KB0018 | 1 | 2 |
+| PROBE-08 | 0x8004010F | KB0002, KB0025 | recovered | KB0025 | 1 | 1 |

@@ -2,9 +2,9 @@
 
 | mode | precision@k | recall@k | hit@k | MRR | planted hits | p50 ms | p95 ms |
 |---|---|---|---|---|---|---|---|
-| dense | 0.376 | 0.906 | 0.969 | 0.969 | 0 | 80.8 | 206.7 |
-| hybrid | 0.387 | 0.906 | 0.969 | 0.922 | 0 | 82.2 | 104.9 |
-| hybrid_rerank | 0.450 | 0.938 | 0.969 | 0.948 | 0 | 966.0 | 1653.4 |
+| dense | 0.376 | 0.906 | 0.969 | 0.969 | 0 | 55.6 | 112.0 |
+| hybrid | 0.387 | 0.906 | 0.969 | 0.922 | 0 | 68.7 | 82.9 |
+| hybrid_rerank | 0.450 | 0.938 | 0.969 | 0.948 | 0 | 922.4 | 1422.4 |
 
 ### Margin over dense baseline
 
@@ -17,9 +17,9 @@
 
 | mode | p95 ms | headroom ms | within budget |
 |---|---|---|---|
-| dense | 206.7 | 293.3 | yes |
-| hybrid | 104.9 | 395.1 | yes |
-| hybrid_rerank | 1653.4 | -1153.4 | NO |
+| dense | 112.0 | 388.0 | yes |
+| hybrid | 82.9 | 417.1 | yes |
+| hybrid_rerank | 1422.4 | -922.4 | NO |
 
 ### By query source (v1.1: coverage-matrix incidents vs identifier-only probes)
 
@@ -32,7 +32,7 @@
 | identifier_probe | hybrid | 0.377 | 0.950 | 1.000 | 1.000 |
 | identifier_probe | hybrid_rerank | 0.457 | 1.000 | 1.000 | 1.000 |
 
-### Sparse rescues dense (dense missed or ranked worse; hybrid found it)
+### Sparse rescues dense (an expected article missing from dense top-k that hybrid retrieved, or a rank improvement)
 
 _none at this k_
 

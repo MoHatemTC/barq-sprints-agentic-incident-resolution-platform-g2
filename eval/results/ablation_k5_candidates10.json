@@ -10,8 +10,8 @@
       "hit_rate": 0.969,
       "mrr": 0.969,
       "planted_hits": 0,
-      "p50_ms": 67.7,
-      "p95_ms": 135.9
+      "p50_ms": 66.0,
+      "p95_ms": 123.6
     },
     "hybrid": {
       "precision": 0.395,
@@ -19,8 +19,8 @@
       "hit_rate": 0.969,
       "mrr": 0.922,
       "planted_hits": 0,
-      "p50_ms": 73.7,
-      "p95_ms": 124.8
+      "p50_ms": 71.5,
+      "p95_ms": 138.4
     },
     "hybrid_rerank": {
       "precision": 0.427,
@@ -28,8 +28,8 @@
       "hit_rate": 0.969,
       "mrr": 0.948,
       "planted_hits": 0,
-      "p50_ms": 652.7,
-      "p95_ms": 1141.1
+      "p50_ms": 664.3,
+      "p95_ms": 1167.5
     }
   },
   "by_source": {
@@ -40,8 +40,8 @@
         "hit_rate": 0.955,
         "mrr": 0.955,
         "planted_hits": 0,
-        "p50_ms": 70.7,
-        "p95_ms": 154.2
+        "p50_ms": 92.6,
+        "p95_ms": 127.1
       },
       "hybrid": {
         "precision": 0.395,
@@ -49,8 +49,8 @@
         "hit_rate": 0.955,
         "mrr": 0.886,
         "planted_hits": 0,
-        "p50_ms": 71.8,
-        "p95_ms": 82.3
+        "p50_ms": 69.9,
+        "p95_ms": 86.0
       },
       "hybrid_rerank": {
         "precision": 0.422,
@@ -58,8 +58,8 @@
         "hit_rate": 0.955,
         "mrr": 0.924,
         "planted_hits": 0,
-        "p50_ms": 616.8,
-        "p95_ms": 1018.2
+        "p50_ms": 685.8,
+        "p95_ms": 1139.5
       }
     },
     "identifier_probe": {
@@ -69,8 +69,8 @@
         "hit_rate": 1,
         "mrr": 1.0,
         "planted_hits": 0,
-        "p50_ms": 62.1,
-        "p95_ms": 76.0
+        "p50_ms": 55.6,
+        "p95_ms": 59.8
       },
       "hybrid": {
         "precision": 0.395,
@@ -78,8 +78,8 @@
         "hit_rate": 1,
         "mrr": 1.0,
         "planted_hits": 0,
-        "p50_ms": 78.5,
-        "p95_ms": 128.8
+        "p50_ms": 90.5,
+        "p95_ms": 577.3
       },
       "hybrid_rerank": {
         "precision": 0.438,
@@ -87,19 +87,72 @@
         "hit_rate": 1,
         "mrr": 1.0,
         "planted_hits": 0,
-        "p50_ms": 887.7,
-        "p95_ms": 1405.1
+        "p50_ms": 649.4,
+        "p95_ms": 1222.1
       }
     }
   },
-  "sparse_wins": [],
+  "sparse_wins": [
+    {
+      "query_id": "INC1025",
+      "query": "Employee requests VPN access and email account setup on first day",
+      "expected": [
+        "KB0001",
+        "KB0018"
+      ],
+      "kind": "recovered",
+      "recovered": [
+        "KB0018"
+      ],
+      "dense_rank": 1,
+      "hybrid_rank": 2,
+      "dense_returned": [
+        "KB0001",
+        "KB0026",
+        "KB0008"
+      ],
+      "hybrid_returned": [
+        "KB0020",
+        "KB0018",
+        "KB0001",
+        "KB0005"
+      ]
+    },
+    {
+      "query_id": "PROBE-08",
+      "query": "0x8004010F",
+      "expected": [
+        "KB0002",
+        "KB0025"
+      ],
+      "kind": "recovered",
+      "recovered": [
+        "KB0025"
+      ],
+      "dense_rank": 1,
+      "hybrid_rank": 1,
+      "dense_returned": [
+        "KB0002",
+        "KB0013",
+        "KB0021",
+        "KB0007"
+      ],
+      "hybrid_returned": [
+        "KB0002",
+        "KB0007",
+        "KB0013",
+        "KB0025",
+        "KB0021"
+      ]
+    }
+  ],
   "per_query": {
     "dense": [
       {
         "query_id": "INC0010023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 168.9,
+        "ms": 129.9,
         "planted_hits": [],
         "top_score": 0.7829,
         "returned": [
@@ -116,7 +169,7 @@
         "query_id": "INC0010047",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 125.0,
+        "ms": 110.1,
         "planted_hits": [],
         "top_score": 0.776,
         "returned": [
@@ -128,7 +181,7 @@
         "query_id": "INC0010064",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 132.2,
+        "ms": 122.9,
         "planted_hits": [],
         "top_score": 0.756,
         "returned": [
@@ -148,7 +201,7 @@
         "query_id": "INC0010052",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 105.9,
+        "ms": 109.3,
         "planted_hits": [],
         "top_score": 0.8594,
         "returned": [
@@ -184,7 +237,7 @@
         "query_id": "INC1007",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 124.7,
+        "ms": 118.9,
         "planted_hits": [],
         "top_score": 0.8936,
         "returned": [
@@ -203,7 +256,7 @@
         "query_id": "INC1008",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 118.2,
+        "ms": 94.9,
         "planted_hits": [],
         "top_score": 0.868,
         "returned": [
@@ -221,7 +274,7 @@
         "query_id": "INC1009",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 108.7,
+        "ms": 92.6,
         "planted_hits": [],
         "top_score": 0.875,
         "returned": [
@@ -239,7 +292,7 @@
         "query_id": "INC1010",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 94.1,
+        "ms": 94.2,
         "planted_hits": [],
         "top_score": 0.7302,
         "returned": [
@@ -256,7 +309,7 @@
         "query_id": "INC1011",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 98.3,
+        "ms": 102.4,
         "planted_hits": [],
         "top_score": 0.8233,
         "returned": [
@@ -273,7 +326,7 @@
         "query_id": "INC1012",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 76.5,
+        "ms": 67.9,
         "planted_hits": [],
         "top_score": 0.7623,
         "returned": [
@@ -290,7 +343,7 @@
         "query_id": "INC1013",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 70.9,
+        "ms": 62.3,
         "planted_hits": [],
         "top_score": 0.8883,
         "returned": [
@@ -307,7 +360,7 @@
         "query_id": "INC1014",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 63.0,
+        "ms": 66.0,
         "planted_hits": [],
         "top_score": 0.7346,
         "returned": [
@@ -326,7 +379,7 @@
         "query_id": "INC1015",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 64.6,
+        "ms": 72.9,
         "planted_hits": [],
         "top_score": 0.6336,
         "returned": [
@@ -339,7 +392,7 @@
         "query_id": "INC1016",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 64.5,
+        "ms": 58.8,
         "planted_hits": [],
         "top_score": 0.6853,
         "returned": [
@@ -351,7 +404,7 @@
         "query_id": "INC1017",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 64.7,
+        "ms": 61.1,
         "planted_hits": [],
         "top_score": 0.6427,
         "returned": [
@@ -366,7 +419,7 @@
         "query_id": "INC1018",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 64.4,
+        "ms": 57.4,
         "planted_hits": [],
         "top_score": 0.6376,
         "returned": [
@@ -379,7 +432,7 @@
         "query_id": "INC1019",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 61.3,
+        "ms": 60.3,
         "planted_hits": [],
         "top_score": 0.8098,
         "returned": [
@@ -397,7 +450,7 @@
         "query_id": "INC1020",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 68.1,
+        "ms": 68.5,
         "planted_hits": [],
         "top_score": 0.8669,
         "returned": [
@@ -415,7 +468,7 @@
         "query_id": "INC1021",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 63.2,
+        "ms": 60.7,
         "planted_hits": [],
         "top_score": 0.8947,
         "returned": [
@@ -433,7 +486,7 @@
         "query_id": "INC1022",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 70.3,
+        "ms": 61.9,
         "planted_hits": [],
         "top_score": 0.8608,
         "returned": [
@@ -451,7 +504,7 @@
         "query_id": "INC1023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 52.6,
+        "ms": 101.0,
         "planted_hits": [],
         "top_score": 0.7977,
         "returned": [
@@ -468,7 +521,7 @@
         "query_id": "INC1024",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 58.3,
+        "ms": 106.5,
         "planted_hits": [],
         "top_score": 0.7518,
         "returned": [
@@ -485,7 +538,7 @@
         "query_id": "INC1025",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 65.6,
+        "ms": 94.6,
         "planted_hits": [],
         "top_score": 0.7557,
         "returned": [
@@ -503,7 +556,7 @@
         "query_id": "INC1026",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 67.0,
+        "ms": 90.0,
         "planted_hits": [],
         "top_score": 0.8555,
         "returned": [
@@ -521,7 +574,7 @@
         "query_id": "INC1027",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 70.9,
+        "ms": 94.3,
         "planted_hits": [],
         "top_score": 0.8236,
         "returned": [
@@ -540,7 +593,7 @@
         "query_id": "INC1028",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 70.7,
+        "ms": 60.2,
         "planted_hits": [],
         "top_score": 0.8305,
         "returned": [
@@ -557,7 +610,7 @@
         "query_id": "PROBE-01",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 68.0,
+        "ms": 59.6,
         "planted_hits": [],
         "top_score": 0.8179,
         "returned": [
@@ -574,7 +627,7 @@
         "query_id": "PROBE-02",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 61.2,
+        "ms": 55.4,
         "planted_hits": [],
         "top_score": 0.6901,
         "returned": [
@@ -593,7 +646,7 @@
         "query_id": "PROBE-03",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 73.5,
+        "ms": 55.8,
         "planted_hits": [],
         "top_score": 0.7665,
         "returned": [
@@ -611,7 +664,7 @@
         "query_id": "PROBE-04",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 63.0,
+        "ms": 56.7,
         "planted_hits": [],
         "top_score": 0.9269,
         "returned": [
@@ -628,7 +681,7 @@
         "query_id": "PROBE-05",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 58.6,
+        "ms": 50.1,
         "planted_hits": [],
         "top_score": 0.9288,
         "returned": [
@@ -648,7 +701,7 @@
         "query_id": "PROBE-06",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 60.8,
+        "ms": 59.1,
         "planted_hits": [],
         "top_score": 0.77,
         "returned": [
@@ -667,7 +720,7 @@
         "query_id": "PROBE-07",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 66.4,
+        "ms": 53.9,
         "planted_hits": [],
         "top_score": 0.9146,
         "returned": [
@@ -687,7 +740,7 @@
         "query_id": "PROBE-08",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 50.5,
+        "ms": 53.5,
         "planted_hits": [],
         "top_score": 0.6457,
         "returned": [
@@ -706,7 +759,7 @@
         "query_id": "PROBE-09",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 67.7,
+        "ms": 49.7,
         "planted_hits": [],
         "top_score": 0.8978,
         "returned": [
@@ -726,7 +779,7 @@
         "query_id": "PROBE-10",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 51.8,
+        "ms": 57.5,
         "planted_hits": [],
         "top_score": 0.7015,
         "returned": [
@@ -748,7 +801,7 @@
         "query_id": "INC0010023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 79.3,
+        "ms": 69.8,
         "planted_hits": [],
         "top_score": 0.0323,
         "returned": [
@@ -765,7 +818,7 @@
         "query_id": "INC0010047",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 81.2,
+        "ms": 72.5,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -777,7 +830,7 @@
         "query_id": "INC0010064",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 69.4,
+        "ms": 81.6,
         "planted_hits": [],
         "top_score": 0.032,
         "returned": [
@@ -797,7 +850,7 @@
         "query_id": "INC0010052",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 66.0,
+        "ms": 68.5,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -814,7 +867,7 @@
         "query_id": "INC1006",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 71.3,
+        "ms": 79.6,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -832,7 +885,7 @@
         "query_id": "INC1007",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 68.2,
+        "ms": 82.9,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -851,7 +904,7 @@
         "query_id": "INC1008",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 70.3,
+        "ms": 73.3,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -869,7 +922,7 @@
         "query_id": "INC1009",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 71.8,
+        "ms": 55.1,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -886,7 +939,7 @@
         "query_id": "INC1010",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 81.3,
+        "ms": 74.5,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -904,7 +957,7 @@
         "query_id": "INC1011",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 77.0,
+        "ms": 65.9,
         "planted_hits": [],
         "top_score": 0.0323,
         "returned": [
@@ -921,7 +974,7 @@
         "query_id": "INC1012",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 65.3,
+        "ms": 71.5,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -938,7 +991,7 @@
         "query_id": "INC1013",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 73.5,
+        "ms": 56.3,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -956,7 +1009,7 @@
         "query_id": "INC1014",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 78.9,
+        "ms": 88.0,
         "planted_hits": [],
         "top_score": 0.032,
         "returned": [
@@ -975,7 +1028,7 @@
         "query_id": "INC1015",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 76.4,
+        "ms": 72.8,
         "planted_hits": [],
         "top_score": 0.032,
         "returned": [
@@ -989,7 +1042,7 @@
         "query_id": "INC1016",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 69.7,
+        "ms": 77.6,
         "planted_hits": [],
         "top_score": 0.0306,
         "returned": [
@@ -1003,7 +1056,7 @@
         "query_id": "INC1017",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 67.9,
+        "ms": 69.9,
         "planted_hits": [],
         "top_score": 0.0313,
         "returned": [
@@ -1018,7 +1071,7 @@
         "query_id": "INC1018",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 71.7,
+        "ms": 70.6,
         "planted_hits": [],
         "top_score": 0.032,
         "returned": [
@@ -1032,7 +1085,7 @@
         "query_id": "INC1019",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 76.0,
+        "ms": 67.5,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1050,7 +1103,7 @@
         "query_id": "INC1020",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 65.2,
+        "ms": 64.8,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1069,7 +1122,7 @@
         "query_id": "INC1021",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 76.0,
+        "ms": 76.3,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1087,7 +1140,7 @@
         "query_id": "INC1022",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 74.0,
+        "ms": 61.3,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1107,7 +1160,7 @@
         "query_id": "INC1023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 76.1,
+        "ms": 65.2,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1124,7 +1177,7 @@
         "query_id": "INC1024",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 67.5,
+        "ms": 69.1,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1141,7 +1194,7 @@
         "query_id": "INC1025",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 71.2,
+        "ms": 66.3,
         "planted_hits": [],
         "top_score": 0.0315,
         "returned": [
@@ -1160,7 +1213,7 @@
         "query_id": "INC1026",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 76.6,
+        "ms": 71.9,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1178,7 +1231,7 @@
         "query_id": "INC1027",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 71.1,
+        "ms": 66.6,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1197,7 +1250,7 @@
         "query_id": "INC1028",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 82.9,
+        "ms": 66.8,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1214,7 +1267,7 @@
         "query_id": "PROBE-01",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 68.3,
+        "ms": 431.0,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1230,7 +1283,7 @@
         "query_id": "PROBE-02",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 70.0,
+        "ms": 98.1,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1248,7 +1301,7 @@
         "query_id": "PROBE-03",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 75.6,
+        "ms": 105.9,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1266,7 +1319,7 @@
         "query_id": "PROBE-04",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 85.2,
+        "ms": 92.2,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1284,7 +1337,7 @@
         "query_id": "PROBE-05",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 81.5,
+        "ms": 95.5,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1304,7 +1357,7 @@
         "query_id": "PROBE-06",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 73.7,
+        "ms": 88.8,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1323,7 +1376,7 @@
         "query_id": "PROBE-07",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 69.1,
+        "ms": 67.4,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1343,7 +1396,7 @@
         "query_id": "PROBE-08",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 86.6,
+        "ms": 68.0,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1363,7 +1416,7 @@
         "query_id": "PROBE-09",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 127.5,
+        "ms": 60.2,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1383,7 +1436,7 @@
         "query_id": "PROBE-10",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 124.5,
+        "ms": 84.1,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1404,7 +1457,7 @@
         "query_id": "INC0010023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1036.0,
+        "ms": 1135.5,
         "planted_hits": [],
         "top_score": 1.3034,
         "returned": [
@@ -1421,7 +1474,7 @@
         "query_id": "INC0010047",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 640.7,
+        "ms": 1073.8,
         "planted_hits": [],
         "top_score": -2.8291,
         "returned": [
@@ -1433,7 +1486,7 @@
         "query_id": "INC0010064",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 616.8,
+        "ms": 1142.1,
         "planted_hits": [],
         "top_score": -4.9462,
         "returned": [
@@ -1452,7 +1505,7 @@
         "query_id": "INC0010052",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 652.7,
+        "ms": 850.3,
         "planted_hits": [],
         "top_score": 4.2594,
         "returned": [
@@ -1469,7 +1522,7 @@
         "query_id": "INC1006",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 620.0,
+        "ms": 542.9,
         "planted_hits": [],
         "top_score": -1.3218,
         "returned": [
@@ -1486,7 +1539,7 @@
         "query_id": "INC1007",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 579.9,
+        "ms": 538.2,
         "planted_hits": [],
         "top_score": 7.2005,
         "returned": [
@@ -1504,7 +1557,7 @@
         "query_id": "INC1008",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 525.5,
+        "ms": 506.1,
         "planted_hits": [],
         "top_score": 2.7758,
         "returned": [
@@ -1522,7 +1575,7 @@
         "query_id": "INC1009",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 612.7,
+        "ms": 779.1,
         "planted_hits": [],
         "top_score": 5.1311,
         "returned": [
@@ -1539,7 +1592,7 @@
         "query_id": "INC1010",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 760.7,
+        "ms": 580.4,
         "planted_hits": [],
         "top_score": -6.2332,
         "returned": [
@@ -1556,7 +1609,7 @@
         "query_id": "INC1011",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 525.6,
+        "ms": 1086.8,
         "planted_hits": [],
         "top_score": 1.6295,
         "returned": [
@@ -1573,7 +1626,7 @@
         "query_id": "INC1012",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 543.8,
+        "ms": 979.8,
         "planted_hits": [],
         "top_score": 1.9994,
         "returned": [
@@ -1591,7 +1644,7 @@
         "query_id": "INC1013",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 546.0,
+        "ms": 642.1,
         "planted_hits": [],
         "top_score": 6.3691,
         "returned": [
@@ -1610,7 +1663,7 @@
         "query_id": "INC1014",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 586.0,
+        "ms": 575.6,
         "planted_hits": [],
         "top_score": -6.4914,
         "returned": [
@@ -1629,7 +1682,7 @@
         "query_id": "INC1015",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 945.9,
+        "ms": 834.7,
         "planted_hits": [],
         "top_score": -9.0591,
         "returned": [
@@ -1642,7 +1695,7 @@
         "query_id": "INC1016",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 978.5,
+        "ms": 1062.5,
         "planted_hits": [],
         "top_score": -11.1803,
         "returned": [
@@ -1657,7 +1710,7 @@
         "query_id": "INC1017",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 631.9,
+        "ms": 1122.4,
         "planted_hits": [],
         "top_score": -9.0964,
         "returned": [
@@ -1672,7 +1725,7 @@
         "query_id": "INC1018",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 529.4,
+        "ms": 1031.1,
         "planted_hits": [],
         "top_score": -7.5057,
         "returned": [
@@ -1685,7 +1738,7 @@
         "query_id": "INC1019",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 952.7,
+        "ms": 546.4,
         "planted_hits": [],
         "top_score": 4.0926,
         "returned": [
@@ -1703,7 +1756,7 @@
         "query_id": "INC1020",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 578.8,
+        "ms": 1066.5,
         "planted_hits": [],
         "top_score": 5.9962,
         "returned": [
@@ -1721,7 +1774,7 @@
         "query_id": "INC1021",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 655.7,
+        "ms": 556.7,
         "planted_hits": [],
         "top_score": 5.1675,
         "returned": [
@@ -1739,7 +1792,7 @@
         "query_id": "INC1022",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 701.9,
+        "ms": 504.9,
         "planted_hits": [],
         "top_score": 7.1701,
         "returned": [
@@ -1758,7 +1811,7 @@
         "query_id": "INC1023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 757.0,
+        "ms": 631.9,
         "planted_hits": [],
         "top_score": 4.9712,
         "returned": [
@@ -1775,7 +1828,7 @@
         "query_id": "INC1024",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 588.1,
+        "ms": 1017.8,
         "planted_hits": [],
         "top_score": 3.1102,
         "returned": [
@@ -1792,7 +1845,7 @@
         "query_id": "INC1025",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 991.4,
+        "ms": 522.2,
         "planted_hits": [],
         "top_score": -4.9823,
         "returned": [
@@ -1812,7 +1865,7 @@
         "query_id": "INC1026",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 575.0,
+        "ms": 452.7,
         "planted_hits": [],
         "top_score": 2.8783,
         "returned": [
@@ -1830,7 +1883,7 @@
         "query_id": "INC1027",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 541.6,
+        "ms": 685.8,
         "planted_hits": [],
         "top_score": -0.7332,
         "returned": [
@@ -1848,7 +1901,7 @@
         "query_id": "INC1028",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 521.9,
+        "ms": 500.5,
         "planted_hits": [],
         "top_score": 6.234,
         "returned": [
@@ -1865,7 +1918,7 @@
         "query_id": "PROBE-01",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1121.5,
+        "ms": 1203.9,
         "planted_hits": [],
         "top_score": 8.1192,
         "returned": [
@@ -1881,7 +1934,7 @@
         "query_id": "PROBE-02",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 687.5,
+        "ms": 1163.5,
         "planted_hits": [],
         "top_score": 6.1401,
         "returned": [
@@ -1899,7 +1952,7 @@
         "query_id": "PROBE-03",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 550.0,
+        "ms": 606.6,
         "planted_hits": [],
         "top_score": 7.5252,
         "returned": [
@@ -1917,7 +1970,7 @@
         "query_id": "PROBE-04",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 891.3,
+        "ms": 634.4,
         "planted_hits": [],
         "top_score": 8.0588,
         "returned": [
@@ -1934,7 +1987,7 @@
         "query_id": "PROBE-05",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1063.5,
+        "ms": 566.2,
         "planted_hits": [],
         "top_score": 7.2588,
         "returned": [
@@ -1954,7 +2007,7 @@
         "query_id": "PROBE-06",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1317.1,
+        "ms": 987.6,
         "planted_hits": [],
         "top_score": 7.2303,
         "returned": [
@@ -1973,7 +2026,7 @@
         "query_id": "PROBE-07",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 767.4,
+        "ms": 479.3,
         "planted_hits": [],
         "top_score": 7.5407,
         "returned": [
@@ -1993,7 +2046,7 @@
         "query_id": "PROBE-08",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1046.8,
+        "ms": 625.1,
         "planted_hits": [],
         "top_score": 6.7825,
         "returned": [
@@ -2012,7 +2065,7 @@
         "query_id": "PROBE-09",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 747.1,
+        "ms": 664.3,
         "planted_hits": [],
         "top_score": 7.1975,
         "returned": [
@@ -2032,7 +2085,7 @@
         "query_id": "PROBE-10",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 884.1,
+        "ms": 750.3,
         "planted_hits": [],
         "top_score": 7.1645,
         "returned": [
