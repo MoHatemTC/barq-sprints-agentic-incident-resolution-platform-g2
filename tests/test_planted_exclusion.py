@@ -1,6 +1,5 @@
-# The pre-filter proof. In-memory Qdrant: 3 real published chunks + the 3 planted decoys.
-# Each decoy copies a real article's text, so WITHOUT the filter it ranks #1.
-# Run: pytest tests/test_planted_exclusion.py -v
+# The pre-filter proof. In-memory Qdrant: 3 real published chunks + the 3 planted decoys 
+# so Each decoy copies a real article's text, so WITHOUT the filter it ranks #1 to Run: pytest tests/test_planted_exclusion.py -v
 import pytest
 from qdrant_client import QdrantClient, models
 
@@ -20,7 +19,7 @@ REAL = [
     ("KB0022", "Replace the saved SAP Logon entry that targets APPSRV-OLD-04 with the message server group."),
 ]
 
-# Filters switched OFF -- used only to prove the decoys CAN come back.
+# Filters switched OFF : used only to prove the decoys CAN come back
 NO_FILTER = RetrievalFilters(allowed_workflow_states=("published", "retired", "draft"),
                              blocked_security_levels=())
 
@@ -52,7 +51,7 @@ def numbers(client, query, mode, filters=None):
                                      client=client, collection=COLLECTION)]
 
 
-# ---- half A: with the default filter, a decoy is never returned (3 decoys x 3 modes)
+# first half : with the default filter, a decoy is never returned (3 decoys x 3 modes)
 
 @pytest.mark.parametrize("mode", MODES)
 @pytest.mark.parametrize("doc", DECOYS, ids=lambda d: d["article_number"])
@@ -61,7 +60,7 @@ def test_planted_document_is_never_returned(client, mode, doc):
     assert not set(got) & planted_numbers()
 
 
-# ---- half B: with the filter off, the same decoy is rank 1 (so half A has teeth)
+# other half : with the filter off, the same decoy is rank 1 (so firs thalf has teeth)
 
 @pytest.mark.parametrize("doc", DECOYS, ids=lambda d: d["article_number"])
 def test_planted_document_is_rank_1_when_filter_is_off(client, doc):
@@ -69,7 +68,7 @@ def test_planted_document_is_rank_1_when_filter_is_off(client, doc):
     assert got[0] == doc["article_number"]
 
 
-# ---- KB9003 is published but restricted: only the security rule can stop it
+# test KB9003 is published but restricted: only the security rule can stop it
 
 def test_restricted_decoy_is_blocked_by_security_rule_alone(client):
     state_rule_only = RetrievalFilters(blocked_security_levels=())
