@@ -81,15 +81,21 @@ def summarise(rows: list[dict]) -> dict:
 
 
 def sparse_wins(dense_rows: list[dict], hybrid_rows: list[dict], items: dict) -> list[dict]:
-    """Answerable queries where hybrid found the article and dense missed it or ranked it worse."""
+    """Answerable queries where hybrid fixed a dense failure. Two kinds:
+      recovered : an expected article is in hybrid's top-k but absent from dense's top-k
+      rank      : hybrid ranked the first expected article higher than dense did
+    """
     wins = []
     for d, h in zip(dense_rows, hybrid_rows):
         if not d["answerable"]:
             continue
-        if h["first_rank"] and (d["first_rank"] is None or h["first_rank"] < d["first_rank"]):
-            item = items[d["query_id"]]
-            wins.append({"query_id": d["query_id"], "query": item["query"],
-                         "expected": item["expected_articles"],
+        item = items[d["query_id"]]
+        expected = set(item["expected_articles"])
+        recovered = sorted((expected & set(h["returned"])) - set(d["returned"]))
+        rank_win = bool(h["first_rank"]) and (d["first_rank"] is None or h["first_rank"] < d["first_rank"])
+        if recovered or rank_win:
+            wins.append({"query_id": d["query_id"], "query": item["query"], "expected": item["expected_articles"],
+                         "kind": "recovered" if recovered else "rank", "recovered": recovered,
                          "dense_rank": d["first_rank"], "hybrid_rank": h["first_rank"],
                          "dense_returned": d["returned"], "hybrid_returned": h["returned"]})
     return wins
@@ -132,12 +138,13 @@ def to_markdown(summary: dict, wins: list[dict], k: int, deterministic, budget: 
                 s = per_mode_summary[m]
                 out.append(f"| {src} | {m} | {s['precision']:.3f} | {s['recall']:.3f} | {s['hit_rate']:.3f} | {s['mrr']:.3f} |")
 
-    out += ["", "### Sparse rescues dense (dense missed or ranked worse; hybrid found it)", ""]
+    out += ["", "### Sparse rescues dense (an expected article missing from dense top-k that hybrid retrieved, or a rank improvement)", ""]
     if wins:
-        out += ["| incident | query | expected | dense rank | hybrid rank |", "|---|---|---|---|---|"]
+        out += ["| incident | query | expected | kind | article dense missed | dense rank | hybrid rank |",
+                "|---|---|---|---|---|---|---|"]
         for w in wins:
-            out.append(f"| {w['query_id']} | {w['query']} | {', '.join(w['expected'])} "
-                       f"| {w['dense_rank'] or 'miss'} | {w['hybrid_rank']} |")
+            out.append(f"| {w['query_id']} | {w['query']} | {', '.join(w['expected'])} | {w['kind']} "
+                       f"| {', '.join(w['recovered']) or '-'} | {w['dense_rank'] or 'miss'} | {w['hybrid_rank']} |")
     else:
         out.append("_none at this k_")
 
