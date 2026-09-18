@@ -1,11 +1,7 @@
 """
-Turn eval/planted_documents.json into Qdrant points.
-
-Same vectors and same payload keys as S1.4's ingest.py, so a decoy sits next
-to real chunks and goes through the exact same filter. Used by
-tests/test_planted_exclusion.py (in-memory) and eval/ablation.py --plant (live).
-"""
-
+this file to Turn eval/planted_documents.json into Qdrant points
+so real chunks and planting ones  goes through the exact same filter, Used later for testing
+ """
 import json
 from pathlib import Path
 
