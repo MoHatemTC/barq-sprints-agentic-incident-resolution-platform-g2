@@ -8,6 +8,8 @@ before the owning teams publish their contracts.
 from dataclasses import dataclass, field
 from typing import Protocol
 
+from src.workers.dlq import DeadLetterEntry
+
 
 @dataclass(frozen=True)
 class AcceptedIncidentFixture:
@@ -102,23 +104,11 @@ class RecordingStateRecorder:
         self.failures.append(RecordedFailure(incident, error))
 
 
-@dataclass(frozen=True)
-class RecordedDlqTransition:
-    """TEST-ONLY observed dead-letter transition."""
-
-    incident: AcceptedIncidentFixture
-    error: BaseException
-
-
 @dataclass
 class RecordingDlq:
     """TEST-ONLY/PENDING S2.1 AGREEMENT DLQ sink with no Redis behavior."""
 
-    transitions: list[RecordedDlqTransition] = field(default_factory=list)
+    transitions: list[DeadLetterEntry] = field(default_factory=list)
 
-    def transition(
-        self,
-        incident: AcceptedIncidentFixture,
-        error: BaseException,
-    ) -> None:
-        self.transitions.append(RecordedDlqTransition(incident, error))
+    def transition(self, entry: DeadLetterEntry) -> None:
+        self.transitions.append(entry)

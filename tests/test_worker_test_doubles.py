@@ -2,6 +2,7 @@
 
 import pytest
 
+from src.workers.dlq import create_dead_letter_entry
 from tests.worker_test_doubles import (
     RecordingDlq,
     RecordingStateRecorder,
@@ -73,7 +74,16 @@ def test_recording_dlq_preserves_incident_and_failure_context():
     failure = TerminalAgentFailure("invalid")
     dlq = RecordingDlq()
 
-    dlq.transition(incident, failure)
+    dlq.transition(
+        create_dead_letter_entry(
+            payload=incident,
+            error=failure,
+            retry_count=0,
+            task_name="test.task",
+            task_id=None,
+        )
+    )
 
-    assert dlq.transitions[0].incident == incident
-    assert dlq.transitions[0].error is failure
+    assert dlq.transitions[0].payload is incident
+    assert dlq.transitions[0].error_type == type(failure).__name__
+    assert dlq.transitions[0].error_message == str(failure)

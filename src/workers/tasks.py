@@ -7,6 +7,7 @@ from celery import Celery, Task
 from celery.exceptions import SoftTimeLimitExceeded
 
 from src.workers.celery_app import create_celery_app
+from src.workers.dlq import DeadLetterEntry, create_dead_letter_entry
 from src.workers.retry_policy import RetryDecision, RetryPolicy
 
 
@@ -40,7 +41,7 @@ class PendingStateRecorderForTests(Protocol):
 class PendingDlqForTests(Protocol):
     """TEST-ONLY/PENDING S2.1 AGREEMENT DLQ transition seam."""
 
-    def transition(self, accepted_incident: object, error: BaseException) -> None:
+    def transition(self, entry: DeadLetterEntry) -> None:
         """Observe a dead-letter transition."""
 
 
@@ -51,6 +52,7 @@ class PendingIntegrationSeamsForTests:
     agent: PendingAgentExecutorForTests
     state_recorder: PendingStateRecorderForTests
     dlq: PendingDlqForTests
+    execution_context: object | None = None
 
 
 class _RetryableTimeoutForPolicy:
@@ -95,7 +97,16 @@ def register_process_accepted_incident_task(
                 retries_completed,
                 error,
             )
-            seams.dlq.transition(accepted_incident, error)
+            seams.dlq.transition(
+                create_dead_letter_entry(
+                    payload=accepted_incident,
+                    execution_context=seams.execution_context,
+                    error=error,
+                    retry_count=retries_completed,
+                    task_name=task.name,
+                    task_id=getattr(task.request, "id", None),
+                )
+            )
             return decision, None
 
         try:

@@ -147,8 +147,9 @@ def test_task_dead_letters_exhausted_retryable_failure():
     assert recorder.failures[0].incident == incident
     assert recorder.failures[0].error is error
     assert len(dlq.transitions) == 1
-    assert dlq.transitions[0].incident == incident
-    assert dlq.transitions[0].error is error
+    assert dlq.transitions[0].payload is incident
+    assert dlq.transitions[0].error_type == type(error).__name__
+    assert dlq.transitions[0].error_message == str(error)
 
 
 def test_task_dead_letters_terminal_failure_without_retry():
@@ -164,8 +165,9 @@ def test_task_dead_letters_terminal_failure_without_retry():
     assert recorder.failures[0].incident == incident
     assert recorder.failures[0].error is error
     assert len(dlq.transitions) == 1
-    assert dlq.transitions[0].incident == incident
-    assert dlq.transitions[0].error is error
+    assert dlq.transitions[0].payload is incident
+    assert dlq.transitions[0].error_type == type(error).__name__
+    assert dlq.transitions[0].error_message == str(error)
 
 
 def test_task_retries_soft_timeout_with_policy_delay():
@@ -198,8 +200,9 @@ def test_task_dead_letters_exhausted_soft_timeout_once():
     assert recorder.failures[0].incident == incident
     assert recorder.failures[0].error is error
     assert len(dlq.transitions) == 1
-    assert dlq.transitions[0].incident == incident
-    assert dlq.transitions[0].error is error
+    assert dlq.transitions[0].payload is incident
+    assert dlq.transitions[0].error_type == type(error).__name__
+    assert dlq.transitions[0].error_message == str(error)
 
 
 def test_task_isolates_unexpected_retryable_failure_without_terminating_worker():
@@ -241,8 +244,9 @@ def test_task_dead_letters_unclassified_unexpected_failure_as_terminal():
     assert recorder.failures[0].incident == incident
     assert recorder.failures[0].error is error
     assert len(dlq.transitions) == 1
-    assert dlq.transitions[0].incident == incident
-    assert dlq.transitions[0].error is error
+    assert dlq.transitions[0].payload is incident
+    assert dlq.transitions[0].error_type == type(error).__name__
+    assert dlq.transitions[0].error_message == str(error)
 
 
 def test_task_dead_letters_exhausted_unexpected_retryable_failure_once():
@@ -259,8 +263,9 @@ def test_task_dead_letters_exhausted_unexpected_retryable_failure_once():
     assert recorder.failures[0].incident == incident
     assert recorder.failures[0].error is error
     assert len(dlq.transitions) == 1
-    assert dlq.transitions[0].incident == incident
-    assert dlq.transitions[0].error is error
+    assert dlq.transitions[0].payload is incident
+    assert dlq.transitions[0].error_type == type(error).__name__
+    assert dlq.transitions[0].error_message == str(error)
 
 
 def test_shutdown_timeout_does_not_change_task_retry_behavior():
@@ -296,11 +301,12 @@ def test_shutdown_timeout_does_not_change_task_dlq_behavior():
     assert recorder.retries == []
     assert len(recorder.failures) == 1
     assert len(dlq.transitions) == 1
-    assert dlq.transitions[0].incident == incident
-    assert dlq.transitions[0].error is error
+    assert dlq.transitions[0].payload is incident
+    assert dlq.transitions[0].error_type == type(error).__name__
+    assert dlq.transitions[0].error_message == str(error)
 
 
-def test_simulated_saturation_isolates_retry_and_dlq_state_per_event():
+def test_local_orchestration_isolates_retry_and_dlq_state_per_event():
     retry_incident = _incident()
     terminal_incident = AcceptedIncidentFixture(
         event_id="event-2",
@@ -333,7 +339,7 @@ def test_simulated_saturation_isolates_retry_and_dlq_state_per_event():
     assert len(terminal_recorder.failures) == 1
     assert terminal_recorder.failures[0].incident is terminal_incident
     assert len(terminal_dlq.transitions) == 1
-    assert terminal_dlq.transitions[0].incident is terminal_incident
+    assert terminal_dlq.transitions[0].payload is terminal_incident
 
 
 def test_task_uses_supplied_celery_app_without_creating_another():
