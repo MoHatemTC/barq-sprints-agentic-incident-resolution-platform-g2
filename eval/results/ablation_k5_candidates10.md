@@ -2,38 +2,36 @@
 
 | mode | precision@k | recall@k | hit@k | MRR | planted hits | p50 ms | p95 ms |
 |---|---|---|---|---|---|---|---|
-| dense | 0.376 | 0.906 | 0.969 | 0.969 | 0 | 80.8 | 206.7 |
-| hybrid | 0.387 | 0.906 | 0.969 | 0.922 | 0 | 82.2 | 104.9 |
-| hybrid_rerank | 0.450 | 0.938 | 0.969 | 0.948 | 0 | 966.0 | 1653.4 |
+| dense | 0.376 | 0.906 | 0.969 | 0.969 | 0 | 67.7 | 135.9 |
+| hybrid | 0.395 | 0.938 | 0.969 | 0.922 | 0 | 73.7 | 124.8 |
+| hybrid_rerank | 0.427 | 0.938 | 0.969 | 0.948 | 0 | 652.7 | 1141.1 |
 
 ### Margin over dense baseline
 
 | mode | Δ precision | Δ recall | Δ MRR |
 |---|---|---|---|
-| hybrid | +0.011 | +0.000 | -0.047 |
-| hybrid_rerank | +0.074 | +0.032 | -0.021 |
+| hybrid | +0.019 | +0.032 | -0.047 |
+| hybrid_rerank | +0.051 | +0.032 | -0.021 |
 
 ### Latency headroom (budget 500 ms)
 
 | mode | p95 ms | headroom ms | within budget |
 |---|---|---|---|
-| dense | 206.7 | 293.3 | yes |
-| hybrid | 104.9 | 395.1 | yes |
-| hybrid_rerank | 1653.4 | -1153.4 | NO |
+| dense | 135.9 | 364.1 | yes |
+| hybrid | 124.8 | 375.2 | yes |
+| hybrid_rerank | 1141.1 | -641.1 | NO |
 
 ### By query source (v1.1: coverage-matrix incidents vs identifier-only probes)
 
 | source | mode | precision@k | recall@k | hit@k | MRR |
 |---|---|---|---|---|---|
 | coverage_matrix | dense | 0.398 | 0.886 | 0.955 | 0.955 |
-| coverage_matrix | hybrid | 0.392 | 0.886 | 0.955 | 0.886 |
-| coverage_matrix | hybrid_rerank | 0.447 | 0.909 | 0.955 | 0.924 |
+| coverage_matrix | hybrid | 0.395 | 0.909 | 0.955 | 0.886 |
+| coverage_matrix | hybrid_rerank | 0.422 | 0.909 | 0.955 | 0.924 |
 | identifier_probe | dense | 0.328 | 0.950 | 1.000 | 1.000 |
-| identifier_probe | hybrid | 0.377 | 0.950 | 1.000 | 1.000 |
-| identifier_probe | hybrid_rerank | 0.457 | 1.000 | 1.000 | 1.000 |
+| identifier_probe | hybrid | 0.395 | 1.000 | 1.000 | 1.000 |
+| identifier_probe | hybrid_rerank | 0.438 | 1.000 | 1.000 | 1.000 |
 
 ### Sparse rescues dense (dense missed or ranked worse; hybrid found it)
 
 _none at this k_
-
-### Determinism: two full runs produced **IDENTICAL** rankings in every mode

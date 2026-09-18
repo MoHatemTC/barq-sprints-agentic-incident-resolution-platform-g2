@@ -1,8 +1,8 @@
 {
   "evaluation_set_version": "1.1",
   "k": 5,
-  "runs": 2,
-  "deterministic": true,
+  "runs": 1,
+  "deterministic": null,
   "summary": {
     "dense": {
       "precision": 0.376,
@@ -10,26 +10,26 @@
       "hit_rate": 0.969,
       "mrr": 0.969,
       "planted_hits": 0,
-      "p50_ms": 80.8,
-      "p95_ms": 206.7
+      "p50_ms": 67.7,
+      "p95_ms": 135.9
     },
     "hybrid": {
-      "precision": 0.387,
-      "recall": 0.906,
+      "precision": 0.395,
+      "recall": 0.938,
       "hit_rate": 0.969,
       "mrr": 0.922,
       "planted_hits": 0,
-      "p50_ms": 82.2,
-      "p95_ms": 104.9
+      "p50_ms": 73.7,
+      "p95_ms": 124.8
     },
     "hybrid_rerank": {
-      "precision": 0.45,
+      "precision": 0.427,
       "recall": 0.938,
       "hit_rate": 0.969,
       "mrr": 0.948,
       "planted_hits": 0,
-      "p50_ms": 966.0,
-      "p95_ms": 1653.4
+      "p50_ms": 652.7,
+      "p95_ms": 1141.1
     }
   },
   "by_source": {
@@ -40,26 +40,26 @@
         "hit_rate": 0.955,
         "mrr": 0.955,
         "planted_hits": 0,
-        "p50_ms": 77.4,
-        "p95_ms": 316.0
+        "p50_ms": 70.7,
+        "p95_ms": 154.2
       },
       "hybrid": {
-        "precision": 0.392,
-        "recall": 0.886,
+        "precision": 0.395,
+        "recall": 0.909,
         "hit_rate": 0.955,
         "mrr": 0.886,
         "planted_hits": 0,
-        "p50_ms": 82.8,
-        "p95_ms": 130.9
+        "p50_ms": 71.8,
+        "p95_ms": 82.3
       },
       "hybrid_rerank": {
-        "precision": 0.447,
+        "precision": 0.422,
         "recall": 0.909,
         "hit_rate": 0.955,
         "mrr": 0.924,
         "planted_hits": 0,
-        "p50_ms": 965.8,
-        "p95_ms": 1687.7
+        "p50_ms": 616.8,
+        "p95_ms": 1018.2
       }
     },
     "identifier_probe": {
@@ -69,26 +69,26 @@
         "hit_rate": 1,
         "mrr": 1.0,
         "planted_hits": 0,
-        "p50_ms": 91.7,
-        "p95_ms": 153.5
+        "p50_ms": 62.1,
+        "p95_ms": 76.0
       },
       "hybrid": {
-        "precision": 0.377,
-        "recall": 0.95,
-        "hit_rate": 1,
-        "mrr": 1.0,
-        "planted_hits": 0,
-        "p50_ms": 73.0,
-        "p95_ms": 86.8
-      },
-      "hybrid_rerank": {
-        "precision": 0.457,
+        "precision": 0.395,
         "recall": 1.0,
         "hit_rate": 1,
         "mrr": 1.0,
         "planted_hits": 0,
-        "p50_ms": 1095.7,
-        "p95_ms": 1357.6
+        "p50_ms": 78.5,
+        "p95_ms": 128.8
+      },
+      "hybrid_rerank": {
+        "precision": 0.438,
+        "recall": 1.0,
+        "hit_rate": 1,
+        "mrr": 1.0,
+        "planted_hits": 0,
+        "p50_ms": 887.7,
+        "p95_ms": 1405.1
       }
     }
   },
@@ -99,7 +99,7 @@
         "query_id": "INC0010023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 403.5,
+        "ms": 168.9,
         "planted_hits": [],
         "top_score": 0.7829,
         "returned": [
@@ -116,7 +116,7 @@
         "query_id": "INC0010047",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 88.2,
+        "ms": 125.0,
         "planted_hits": [],
         "top_score": 0.776,
         "returned": [
@@ -128,7 +128,7 @@
         "query_id": "INC0010064",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 90.5,
+        "ms": 132.2,
         "planted_hits": [],
         "top_score": 0.756,
         "returned": [
@@ -148,7 +148,7 @@
         "query_id": "INC0010052",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 65.6,
+        "ms": 105.9,
         "planted_hits": [],
         "top_score": 0.8594,
         "returned": [
@@ -166,7 +166,7 @@
         "query_id": "INC1006",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 73.3,
+        "ms": 118.1,
         "planted_hits": [],
         "top_score": 0.7607,
         "returned": [
@@ -184,7 +184,7 @@
         "query_id": "INC1007",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 67.5,
+        "ms": 124.7,
         "planted_hits": [],
         "top_score": 0.8936,
         "returned": [
@@ -203,7 +203,7 @@
         "query_id": "INC1008",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 71.9,
+        "ms": 118.2,
         "planted_hits": [],
         "top_score": 0.868,
         "returned": [
@@ -221,7 +221,7 @@
         "query_id": "INC1009",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 77.4,
+        "ms": 108.7,
         "planted_hits": [],
         "top_score": 0.875,
         "returned": [
@@ -239,7 +239,7 @@
         "query_id": "INC1010",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 65.1,
+        "ms": 94.1,
         "planted_hits": [],
         "top_score": 0.7302,
         "returned": [
@@ -256,7 +256,7 @@
         "query_id": "INC1011",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 59.9,
+        "ms": 98.3,
         "planted_hits": [],
         "top_score": 0.8233,
         "returned": [
@@ -273,7 +273,7 @@
         "query_id": "INC1012",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 184.8,
+        "ms": 76.5,
         "planted_hits": [],
         "top_score": 0.7623,
         "returned": [
@@ -290,7 +290,7 @@
         "query_id": "INC1013",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 59.8,
+        "ms": 70.9,
         "planted_hits": [],
         "top_score": 0.8883,
         "returned": [
@@ -307,7 +307,7 @@
         "query_id": "INC1014",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 60.0,
+        "ms": 63.0,
         "planted_hits": [],
         "top_score": 0.7346,
         "returned": [
@@ -326,7 +326,7 @@
         "query_id": "INC1015",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 68.6,
+        "ms": 64.6,
         "planted_hits": [],
         "top_score": 0.6336,
         "returned": [
@@ -339,7 +339,7 @@
         "query_id": "INC1016",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 74.1,
+        "ms": 64.5,
         "planted_hits": [],
         "top_score": 0.6853,
         "returned": [
@@ -351,7 +351,7 @@
         "query_id": "INC1017",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 60.8,
+        "ms": 64.7,
         "planted_hits": [],
         "top_score": 0.6427,
         "returned": [
@@ -366,7 +366,7 @@
         "query_id": "INC1018",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 73.3,
+        "ms": 64.4,
         "planted_hits": [],
         "top_score": 0.6376,
         "returned": [
@@ -379,7 +379,7 @@
         "query_id": "INC1019",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 99.6,
+        "ms": 61.3,
         "planted_hits": [],
         "top_score": 0.8098,
         "returned": [
@@ -397,7 +397,7 @@
         "query_id": "INC1020",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 69.5,
+        "ms": 68.1,
         "planted_hits": [],
         "top_score": 0.8669,
         "returned": [
@@ -415,7 +415,7 @@
         "query_id": "INC1021",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 92.1,
+        "ms": 63.2,
         "planted_hits": [],
         "top_score": 0.8947,
         "returned": [
@@ -433,7 +433,7 @@
         "query_id": "INC1022",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 79.1,
+        "ms": 70.3,
         "planted_hits": [],
         "top_score": 0.8608,
         "returned": [
@@ -451,7 +451,7 @@
         "query_id": "INC1023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 93.8,
+        "ms": 52.6,
         "planted_hits": [],
         "top_score": 0.7977,
         "returned": [
@@ -468,7 +468,7 @@
         "query_id": "INC1024",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 79.5,
+        "ms": 58.3,
         "planted_hits": [],
         "top_score": 0.7518,
         "returned": [
@@ -485,7 +485,7 @@
         "query_id": "INC1025",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 119.7,
+        "ms": 65.6,
         "planted_hits": [],
         "top_score": 0.7557,
         "returned": [
@@ -503,7 +503,7 @@
         "query_id": "INC1026",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 82.0,
+        "ms": 67.0,
         "planted_hits": [],
         "top_score": 0.8555,
         "returned": [
@@ -521,7 +521,7 @@
         "query_id": "INC1027",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 96.0,
+        "ms": 70.9,
         "planted_hits": [],
         "top_score": 0.8236,
         "returned": [
@@ -540,7 +540,7 @@
         "query_id": "INC1028",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 82.2,
+        "ms": 70.7,
         "planted_hits": [],
         "top_score": 0.8305,
         "returned": [
@@ -557,7 +557,7 @@
         "query_id": "PROBE-01",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 80.8,
+        "ms": 68.0,
         "planted_hits": [],
         "top_score": 0.8179,
         "returned": [
@@ -574,7 +574,7 @@
         "query_id": "PROBE-02",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 77.9,
+        "ms": 61.2,
         "planted_hits": [],
         "top_score": 0.6901,
         "returned": [
@@ -593,7 +593,7 @@
         "query_id": "PROBE-03",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 100.5,
+        "ms": 73.5,
         "planted_hits": [],
         "top_score": 0.7665,
         "returned": [
@@ -611,7 +611,7 @@
         "query_id": "PROBE-04",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 93.3,
+        "ms": 63.0,
         "planted_hits": [],
         "top_score": 0.9269,
         "returned": [
@@ -628,7 +628,7 @@
         "query_id": "PROBE-05",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 81.4,
+        "ms": 58.6,
         "planted_hits": [],
         "top_score": 0.9288,
         "returned": [
@@ -648,7 +648,7 @@
         "query_id": "PROBE-06",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 141.5,
+        "ms": 60.8,
         "planted_hits": [],
         "top_score": 0.77,
         "returned": [
@@ -667,7 +667,7 @@
         "query_id": "PROBE-07",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 114.9,
+        "ms": 66.4,
         "planted_hits": [],
         "top_score": 0.9146,
         "returned": [
@@ -687,7 +687,7 @@
         "query_id": "PROBE-08",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 107.7,
+        "ms": 50.5,
         "planted_hits": [],
         "top_score": 0.6457,
         "returned": [
@@ -706,7 +706,7 @@
         "query_id": "PROBE-09",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 90.0,
+        "ms": 67.7,
         "planted_hits": [],
         "top_score": 0.8978,
         "returned": [
@@ -726,7 +726,7 @@
         "query_id": "PROBE-10",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 78.6,
+        "ms": 51.8,
         "planted_hits": [],
         "top_score": 0.7015,
         "returned": [
@@ -748,7 +748,7 @@
         "query_id": "INC0010023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 95.0,
+        "ms": 79.3,
         "planted_hits": [],
         "top_score": 0.0323,
         "returned": [
@@ -765,7 +765,7 @@
         "query_id": "INC0010047",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 79.7,
+        "ms": 81.2,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -777,7 +777,7 @@
         "query_id": "INC0010064",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 94.4,
+        "ms": 69.4,
         "planted_hits": [],
         "top_score": 0.032,
         "returned": [
@@ -797,7 +797,7 @@
         "query_id": "INC0010052",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 74.7,
+        "ms": 66.0,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -814,14 +814,15 @@
         "query_id": "INC1006",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 89.8,
+        "ms": 71.3,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
           "KB0002",
-          "KB0025"
+          "KB0025",
+          "KB0016"
         ],
-        "precision": 0.5,
+        "precision": 0.3333333333333333,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -831,7 +832,7 @@
         "query_id": "INC1007",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 151.7,
+        "ms": 68.2,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -850,7 +851,7 @@
         "query_id": "INC1008",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 82.2,
+        "ms": 70.3,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -868,7 +869,7 @@
         "query_id": "INC1009",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 97.8,
+        "ms": 71.8,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -885,16 +886,15 @@
         "query_id": "INC1010",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 99.7,
+        "ms": 81.3,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
           "KB0009",
           "KB0019",
-          "KB0024",
           "KB0010"
         ],
-        "precision": 0.25,
+        "precision": 0.3333333333333333,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -904,7 +904,7 @@
         "query_id": "INC1011",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 93.8,
+        "ms": 77.0,
         "planted_hits": [],
         "top_score": 0.0323,
         "returned": [
@@ -921,12 +921,12 @@
         "query_id": "INC1012",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 81.0,
+        "ms": 65.3,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
           "KB0006",
-          "KB0005"
+          "KB0023"
         ],
         "precision": 0.5,
         "recall": 1.0,
@@ -938,7 +938,7 @@
         "query_id": "INC1013",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 81.3,
+        "ms": 73.5,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -956,14 +956,14 @@
         "query_id": "INC1014",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 90.4,
+        "ms": 78.9,
         "planted_hits": [],
         "top_score": 0.032,
         "returned": [
           "KB0015",
           "KB0021",
           "KB0024",
-          "KB0026"
+          "KB0005"
         ],
         "precision": 0.25,
         "recall": 1.0,
@@ -975,12 +975,13 @@
         "query_id": "INC1015",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 73.4,
+        "ms": 76.4,
         "planted_hits": [],
         "top_score": 0.032,
         "returned": [
           "KB0013",
           "KB0021",
+          "KB0024",
           "KB0010"
         ]
       },
@@ -988,48 +989,50 @@
         "query_id": "INC1016",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 69.8,
+        "ms": 69.7,
         "planted_hits": [],
-        "top_score": 0.029,
+        "top_score": 0.0306,
         "returned": [
           "KB0010",
-          "KB0023",
-          "KB0003",
-          "KB0004"
+          "KB0020",
+          "KB0005",
+          "KB0015"
         ]
       },
       {
         "query_id": "INC1017",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 95.2,
+        "ms": 67.9,
         "planted_hits": [],
         "top_score": 0.0313,
         "returned": [
           "KB0016",
           "KB0026",
-          "KB0013",
-          "KB0008"
+          "KB0021",
+          "KB0019",
+          "KB0013"
         ]
       },
       {
         "query_id": "INC1018",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 82.8,
+        "ms": 71.7,
         "planted_hits": [],
         "top_score": 0.032,
         "returned": [
           "KB0020",
           "KB0023",
-          "KB0008"
+          "KB0008",
+          "KB0001"
         ]
       },
       {
         "query_id": "INC1019",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 76.7,
+        "ms": 76.0,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1047,7 +1050,7 @@
         "query_id": "INC1020",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 66.7,
+        "ms": 65.2,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1066,7 +1069,7 @@
         "query_id": "INC1021",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 84.4,
+        "ms": 76.0,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1084,7 +1087,7 @@
         "query_id": "INC1022",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 79.2,
+        "ms": 74.0,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1092,7 +1095,7 @@
           "KB0021",
           "KB0013",
           "KB0006",
-          "KB0026"
+          "KB0002"
         ],
         "precision": 0.2,
         "recall": 1.0,
@@ -1104,7 +1107,7 @@
         "query_id": "INC1023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 86.5,
+        "ms": 76.1,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1121,7 +1124,7 @@
         "query_id": "INC1024",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 75.9,
+        "ms": 67.5,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1138,16 +1141,17 @@
         "query_id": "INC1025",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 87.1,
+        "ms": 71.2,
         "planted_hits": [],
         "top_score": 0.0315,
         "returned": [
           "KB0020",
+          "KB0018",
           "KB0001",
           "KB0005"
         ],
-        "precision": 0.3333333333333333,
-        "recall": 0.5,
+        "precision": 0.5,
+        "recall": 1.0,
         "hit": true,
         "rr": 0.5,
         "first_rank": 2
@@ -1156,7 +1160,7 @@
         "query_id": "INC1026",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 82.4,
+        "ms": 76.6,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1174,7 +1178,7 @@
         "query_id": "INC1027",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 82.8,
+        "ms": 71.1,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1193,7 +1197,7 @@
         "query_id": "INC1028",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 90.0,
+        "ms": 82.9,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1210,7 +1214,7 @@
         "query_id": "PROBE-01",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 84.3,
+        "ms": 68.3,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1226,13 +1230,13 @@
         "query_id": "PROBE-02",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 71.9,
+        "ms": 70.0,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
           "KB0005",
           "KB0010",
-          "KB0003"
+          "KB0007"
         ],
         "precision": 0.3333333333333333,
         "recall": 1.0,
@@ -1244,12 +1248,12 @@
         "query_id": "PROBE-03",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 86.0,
+        "ms": 75.6,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
           "KB0022",
-          "KB0023",
+          "KB0013",
           "KB0021"
         ],
         "precision": 0.3333333333333333,
@@ -1262,16 +1266,15 @@
         "query_id": "PROBE-04",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 69.0,
+        "ms": 85.2,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
           "KB0026",
-          "KB0019",
-          "KB0008",
-          "KB0022"
+          "KB0015",
+          "KB0003"
         ],
-        "precision": 0.25,
+        "precision": 0.3333333333333333,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -1281,16 +1284,17 @@
         "query_id": "PROBE-05",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 62.4,
+        "ms": 81.5,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
           "KB0023",
-          "KB0006",
-          "KB0003",
-          "KB0010"
+          "KB0010",
+          "KB0008",
+          "KB0015",
+          "KB0016"
         ],
-        "precision": 0.25,
+        "precision": 0.2,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -1300,14 +1304,14 @@
         "query_id": "PROBE-06",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 68.7,
+        "ms": 73.7,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
           "KB0018",
           "KB0003",
-          "KB0005",
-          "KB0006"
+          "KB0019",
+          "KB0007"
         ],
         "precision": 0.25,
         "recall": 1.0,
@@ -1319,16 +1323,17 @@
         "query_id": "PROBE-07",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 74.0,
+        "ms": 69.1,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
           "KB0016",
           "KB0023",
-          "KB0003",
-          "KB0009"
+          "KB0015",
+          "KB0026",
+          "KB0003"
         ],
-        "precision": 0.25,
+        "precision": 0.2,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -1338,18 +1343,18 @@
         "query_id": "PROBE-08",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 72.7,
+        "ms": 86.6,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
           "KB0002",
-          "KB0024",
-          "KB0003",
-          "KB0010",
-          "KB0015"
+          "KB0007",
+          "KB0013",
+          "KB0025",
+          "KB0021"
         ],
-        "precision": 0.2,
-        "recall": 0.5,
+        "precision": 0.4,
+        "recall": 1.0,
         "hit": true,
         "rr": 1.0,
         "first_rank": 1
@@ -1358,15 +1363,15 @@
         "query_id": "PROBE-09",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 79.2,
+        "ms": 127.5,
         "planted_hits": [],
-        "top_score": 0.0325,
+        "top_score": 0.0328,
         "returned": [
           "KB0021",
           "KB0013",
-          "KB0003",
-          "KB0006",
-          "KB0023"
+          "KB0009",
+          "KB0023",
+          "KB0020"
         ],
         "precision": 0.4,
         "recall": 1.0,
@@ -1378,14 +1383,14 @@
         "query_id": "PROBE-10",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 73.3,
+        "ms": 124.5,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
           "KB0008",
           "KB0022",
-          "KB0009",
-          "KB0019"
+          "KB0019",
+          "KB0026"
         ],
         "precision": 0.5,
         "recall": 1.0,
@@ -1399,12 +1404,12 @@
         "query_id": "INC0010023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 906.8,
+        "ms": 1036.0,
         "planted_hits": [],
         "top_score": 1.3034,
         "returned": [
           "KB0001",
-          "KB0005"
+          "KB0008"
         ],
         "precision": 0.5,
         "recall": 1.0,
@@ -1416,7 +1421,7 @@
         "query_id": "INC0010047",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1017.0,
+        "ms": 640.7,
         "planted_hits": [],
         "top_score": -2.8291,
         "returned": [
@@ -1428,14 +1433,14 @@
         "query_id": "INC0010064",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1715.1,
+        "ms": 616.8,
         "planted_hits": [],
         "top_score": -4.9462,
         "returned": [
           "KB0003",
           "KB0014",
-          "KB0025",
-          "KB0006"
+          "KB0006",
+          "KB0019"
         ],
         "precision": 0.0,
         "recall": 0.0,
@@ -1447,13 +1452,14 @@
         "query_id": "INC0010052",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 994.4,
+        "ms": 652.7,
         "planted_hits": [],
         "top_score": 4.2594,
         "returned": [
-          "KB0010"
+          "KB0010",
+          "KB0025"
         ],
-        "precision": 1.0,
+        "precision": 0.5,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -1463,7 +1469,7 @@
         "query_id": "INC1006",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 911.1,
+        "ms": 620.0,
         "planted_hits": [],
         "top_score": -1.3218,
         "returned": [
@@ -1480,7 +1486,7 @@
         "query_id": "INC1007",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 951.8,
+        "ms": 579.9,
         "planted_hits": [],
         "top_score": 7.2005,
         "returned": [
@@ -1498,7 +1504,7 @@
         "query_id": "INC1008",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 857.5,
+        "ms": 525.5,
         "planted_hits": [],
         "top_score": 2.7758,
         "returned": [
@@ -1516,7 +1522,7 @@
         "query_id": "INC1009",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 811.5,
+        "ms": 612.7,
         "planted_hits": [],
         "top_score": 5.1311,
         "returned": [
@@ -1533,12 +1539,12 @@
         "query_id": "INC1010",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 836.2,
+        "ms": 760.7,
         "planted_hits": [],
         "top_score": -6.2332,
         "returned": [
           "KB0009",
-          "KB0019"
+          "KB0010"
         ],
         "precision": 0.5,
         "recall": 1.0,
@@ -1550,7 +1556,7 @@
         "query_id": "INC1011",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 819.4,
+        "ms": 525.6,
         "planted_hits": [],
         "top_score": 1.6295,
         "returned": [
@@ -1567,7 +1573,7 @@
         "query_id": "INC1012",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1007.8,
+        "ms": 543.8,
         "planted_hits": [],
         "top_score": 1.9994,
         "returned": [
@@ -1585,14 +1591,14 @@
         "query_id": "INC1013",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 756.0,
+        "ms": 546.0,
         "planted_hits": [],
         "top_score": 6.3691,
         "returned": [
           "KB0023",
           "KB0025",
-          "KB0002",
-          "KB0006"
+          "KB0006",
+          "KB0016"
         ],
         "precision": 0.25,
         "recall": 1.0,
@@ -1604,14 +1610,14 @@
         "query_id": "INC1014",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1218.4,
+        "ms": 586.0,
         "planted_hits": [],
         "top_score": -6.4914,
         "returned": [
           "KB0015",
           "KB0024",
           "KB0021",
-          "KB0020"
+          "KB0010"
         ],
         "precision": 0.25,
         "recall": 1.0,
@@ -1623,7 +1629,7 @@
         "query_id": "INC1015",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1646.5,
+        "ms": 945.9,
         "planted_hits": [],
         "top_score": -9.0591,
         "returned": [
@@ -1636,37 +1642,37 @@
         "query_id": "INC1016",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 965.8,
+        "ms": 978.5,
         "planted_hits": [],
-        "top_score": -11.1677,
+        "top_score": -11.1803,
         "returned": [
-          "KB0004",
           "KB0021",
           "KB0019",
-          "KB0008",
-          "KB0010"
+          "KB0010",
+          "KB0020",
+          "KB0015"
         ]
       },
       {
         "query_id": "INC1017",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1384.3,
+        "ms": 631.9,
         "planted_hits": [],
         "top_score": -9.0964,
         "returned": [
           "KB0013",
           "KB0019",
           "KB0026",
-          "KB0023",
-          "KB0002"
+          "KB0002",
+          "KB0008"
         ]
       },
       {
         "query_id": "INC1018",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 938.4,
+        "ms": 529.4,
         "planted_hits": [],
         "top_score": -7.5057,
         "returned": [
@@ -1679,13 +1685,13 @@
         "query_id": "INC1019",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 775.9,
+        "ms": 952.7,
         "planted_hits": [],
         "top_score": 4.0926,
         "returned": [
           "KB0019",
           "KB0009",
-          "KB0005"
+          "KB0008"
         ],
         "precision": 0.3333333333333333,
         "recall": 1.0,
@@ -1697,7 +1703,7 @@
         "query_id": "INC1020",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1389.7,
+        "ms": 578.8,
         "planted_hits": [],
         "top_score": 5.9962,
         "returned": [
@@ -1715,7 +1721,7 @@
         "query_id": "INC1021",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 825.3,
+        "ms": 655.7,
         "planted_hits": [],
         "top_score": 5.1675,
         "returned": [
@@ -1733,7 +1739,7 @@
         "query_id": "INC1022",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 834.6,
+        "ms": 701.9,
         "planted_hits": [],
         "top_score": 7.1701,
         "returned": [
@@ -1752,12 +1758,12 @@
         "query_id": "INC1023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1060.1,
+        "ms": 757.0,
         "planted_hits": [],
         "top_score": 4.9712,
         "returned": [
           "KB0004",
-          "KB0021"
+          "KB0023"
         ],
         "precision": 0.5,
         "recall": 1.0,
@@ -1769,7 +1775,7 @@
         "query_id": "INC1024",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1217.8,
+        "ms": 588.1,
         "planted_hits": [],
         "top_score": 3.1102,
         "returned": [
@@ -1786,16 +1792,17 @@
         "query_id": "INC1025",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 966.0,
+        "ms": 991.4,
         "planted_hits": [],
         "top_score": -4.9823,
         "returned": [
           "KB0020",
           "KB0005",
           "KB0001",
-          "KB0026"
+          "KB0026",
+          "KB0008"
         ],
-        "precision": 0.25,
+        "precision": 0.2,
         "recall": 0.5,
         "hit": true,
         "rr": 0.3333333333333333,
@@ -1805,7 +1812,7 @@
         "query_id": "INC1026",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 966.3,
+        "ms": 575.0,
         "planted_hits": [],
         "top_score": 2.8783,
         "returned": [
@@ -1823,7 +1830,7 @@
         "query_id": "INC1027",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 953.0,
+        "ms": 541.6,
         "planted_hits": [],
         "top_score": -0.7332,
         "returned": [
@@ -1841,7 +1848,7 @@
         "query_id": "INC1028",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1446.1,
+        "ms": 521.9,
         "planted_hits": [],
         "top_score": 6.234,
         "returned": [
@@ -1858,7 +1865,7 @@
         "query_id": "PROBE-01",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1349.9,
+        "ms": 1121.5,
         "planted_hits": [],
         "top_score": 8.1192,
         "returned": [
@@ -1874,7 +1881,7 @@
         "query_id": "PROBE-02",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 689.1,
+        "ms": 687.5,
         "planted_hits": [],
         "top_score": 6.1401,
         "returned": [
@@ -1892,7 +1899,7 @@
         "query_id": "PROBE-03",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 759.5,
+        "ms": 550.0,
         "planted_hits": [],
         "top_score": 7.5252,
         "returned": [
@@ -1910,7 +1917,7 @@
         "query_id": "PROBE-04",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 720.8,
+        "ms": 891.3,
         "planted_hits": [],
         "top_score": 8.0588,
         "returned": [
@@ -1927,16 +1934,17 @@
         "query_id": "PROBE-05",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1337.4,
+        "ms": 1063.5,
         "planted_hits": [],
         "top_score": 7.2588,
         "returned": [
           "KB0023",
           "KB0006",
           "KB0008",
+          "KB0016",
           "KB0005"
         ],
-        "precision": 0.25,
+        "precision": 0.2,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -1946,14 +1954,14 @@
         "query_id": "PROBE-06",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 840.1,
+        "ms": 1317.1,
         "planted_hits": [],
         "top_score": 7.2303,
         "returned": [
           "KB0018",
-          "KB0006",
           "KB0005",
-          "KB0001"
+          "KB0021",
+          "KB0007"
         ],
         "precision": 0.25,
         "recall": 1.0,
@@ -1965,15 +1973,17 @@
         "query_id": "PROBE-07",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1059.1,
+        "ms": 767.4,
         "planted_hits": [],
         "top_score": 7.5407,
         "returned": [
           "KB0016",
           "KB0026",
-          "KB0023"
+          "KB0023",
+          "KB0021",
+          "KB0019"
         ],
-        "precision": 0.3333333333333333,
+        "precision": 0.2,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -1983,14 +1993,14 @@
         "query_id": "PROBE-08",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1132.3,
+        "ms": 1046.8,
         "planted_hits": [],
         "top_score": 6.7825,
         "returned": [
           "KB0002",
           "KB0025",
           "KB0007",
-          "KB0016"
+          "KB0021"
         ],
         "precision": 0.5,
         "recall": 1.0,
@@ -2002,15 +2012,15 @@
         "query_id": "PROBE-09",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1196.1,
+        "ms": 747.1,
         "planted_hits": [],
         "top_score": 7.1975,
         "returned": [
           "KB0021",
           "KB0013",
-          "KB0022",
           "KB0003",
-          "KB0016"
+          "KB0026",
+          "KB0023"
         ],
         "precision": 0.4,
         "recall": 1.0,
@@ -2022,7 +2032,7 @@
         "query_id": "PROBE-10",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1355.2,
+        "ms": 884.1,
         "planted_hits": [],
         "top_score": 7.1645,
         "returned": [
