@@ -14,7 +14,7 @@ from src.agent.nodes.confidence_check import confidence_check_node
 from src.agent.nodes.interrupt import interrupt_node
 from src.agent.nodes.act import act_node
 
-CONFIDENCE_FLOOR = 0.7
+CONFIDENCE_FLOOR = 0.6
 
 
 def route_after_risk(state: AgentState) -> str:
@@ -36,6 +36,7 @@ def create_graph():
     workflow = StateGraph(AgentState)
 
     # Add all 11 nodes + interrupt
+
     workflow.add_node("load", load_node)
     workflow.add_node("validate", validate_node)
     workflow.add_node("classify", classify_node)

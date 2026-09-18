@@ -24,7 +24,9 @@ def get_checkpointer() -> Any:
             def setup(self): pass
         return MockCheckpointer()
 
-    conn_string = os.environ.get("PG_CONN_STRING", "postgresql://postgres:postgres@localhost:5432/postgres")
+    conn_string = os.environ.get("PG_CONN_STRING")
+    if not conn_string:
+        raise ValueError("Environment variable 'PG_CONN_STRING' is not set")    
     pool = ConnectionPool(conninfo=conn_string, max_size=20)
     checkpointer = PostgresSaver(pool)
     return checkpointer

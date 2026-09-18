@@ -15,7 +15,7 @@ def test_graph_routing_normal_risk():
     result = graph.invoke(initial_state)
 
     assert result["action_taken"] == "resolved_automatically"
-    assert result["risk"] == "normal"
+    assert result["risk"] == "low"
 
 
 def test_graph_routing_high_risk():

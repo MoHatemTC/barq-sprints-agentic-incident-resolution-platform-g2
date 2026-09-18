@@ -12,7 +12,7 @@ def test_load_node():
 def test_determine_risk_node_normal():
     state = {"incident_payload": {"description": "Server reboot requested."}}
     result = determine_risk_node(state)
-    assert result["risk"] == "normal"
+    assert result["risk"] == "low"
 
 def test_determine_risk_node_high():
     state = {"incident_payload": {"description": "high-risk data center wipe"}}

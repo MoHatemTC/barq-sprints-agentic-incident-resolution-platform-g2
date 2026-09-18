@@ -1,126 +1,190 @@
 import os
+import time
 import logging
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
 
-# Import Langfuse AFTER loading environment variables
+# In Langfuse v4+, observe and get_client are imported directly from langfuse
 try:
-    from langfuse import Langfuse
-    from langfuse.decorators import langfuse_context, observe
+    from langfuse import observe, get_client
+    LANGFUSE_AVAILABLE = True
 except ImportError:
-    Langfuse = None
-    langfuse_context = None
-    def observe(*args, **kwargs):
-        def decorator(func):
-            return func
-        if len(args) == 1 and callable(args[0]):
-            return args[0]
-        return decorator
+    LANGFUSE_AVAILABLE = False
+    observe = None
+    get_client = None
 
 logger = logging.getLogger(__name__)
 
-def get_langfuse_client():
-    if Langfuse is not None:
-        try:
-            return Langfuse()
-        except Exception as e:
-            logger.error(f"Failed to initialize Langfuse client: {e}")
-    return None
+# ---------------------------------------------------------------------------
+# Secret sanitization
+# ---------------------------------------------------------------------------
+
+SENSITIVE_KEYS = {
+    "password", "token", "secret", "auth", "authorization",
+    "key", "credential", "pii", "api_key", "access_token",
+    "refresh_token", "private_key", "ssn", "credit_card",
+}
+
 
 def sanitize_payload(payload: Any) -> Any:
     """Remove potential secrets from payload before tracing."""
     if not isinstance(payload, dict):
         return payload
     sanitized = payload.copy()
-    sensitive_keys = {"password", "token", "secret", "auth", "authorization", "key", "credential", "pii"}
     for k, v in sanitized.items():
-        if any(sec in k.lower() for sec in sensitive_keys):
+        if any(sec in k.lower() for sec in SENSITIVE_KEYS):
             sanitized[k] = "***REDACTED***"
         elif isinstance(v, dict):
             sanitized[k] = sanitize_payload(v)
         elif isinstance(v, list):
-            sanitized[k] = [sanitize_payload(item) if isinstance(item, dict) else item for item in v]
+            sanitized[k] = [
+                sanitize_payload(item) if isinstance(item, dict) else item
+                for item in v
+            ]
     return sanitized
+
+
+# ---------------------------------------------------------------------------
+# Root trace decorator — keys trace to execution_id & incident_number
+# ---------------------------------------------------------------------------
 
 def trace_execution(name: str):
     """
-    Decorator to wrap a root function execution (e.g., worker pickup) in a Langfuse trace.
-    Captures latency, outcome, and errors without crashing on failure.
-    Requires execution_id and incident_number in kwargs.
+    Root trace decorator for worker/pipeline execution.
+    Creates a single Langfuse trace per execution keyed to
+    the execution_id and incident_number.
     """
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
-            if not Langfuse:
+            if not LANGFUSE_AVAILABLE or observe is None:
                 return func(*args, **kwargs)
-                
-            exec_id = kwargs.get("execution_id", "unknown_execution")
-            incident_no = kwargs.get("incident_number", "unknown_incident")
-            
-            client = get_langfuse_client()
-            trace = None
-            if client:
-                try:
-                    trace = client.trace(
-                        name=name,
-                        id=exec_id,
-                        tags=[f"incident:{incident_no}"],
-                        session_id=exec_id,
-                        input=sanitize_payload(kwargs)
-                    )
-                except Exception as e:
-                    logger.error(f"Tracing start failed: {e}")
 
             try:
-                result = func(*args, **kwargs)
-                if trace:
-                    try:
-                        trace.update(output=sanitize_payload(result) if isinstance(result, dict) else str(result))
-                    except Exception as e:
-                        logger.error(f"Tracing update failed: {e}")
+                from langfuse.decorators import langfuse_context
+            except ImportError:
+                return func(*args, **kwargs)
+
+            # Extract identifiers for keying
+            exec_id = kwargs.get("execution_id") or (
+                args[1] if len(args) > 1 else None
+            )
+            inc_num = kwargs.get("incident_number") or (
+                args[2] if len(args) > 2 else None
+            )
+
+            # Build the observed function dynamically
+            @observe(name=name)
+            @wraps(func)
+            def _traced(*a, **kw):
+                return func(*a, **kw)
+
+            # Sanitize inputs
+            clean_kwargs = sanitize_payload(kwargs)
+
+            start = time.perf_counter()
+            try:
+                result = _traced(*args, **clean_kwargs)
+
+                # Update trace with execution identifiers
+                try:
+                    update_kwargs = {}
+                    if exec_id:
+                        update_kwargs["session_id"] = str(exec_id)
+                    if inc_num:
+                        update_kwargs["user_id"] = str(inc_num)
+                    if update_kwargs:
+                        langfuse_context.update_current_trace(**update_kwargs)
+                except Exception as ctx_err:
+                    logger.debug(f"Could not update trace context: {ctx_err}")
+
                 return result
-            except Exception as func_err:
-                if trace:
-                    try:
-                        trace.update(level="ERROR", status_message=str(func_err))
-                    except Exception as e:
-                        logger.error(f"Tracing error update failed: {e}")
-                raise func_err
+
+            except Exception as e:
+                # Record the error in the current observation
+                try:
+                    langfuse_context.update_current_observation(
+                        level="ERROR",
+                        status_message=str(e),
+                    )
+                except Exception:
+                    pass
+                raise
             finally:
-                if client:
-                    try:
+                elapsed = time.perf_counter() - start
+                logger.info(
+                    f"[tracing] {name} completed in {elapsed:.3f}s"
+                )
+                # Flush — never crash on flush failure
+                try:
+                    client = get_client()
+                    if client:
                         client.flush()
-                    except Exception as e:
-                        logger.error(f"Langfuse flush failed: {e}")
+                except Exception as flush_err:
+                    logger.warning(f"Langfuse flush error: {flush_err}")
+
         return wrapper
     return decorator
+
+
+# ---------------------------------------------------------------------------
+# Node-level trace decorator — captures latency, outcome, and errors
+# ---------------------------------------------------------------------------
 
 def trace_node(name: str, observation_type: str = "span"):
     """
-    Decorator for LangGraph nodes. Uses Langfuse native observe.
+    Decorator for LangGraph nodes to emit child observation spans.
+    Captures latency, outcome, and errors per node.
     """
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
-            if observe is not None and getattr(observe, '__module__', None) == 'langfuse.decorators':
-                try:
-                    @observe(name=name, as_type=observation_type, capture_input=False, capture_output=False)
-                    def inner_wrapper(*inner_args, **inner_kwargs):
-                        if langfuse_context:
-                            sanitized_args = [sanitize_payload(a) if isinstance(a, dict) else a for a in inner_args]
-                            sanitized_kwargs = sanitize_payload(inner_kwargs)
-                            langfuse_context.update_current_observation(input={"args": sanitized_args, "kwargs": sanitized_kwargs})
-                        
-                        res = func(*inner_args, **inner_kwargs)
-                        
-                        if langfuse_context:
-                            langfuse_context.update_current_observation(output=sanitize_payload(res) if isinstance(res, dict) else str(res))
-                        return res
-                    return inner_wrapper(*args, **kwargs)
-                except Exception as e:
-                    logger.error(f"Langfuse native observe failed for node {name}: {e}. Falling back.")
-                    return func(*args, **kwargs)
-            else:
+            if not LANGFUSE_AVAILABLE or observe is None:
                 return func(*args, **kwargs)
+
+            @observe(name=name, as_type=observation_type)
+            @wraps(func)
+            def _traced(*a, **kw):
+                return func(*a, **kw)
+
+            # Sanitize dict arguments
+            clean_args = [
+                sanitize_payload(a) if isinstance(a, dict) else a
+                for a in args
+            ]
+            clean_kwargs = sanitize_payload(kwargs)
+
+            start = time.perf_counter()
+            try:
+                result = _traced(*clean_args, **clean_kwargs)
+
+                # Record outcome in the observation
+                try:
+                    from langfuse.decorators import langfuse_context
+                    langfuse_context.update_current_observation(
+                        level="DEFAULT",
+                        status_message="success",
+                    )
+                except Exception:
+                    pass
+
+                return result
+
+            except Exception as e:
+                # Record error in observation — never let tracing crash execution
+                try:
+                    from langfuse.decorators import langfuse_context
+                    langfuse_context.update_current_observation(
+                        level="ERROR",
+                        status_message=f"{type(e).__name__}: {e}",
+                    )
+                except Exception:
+                    pass
+                raise
+            finally:
+                elapsed = time.perf_counter() - start
+                logger.debug(f"[tracing] node={name} latency={elapsed:.3f}s")
+
         return wrapper
     return decorator
+

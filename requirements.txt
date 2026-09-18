@@ -7,9 +7,12 @@ python-dotenv==1.2.3
 qdrant-client==1.19.0
 requests==2.34.2
 sentence-transformers==6.0.1
+
+# === Sprint 2.5: Tracing, Agent & LangGraph ===
 langfuse
 langgraph
 langgraph-checkpoint-postgres
+langchain
 langchain-google-genai
 psycopg[binary]
 psycopg_pool
