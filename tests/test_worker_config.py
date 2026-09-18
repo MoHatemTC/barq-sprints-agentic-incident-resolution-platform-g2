@@ -41,6 +41,15 @@ def test_worker_config_parses_valid_environment():
     assert config.worker_shutdown_timeout_seconds == 60
 
 
+@pytest.mark.parametrize("concurrency", ["2", "7"])
+def test_worker_config_reads_concurrency_from_environment(concurrency):
+    config = WorkerConfig.from_environment(
+        _environment(CELERY_WORKER_CONCURRENCY=concurrency)
+    )
+
+    assert config.worker_concurrency == int(concurrency)
+
+
 @pytest.mark.parametrize(
     ("name", "value", "message"),
     [

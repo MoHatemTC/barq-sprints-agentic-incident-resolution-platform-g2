@@ -5,6 +5,7 @@ import pytest
 
 from src.workers.dlq import create_dead_letter_entry
 from src.workers.replay import replay_dlq_payload
+from tests.worker_test_doubles import RecordingDlq, RecordingStateRecorder
 
 
 @dataclass
@@ -57,7 +58,7 @@ def test_replay_rejects_non_callable_processor():
         replay_dlq_payload(object(), object())  # type: ignore[arg-type]
 
 
-def test_replay_preserves_dead_letter_entry_without_orchestration_side_effects():
+def test_dlq_entry_replay_succeeds_once_without_retry_or_second_dlq_entry():
     payload = {"event_id": "event-1", "number": "INC0010001"}
     execution_context = {"execution_reference": "s2-2-generated-id"}
     entry = create_dead_letter_entry(
@@ -70,6 +71,8 @@ def test_replay_preserves_dead_letter_entry_without_orchestration_side_effects()
         occurred_at=datetime(2026, 9, 18, tzinfo=timezone.utc),
     )
     processor = RecordingProcessor(result="replayed")
+    retry_state = RecordingStateRecorder()
+    dlq = RecordingDlq(transitions=[entry])
 
     result = replay_dlq_payload(entry, processor)
 
@@ -78,3 +81,6 @@ def test_replay_preserves_dead_letter_entry_without_orchestration_side_effects()
     assert processor.received_payloads[0] is entry
     assert entry.payload is payload
     assert entry.execution_context is execution_context
+    assert retry_state.retries == []
+    assert retry_state.failures == []
+    assert dlq.transitions == [entry]

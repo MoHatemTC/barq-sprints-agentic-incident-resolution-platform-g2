@@ -112,7 +112,9 @@ the S2.1/S2.3 producer agreement.
 `replay_dlq_payload` is the explicit, local replay seam. It passes the complete
 preserved entry exactly once to an injected processor and has no retry,
 enqueue, execution-creation, or DLQ-transition code. The corresponding replay
-test verifies that the original payload and injected execution context retain
+test constructs a preserved `DeadLetterEntry`, replays it to a successful
+processor exactly once, and verifies that no retry state or second local DLQ
+entry is created. The original payload and injected execution context retain
 object identity. A production replay endpoint or re-enqueue path remains owned
 by the future S2.1 producer contract.
 
@@ -149,6 +151,12 @@ hard-timeout recovery and DLQ delivery remain untested production evidence.
 | Poison-event isolation | Bound retries and task duration; route terminal/exhausted events out of the main processing path. | Main/DLQ routing names and retry values. |
 | Graceful shutdown | On `SIGTERM`, the worker should stop accepting new work, allow active work to follow configured timeout behavior, and leave uncompleted accepted work recoverable. | Shutdown grace period and Docker worker-service configuration. |
 | Observability | Log queue/task identity, attempt number, classification, retry delay, timeout, and DLQ transition without leaking credentials or incident content. | Structured logging format and S2.5 tracing boundary. |
+
+`WorkerConfig.from_environment()` requires `CELERY_WORKER_CONCURRENCY`, and
+`create_celery_app()` maps that validated value to Celery's
+`worker_concurrency` setting. Focused tests set the environment value to `9`
+and verify that both the resulting configuration and Celery app expose `9`; no
+configured worker-concurrency default is used.
 
 ## Saturation validation boundary
 

@@ -2,6 +2,36 @@ from src.config import WorkerConfig
 from src.workers.celery_app import create_celery_app
 
 
+def _worker_environment(**overrides):
+    environment = {
+        "CELERY_BROKER_URL": "redis://redis:6379/0",
+        "CELERY_MAIN_QUEUE": "incident-events",
+        "CELERY_DLQ_QUEUE": "incident-events-dlq",
+        "CELERY_WORKER_CONCURRENCY": "4",
+        "CELERY_WORKER_PREFETCH_MULTIPLIER": "1",
+        "CELERY_TASK_SOFT_TIME_LIMIT_SECONDS": "30",
+        "CELERY_TASK_TIME_LIMIT_SECONDS": "45",
+        "CELERY_TASK_MAX_RETRIES": "3",
+        "CELERY_RETRY_BASE_DELAY_SECONDS": "5",
+        "CELERY_RETRY_MAX_DELAY_SECONDS": "60",
+        "CELERY_TASK_ACKS_LATE": "true",
+        "CELERY_TASK_REJECT_ON_WORKER_LOST": "false",
+        "CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS": "60",
+    }
+    environment.update(overrides)
+    return environment
+
+
+def test_celery_app_uses_environment_configured_concurrency(monkeypatch):
+    for name, value in _worker_environment(CELERY_WORKER_CONCURRENCY="9").items():
+        monkeypatch.setenv(name, value)
+
+    app = create_celery_app()
+
+    assert WorkerConfig.from_environment().worker_concurrency == 9
+    assert app.conf.worker_concurrency == 9
+
+
 def test_celery_app_uses_validated_worker_configuration():
     config = WorkerConfig(
         broker_url="redis://redis:6379/0",
