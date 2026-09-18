@@ -118,6 +118,14 @@ entry is created. The original payload and injected execution context retain
 object identity. A production replay endpoint or re-enqueue path remains owned
 by the future S2.1 producer contract.
 
+`tests/test_retry_dlq.py::test_dependency_fix_replays_exhausted_dlq_entry_once_without_new_failures`
+also exercises the complete local recovery sequence: a retryable dependency
+failure is scheduled once, exhausts its configured retry budget into a
+preserved DLQ entry, the dependency test double is repaired, and the preserved
+entry is replayed to one successful task invocation. The existing retry and
+failure records and the original DLQ entry remain unchanged. This is local
+test-seam evidence, not production Redis re-enqueue evidence.
+
 ## Task timeout requirements
 
 Each worker task needs a configured execution limit so a stuck or poison event
@@ -175,6 +183,12 @@ worker/process isolation under load remains pending production evidence.
 End-to-end webhook acceptance and latency under worker saturation remain an
 S2.1 integration/load-testing concern. No latency SLA is claimed by S2.3 until
 that producer-to-broker path is exercised with the agreed enqueue contract.
+
+No S2.1 webhook saturation/load test or measured webhook-latency percentile is
+present in this repository. S2.3's asynchronous worker configuration is
+designed to keep graph execution out of webhook handling, but it cannot measure
+or claim webhook latency without the S2.1 acceptance and enqueue path. No
+synthetic latency value or target result is claimed here.
 
 ## Required S2.3 configuration values
 

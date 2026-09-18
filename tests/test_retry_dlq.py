@@ -1,6 +1,7 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from unittest.mock import patch
 
 import pytest
 from celery.contrib.testing.worker import start_worker
@@ -9,7 +10,9 @@ from celery.exceptions import TimeLimitExceeded
 from src.config import WorkerConfig
 from src.servicenow import exceptions as servicenow_exceptions
 from src.workers.celery_app import create_celery_app
+from src.workers.dlq import DeadLetterEntry
 from src.workers.retry_policy import RetryDecision, RetryPolicy
+from src.workers.replay import replay_dlq_payload
 from src.workers.state_manager_adapter import (
     StateManagerRecorder,
     create_retry_state_operation,
@@ -377,8 +380,6 @@ def test_worker_persists_retry_and_failure_through_injected_s2_2_adapter():
         state_recorder=recorder,
     )
 
-    from unittest.mock import patch
-
     with patch.object(retry_task, "retry", return_value="scheduled") as retry:
         retry_result = retry_task.apply(args=(CONFIRMED_PAYLOAD,), retries=0, throw=True)
 
@@ -410,6 +411,57 @@ def test_worker_persists_retry_and_failure_through_injected_s2_2_adapter():
         )
     ]
     assert len(terminal_dlq.transitions) == 1
+
+
+def test_dependency_fix_replays_exhausted_dlq_entry_once_without_new_failures():
+    """Exercise local retry, DLQ preservation, dependency repair, and replay."""
+    dependency_failure = RetryableAgentFailure("dependency unavailable")
+    agent = StubAgentExecutor(error=dependency_failure)
+    execution_context = {"execution_reference": "s2-2-created-uuid"}
+    _, task, recorder, dlq = _local_worker_task(
+        agent,
+        RetryPolicy(base_delay_seconds=1, max_delay_seconds=1, max_retries=1),
+        execution_context=execution_context,
+    )
+
+    with patch.object(task, "retry", return_value="scheduled") as retry:
+        retry_result = task.apply(args=(CONFIRMED_PAYLOAD,), retries=0, throw=True)
+
+    assert retry_result.result == "scheduled"
+    retry.assert_called_once_with(exc=dependency_failure, countdown=1, max_retries=1)
+    assert len(recorder.retries) == 1
+    assert recorder.failures == []
+    assert dlq.transitions == []
+
+    exhausted_result = task.apply(args=(CONFIRMED_PAYLOAD,), retries=1)
+
+    assert exhausted_result.state == "FAILURE"
+    assert len(recorder.failures) == 1
+    assert len(dlq.transitions) == 1
+    entry = dlq.transitions[0]
+    assert entry.payload is CONFIRMED_PAYLOAD
+    assert entry.execution_context is execution_context
+    assert entry.error_type == "RetryableAgentFailure"
+    assert entry.retry_count == 1
+
+    agent.error = None
+    agent.result = "dependency fixed"
+    replay_invocations: list[object] = []
+
+    def replay_processor(preserved_entry: DeadLetterEntry) -> object:
+        replay_invocations.append(preserved_entry)
+        return task.apply(
+            args=(preserved_entry.payload,),
+            retries=0,
+            throw=True,
+        ).result
+
+    assert replay_dlq_payload(entry, replay_processor) == "dependency fixed"
+    assert replay_invocations == [entry]
+    assert agent.received_incidents == [CONFIRMED_PAYLOAD] * 3
+    assert len(recorder.retries) == 1
+    assert len(recorder.failures) == 1
+    assert dlq.transitions == [entry]
 
 
 def test_local_orchestration_simulation_isolates_poison_and_healthy_tasks():
