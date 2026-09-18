@@ -126,9 +126,10 @@ if __name__ == "__main__":
     ap.add_argument("query")
     ap.add_argument("--mode", default=None, help="dense | hybrid | hybrid_rerank (default: .env)")
     ap.add_argument("--top-k", type=int, default=None)
+    ap.add_argument("--collection", default=None, help="default: QDRANT_COLLECTION_NAME; use barq_manual for Track B")
     args = ap.parse_args()
 
-    results = search(args.query, mode=args.mode, top_k=args.top_k)
+    results = search(args.query, mode=args.mode, top_k=args.top_k, collection=args.collection)
     print(f"mode={args.mode or RETRIEVAL.mode}  query={args.query!r}\n")
     for i, c in enumerate(results, 1):
-        print(f"{i}. {c.number} [{c.section}] score={c.score:.4f}  {c.payload.get('title', '')}")
+        print(f"{i}. {c.payload.get('section_label', c.number)} [{c.section}] score={c.score:.4f}  {c.payload.get('title', '')}")
