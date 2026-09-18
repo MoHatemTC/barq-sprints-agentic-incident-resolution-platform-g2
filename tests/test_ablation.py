@@ -27,7 +27,7 @@ def test_grade_first_hit_at_rank_3_gives_rr_one_third():
     assert g["rr"] == pytest.approx(1 / 3)
 
 
-def test_sparse_wins_counts_only_rank_improvements():
+def test_sparse_wins_reports_recovered_and_rank_kinds():
     items = {"Q1": {"query": "q1", "expected_articles": ["KB0001"]},
              "Q2": {"query": "q2", "expected_articles": ["KB0002"]},
              "Q3": {"query": "q3", "expected_articles": ["KB0003"]},
