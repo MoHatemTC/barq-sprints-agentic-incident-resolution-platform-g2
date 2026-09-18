@@ -34,9 +34,8 @@ def get_client() -> QdrantClient:
 
 
 def _search_params(client: QdrantClient):
-    # exact=True -> brute-force instead of approximate search. The corpus is tiny, so it costs
-    # nothing and makes rankings reproducible. In-memory / on-disk Qdrant is always exact and
-    # warns if we pass params, so only send them to a real server.
+    # exact=True -> brute-force instead of approximate search, The corpus is tiny, so it costs
+    # nothing and makes rankings reproducible. In-memory / on-disk Qdrant is always exact and warns if we pass params, so only send them to a real server.
     if isinstance(client._client, QdrantLocal):
         return None
     return models.SearchParams(exact=True)

@@ -44,27 +44,27 @@ def run(client, query, mode, top_k=3):
 
 # testing all modes
 
-@pytest.mark.parametrize("mode", ["dense", "hybrid"])
+@pytest.mark.parametrize("mode", ["dense", "hybrid", "hybrid_rerank"])
 def test_returns_at_most_top_k_chunks(client, mode):
     results = run(client, "vpn fails after password change", mode, top_k=2)
     assert len(results) <= 2
     assert all(isinstance(r, RetrievedChunk) for r in results)
 
 
-@pytest.mark.parametrize("mode", ["dense", "hybrid"])
+@pytest.mark.parametrize("mode", ["dense", "hybrid", "hybrid_rerank"])
 def test_results_sorted_best_first(client, mode):
     scores = [r.score for r in run(client, "printer prints nothing", mode)]
     assert scores == sorted(scores, reverse=True)
 
 
-@pytest.mark.parametrize("mode", ["dense", "hybrid"])
+@pytest.mark.parametrize("mode", ["dense", "hybrid", "hybrid_rerank"])
 def test_same_query_twice_gives_same_order(client, mode):
     first = [r.point_id for r in run(client, "sap gui connection", mode)]
     second = [r.point_id for r in run(client, "sap gui connection", mode)]
     assert first == second
 
 
-@pytest.mark.parametrize("mode", ["dense", "hybrid"])
+@pytest.mark.parametrize("mode", ["dense", "hybrid", "hybrid_rerank"])
 def test_draft_chunk_is_never_returned(client, mode):
     # The query is literally the draft article's text -- it would rank #1 without the filter.
     results = run(client, "Zoom audio not working in meetings", mode, top_k=10)
