@@ -52,6 +52,7 @@ def run_mode(mode: str, items: list[dict], k: int, client) -> list[dict]:
         got = [h.number for h in hits]
         row = {
             "query_id": item["query_id"],
+            "source": item.get("source", "coverage_matrix"),
             "answerable": item["answerable"],
             "ms": round(ms, 1),
             "planted_hits": sorted(set(got) & planted_numbers()),
@@ -67,7 +68,7 @@ def run_mode(mode: str, items: list[dict], k: int, client) -> list[dict]:
 def summarise(rows: list[dict]) -> dict:
     ans = [r for r in rows if r["answerable"]]
     lat = sorted(r["ms"] for r in rows)
-    pct = statistics.quantiles(lat, n=100)          # pct[49] = p50, pct[94] = p95
+    pct = statistics.quantiles(lat, n=100) if len(lat) > 1 else lat * 100   # pct[49]=p50, pct[94]=p95
     return {
         "precision": round(statistics.mean(r["precision"] for r in ans), 3),
         "recall": round(statistics.mean(r["recall"] for r in ans), 3),
@@ -101,7 +102,8 @@ def rankings(per_mode: dict) -> str:
 
 # output report as MD 
 
-def to_markdown(summary: dict, wins: list[dict], k: int, deterministic, budget: int, n_ans: int) -> str:
+def to_markdown(summary: dict, wins: list[dict], k: int, deterministic, budget: int, n_ans: int,
+                by_source: dict | None = None) -> str:
     base = summary["dense"]
     out = [f"## Ablation @k={k} — collection `{QDRANT.collection_name}`, {n_ans} answerable incidents", "",
            "| mode | precision@k | recall@k | hit@k | MRR | planted hits | p50 ms | p95 ms |",
@@ -121,6 +123,14 @@ def to_markdown(summary: dict, wins: list[dict], k: int, deterministic, budget: 
     for m in MODES:
         p95 = summary[m]["p95_ms"]
         out.append(f"| {m} | {p95} | {budget - p95:.1f} | {'yes' if p95 <= budget else 'NO'} |")
+
+    if by_source:
+        out += ["", "### By query source (v1.1: coverage-matrix incidents vs identifier-only probes)", "",
+                "| source | mode | precision@k | recall@k | hit@k | MRR |", "|---|---|---|---|---|---|"]
+        for src, per_mode_summary in by_source.items():
+            for m in MODES:
+                s = per_mode_summary[m]
+                out.append(f"| {src} | {m} | {s['precision']:.3f} | {s['recall']:.3f} | {s['hit_rate']:.3f} | {s['mrr']:.3f} |")
 
     out += ["", "### Sparse rescues dense (dense missed or ranked worse; hybrid found it)", ""]
     if wins:
@@ -170,15 +180,18 @@ def main():
     deterministic = all(f == fingerprints[0] for f in fingerprints) if args.runs > 1 else None
 
     summary = {m: summarise(rows) for m, rows in per_mode.items()}
+    sources = list(dict.fromkeys(i.get("source", "coverage_matrix") for i in items))
+    by_source = {src: {m: summarise([r for r in rows if r["source"] == src]) for m, rows in per_mode.items()}
+                 for src in sources} if len(sources) > 1 else None
     wins = sparse_wins(per_mode["dense"], per_mode["hybrid"], by_id)
     n_ans = sum(i["answerable"] for i in items)
-    md = to_markdown(summary, wins, args.k, deterministic, RETRIEVAL.latency_budget_ms, n_ans)
+    md = to_markdown(summary, wins, args.k, deterministic, RETRIEVAL.latency_budget_ms, n_ans, by_source)
 
     RESULTS.mkdir(exist_ok=True)
     (RESULTS / f"ablation_k{args.k}.md").write_text(md, encoding="utf-8")
     (RESULTS / f"ablation_k{args.k}.json").write_text(json.dumps({
         "evaluation_set_version": data["version"], "k": args.k, "runs": args.runs,
-        "deterministic": deterministic, "summary": summary, "sparse_wins": wins, "per_query": per_mode,
+        "deterministic": deterministic, "summary": summary, "by_source": by_source, "sparse_wins": wins, "per_query": per_mode,
     }, indent=2), encoding="utf-8")
     print("\n" + md)
 

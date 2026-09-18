@@ -1,12 +1,16 @@
 {
-  "version": "1.0",
+  "version": "1.1",
   "source": "data/coverage_matrix.csv",
   "built": "2026-09-18",
   "counts": {
-    "total": 27,
-    "answerable": 22,
+    "total": 37,
+    "answerable": 32,
     "unanswerable": 5,
-    "multi_doc": 5
+    "multi_doc": 8,
+    "by_source": {
+      "coverage_matrix": 27,
+      "identifier_probe": 10
+    }
   },
   "items": [
     {
@@ -16,14 +20,16 @@
         "KB0001"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC0010047",
       "query": "Grinding noise from meeting room printer, queue is empty, mechanical fault",
       "expected_articles": [],
       "answerable": false,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC0010064",
@@ -32,7 +38,8 @@
         "KB0005"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC0010052",
@@ -41,7 +48,8 @@
         "KB0010"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1006",
@@ -50,7 +58,8 @@
         "KB0002"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1007",
@@ -59,7 +68,8 @@
         "KB0020"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1008",
@@ -69,7 +79,8 @@
         "KB0021"
       ],
       "answerable": true,
-      "requires_multi_doc": true
+      "requires_multi_doc": true,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1009",
@@ -78,7 +89,8 @@
         "KB0008"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1010",
@@ -87,7 +99,8 @@
         "KB0009"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1011",
@@ -97,7 +110,8 @@
         "KB0001"
       ],
       "answerable": true,
-      "requires_multi_doc": true
+      "requires_multi_doc": true,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1012",
@@ -106,7 +120,8 @@
         "KB0006"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1013",
@@ -115,7 +130,8 @@
         "KB0023"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1014",
@@ -124,35 +140,40 @@
         "KB0015"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1015",
       "query": "Please order me a second monitor for my desk",
       "expected_articles": [],
       "answerable": false,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1016",
       "query": "When will my expense claim be paid this month",
       "expected_articles": [],
       "answerable": false,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1017",
       "query": "Zoom shows no audio device during client call",
       "expected_articles": [],
       "answerable": false,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1018",
       "query": "Legacy timesheet portal login not working, need to submit hours",
       "expected_articles": [],
       "answerable": false,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1019",
@@ -161,7 +182,8 @@
         "KB0019"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1020",
@@ -170,7 +192,8 @@
         "KB0025"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1021",
@@ -179,7 +202,8 @@
         "KB0026"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1022",
@@ -188,7 +212,8 @@
         "KB0024"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1023",
@@ -197,7 +222,8 @@
         "KB0004"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1024",
@@ -206,7 +232,8 @@
         "KB0003"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1025",
@@ -216,7 +243,8 @@
         "KB0018"
       ],
       "answerable": true,
-      "requires_multi_doc": true
+      "requires_multi_doc": true,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1026",
@@ -226,7 +254,8 @@
         "KB0021"
       ],
       "answerable": true,
-      "requires_multi_doc": true
+      "requires_multi_doc": true,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1027",
@@ -236,7 +265,8 @@
         "KB0020"
       ],
       "answerable": true,
-      "requires_multi_doc": true
+      "requires_multi_doc": true,
+      "source": "coverage_matrix"
     },
     {
       "query_id": "INC1028",
@@ -245,7 +275,111 @@
         "KB0022"
       ],
       "answerable": true,
-      "requires_multi_doc": false
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "PROBE-01",
+      "query": "ERR_VPN_AUTH_004",
+      "expected_articles": [
+        "KB0001"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-02",
+      "query": "AADSTS50053",
+      "expected_articles": [
+        "KB0005"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-03",
+      "query": "APPSRV-OLD-04",
+      "expected_articles": [
+        "KB0022"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-04",
+      "query": "ERR_VPN_INSTALL_012",
+      "expected_articles": [
+        "KB0026"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-05",
+      "query": "MFA_TIMEOUT_003",
+      "expected_articles": [
+        "KB0023"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-06",
+      "query": "PWD_RESET_LOCKED",
+      "expected_articles": [
+        "KB0018"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-07",
+      "query": "SYNC_ERR_0091",
+      "expected_articles": [
+        "KB0016"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-08",
+      "query": "0x8004010F",
+      "expected_articles": [
+        "KB0002",
+        "KB0025"
+      ],
+      "answerable": true,
+      "requires_multi_doc": true,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-09",
+      "query": "DISP_NOSIGNAL_04",
+      "expected_articles": [
+        "KB0013",
+        "KB0021"
+      ],
+      "answerable": true,
+      "requires_multi_doc": true,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-10",
+      "query": "RFC_ERROR_COMMUNICATION",
+      "expected_articles": [
+        "KB0008",
+        "KB0022"
+      ],
+      "answerable": true,
+      "requires_multi_doc": true,
+      "source": "identifier_probe"
     }
   ]
 }
