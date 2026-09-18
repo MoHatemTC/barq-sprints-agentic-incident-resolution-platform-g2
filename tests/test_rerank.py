@@ -1,5 +1,4 @@
-# Integration tests for the cross-encoder reranker (real model, no Qdrant).
-# Run: pytest tests/test_rerank.py -v
+# Integration tests for the cross-encoder reranker (real model, no Qdrant) to Run it "pytest tests/test_rerank.py -v"
 from src.retrieval.hybrid_search import RetrievedChunk
 from src.retrieval.rerank import rerank
 
@@ -27,7 +26,7 @@ def test_returns_top_k_sorted_best_first():
 
 
 def test_scores_are_replaced_not_kept():
-    # input scores are all 0.0 -- output scores must be the cross-encoder's numbers
+    # input scores are all 0.0 , output scores must be the cross-encoder's numbers
     out = rerank("vpn password", PASSAGES, top_k=3)
     assert any(c.score != 0.0 for c in out)
 
