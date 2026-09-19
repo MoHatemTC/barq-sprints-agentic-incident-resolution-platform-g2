@@ -1,9 +1,9 @@
 from fastapi import Response, HTTPException, Depends, APIRouter
-from src.api.schemas import Payload, Event
+from src.api.schemas import Payload
 from sqlalchemy.exc import IntegrityError
 from src.api.dependencies import get_redis, get_db_session
 from src.api.auth import verify_token
-#from src.db.models import Event
+from src.db.models import Event
 
 router = APIRouter()
 

@@ -4,11 +4,6 @@ from typing import Optional
 from datetime import datetime
 from enum import Enum
 
-#delete
-
-from sqlalchemy import Column, Integer, String, DateTime
-from sqlalchemy.orm import DeclarativeBase
-
 
 #settings pydantic model to validate the environment variables
 class Settings(BaseSettings):
@@ -137,45 +132,3 @@ class EvalResultsListResponse(BaseModel):
     page: int
     page_size: int
     total: int
-
-#DELETE
-class Base(DeclarativeBase):
-    pass
-
-class Event(Base):
-    __tablename__ = "events"
-
-    id = Column(Integer, primary_key=True)
-
-    event_identifier = Column(
-        String(255),
-        nullable=False,
-        index=True
-    )
-
-    incident_sys_id = Column(
-        String(255),
-        nullable=False,
-        index=True
-    )
-
-    incident_number = Column(
-        String(100),
-        nullable=False
-    )
-
-    event_type = Column(
-        String(100),
-        nullable=False
-    )
-
-    contract_version = Column(
-        String(50),
-        nullable=False
-    )
-
-    received_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=datetime.utcnow
-    )

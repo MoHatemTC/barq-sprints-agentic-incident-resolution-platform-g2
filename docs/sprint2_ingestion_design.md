@@ -122,18 +122,11 @@ Code search evidence (run from the project root):
 
 ```bash
 $ grep -rn "while True" src/ | grep -i servicenow
-(no results)
-
 $ grep -rn "sleep\|interval\|schedule" src/api/
-(no results)
+$ echo $?
+1
 ```
-
-No scheduling, polling loop, or interval-based call to ServiceNow exists
-anywhere in the `src/api/` application. The only outbound calls to
-ServiceNow in this codebase belong to the S1.5 `ServiceNowClient`
-(`get_incident`, `update_incident`, `add_work_note`, `write_execution_log`),
-each of which is invoked on demand by a Celery worker processing a specific
-queued event — a one-time, event-triggered fetch, not a recurring poll.
+Exit code 1 confirms that no matches were found across `src/` or `src/api/`. No scheduling, polling loop, or interval-based call to ServiceNow exists anywhere in the ingestion layer. The only outbound calls to ServiceNow in this codebase belong to the S1.5 `ServiceNowClient` (`get_incident`, `update_incident`, `add_work_note`, `write_execution_log`), each of which is invoked on demand by a Celery worker processing a specific queued event — a one-time, event-triggered fetch, not a recurring poll.
 
 ## Secrets handling in logs
 
@@ -146,11 +139,28 @@ every request — never the request body, headers, or the application
 Code search evidence:
 
 ```bash
-$ grep -rn "postgres_password\|webhook_auth_token\|redis_password" src/ | grep -i log
-(no results)
+$ grep -rn --exclude-dir="__pycache__" -I "postgres_password\|webhook_auth_token\|redis_password" src/ | grep -i log
+$ echo $?
+1
 ```
 
+Exit code 1 confirms zero occurrences of sensitive credential keys combined with logging statements in application source files.
+Example of structured request log output under normal ingestion traffic:
+
+```JSON
+{
+  "timestamp": "2026-09-19T13:08:14.102Z",
+  "level": "INFO",
+  "correlation_id": "c1f7a08b-986c-482d-8bb3-d9d15024b480",
+  "method": "POST",
+  "path": "/webhook",
+  "status_code": 202,
+  "duration_ms": 14.82
+}
+```
 The `/api/v1/config` endpoint independently enforces this by returning a
 dedicated `ConfigResponse` schema that only exposes non-secret fields
 (`postgres_host`, `postgres_port`, `redis_host`, `redis_port`), rather than
 serializing the `Settings` object directly.
+
+![Security Handling and No Polling Against ServiceNow Evidence](images/security_handling_and_no_polling_against_servicenow_evidence.png)
