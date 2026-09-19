@@ -17,7 +17,6 @@ class LangfuseTracingMiddleware(BaseHTTPMiddleware):
             span.update(metadata={"correlation_id": correlation_id})
             response = await call_next(request)
             span.update(output={"status_code": response.status_code})
-        langfuse.flush()
         return response
 
 logger = logging.getLogger("incident.api")

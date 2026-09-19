@@ -1,6 +1,7 @@
 import redis.asyncio as redis
 import logging
 
+
 from pythonjsonlogger import jsonlogger
 from fastapi import FastAPI
 from fastapi.exceptions import HTTPException
@@ -13,6 +14,9 @@ from src.api.dependencies import get_settings
 from src.api.routers import approvals, dlq, webhook, health, config, executions, eval
 from src.api.middleware import CorrelationIDMiddleware, LangfuseTracingMiddleware
 from src.api.exceptions import http_exception_handler
+from langfuse import get_client
+
+langfuse = get_client()
 
 load_dotenv()
 
@@ -26,7 +30,12 @@ async def lifespan(app: FastAPI):
 
     settings = get_settings()  # Load settings from environment variables
     app.state.redis = redis.from_url(settings.redis_url) # Initialize Redis client with the URL from settings
-    app.state.engine = create_async_engine(settings.database_url) # Initialize SQLAlchemy engine with the database URL from settings
+     # Initialize SQLAlchemy engine with the database URL from settings
+    app.state.engine = create_async_engine( 
+    settings.database_url,
+    pool_size=20,
+    max_overflow=20,
+    )
 
     #delete later
     async with app.state.engine.begin() as conn:
@@ -35,6 +44,7 @@ async def lifespan(app: FastAPI):
 
     yield
 
+    langfuse.flush()
     await app.state.redis.close()  # cleanup on shutdown
     await app.state.engine.dispose()  # cleanup on shutdown
 
