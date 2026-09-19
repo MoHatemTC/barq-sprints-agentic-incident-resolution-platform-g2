@@ -6,7 +6,6 @@ before the owning teams publish their contracts.
 """
 
 from dataclasses import dataclass, field
-from typing import Protocol
 
 from src.workers.dlq import DeadLetterEntry
 
@@ -19,13 +18,6 @@ class AcceptedIncidentFixture:
     sys_id: str
     number: str
     event_type: str
-
-
-class TestOnlyAgentExecutor(Protocol):
-    """TEST-ONLY/PENDING S2.5 AGREEMENT agent invocation shape."""
-
-    def execute(self, incident: AcceptedIncidentFixture) -> object:
-        """Execute one accepted incident or raise a simulated failure."""
 
 
 @dataclass
@@ -53,14 +45,6 @@ class TerminalAgentFailure(Exception):
     """TEST-ONLY failure that follows the existing retryable convention."""
 
     retryable = False
-
-
-class SimulatedTaskTimeout(Exception):
-    """TEST-ONLY timeout whose retryability is chosen by the test."""
-
-    def __init__(self, retryable: bool) -> None:
-        self.retryable = retryable
-        super().__init__("simulated task timeout")
 
 
 @dataclass(frozen=True)
@@ -112,3 +96,16 @@ class RecordingDlq:
 
     def transition(self, entry: DeadLetterEntry) -> None:
         self.transitions.append(entry)
+
+
+def replay_dlq_payload(payload: object, process: object) -> object:
+    """Pass one opaque DLQ payload to the supplied processing callable.
+
+    Moved from src/workers/replay.py — this is test infrastructure
+    demonstrating the replay requirement, not a production module.
+    """
+    if payload is None:
+        raise ValueError("payload must not be None")
+    if not callable(process):
+        raise TypeError("process must be callable")
+    return process(payload)

@@ -7,7 +7,6 @@ from tests.worker_test_doubles import (
     RecordingDlq,
     RecordingStateRecorder,
     RetryableAgentFailure,
-    SimulatedTaskTimeout,
     StubAgentExecutor,
     TerminalAgentFailure,
     AcceptedIncidentFixture,
@@ -45,8 +44,6 @@ def test_agent_stub_raises_configured_failure_after_recording_incident():
 def test_failure_doubles_expose_test_controlled_retryability():
     assert RetryableAgentFailure("temporary").retryable is True
     assert TerminalAgentFailure("invalid").retryable is False
-    assert SimulatedTaskTimeout(retryable=True).retryable is True
-    assert SimulatedTaskTimeout(retryable=False).retryable is False
 
 
 def test_recording_state_recorder_preserves_retry_and_failure_context():

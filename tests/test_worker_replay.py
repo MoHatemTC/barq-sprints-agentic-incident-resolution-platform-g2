@@ -4,8 +4,7 @@ from datetime import datetime, timezone
 import pytest
 
 from src.workers.dlq import create_dead_letter_entry
-from src.workers.replay import replay_dlq_payload
-from tests.worker_test_doubles import RecordingDlq, RecordingStateRecorder
+from tests.worker_test_doubles import RecordingDlq, RecordingStateRecorder, replay_dlq_payload
 
 
 @dataclass

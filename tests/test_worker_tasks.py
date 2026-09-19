@@ -6,7 +6,7 @@ from src.config import WorkerConfig
 from src.workers.celery_app import create_celery_app
 from src.workers.retry_policy import RetryPolicy
 from src.workers.tasks import (
-    PendingIntegrationSeamsForTests,
+    IntegrationSeams,
     register_process_accepted_incident_task,
 )
 from tests.worker_test_doubles import (
@@ -64,7 +64,7 @@ def _task(
             max_delay_seconds=60,
             max_retries=max_retries,
         ),
-        PendingIntegrationSeamsForTests(
+        IntegrationSeams(
             agent=agent,
             state_recorder=recorder,
             dlq=dlq,
@@ -364,7 +364,7 @@ def test_task_uses_supplied_celery_app_without_creating_another():
     with patch("src.workers.tasks.create_celery_app") as create_app:
         task = register_process_accepted_incident_task(
             RetryPolicy(base_delay_seconds=5, max_delay_seconds=60, max_retries=2),
-            PendingIntegrationSeamsForTests(
+            IntegrationSeams(
                 agent=StubAgentExecutor(result="complete"),
                 state_recorder=RecordingStateRecorder(),
                 dlq=RecordingDlq(),

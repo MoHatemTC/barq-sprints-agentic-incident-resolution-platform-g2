@@ -12,13 +12,9 @@ from src.servicenow import exceptions as servicenow_exceptions
 from src.workers.celery_app import create_celery_app
 from src.workers.dlq import DeadLetterEntry
 from src.workers.retry_policy import RetryDecision, RetryPolicy
-from src.workers.replay import replay_dlq_payload
-from src.workers.state_manager_adapter import (
-    StateManagerRecorder,
-    create_retry_state_operation,
-)
+from src.workers.runtime_integration import ExecutionContext, StateManagerTaskRecorder
 from src.workers.tasks import (
-    PendingIntegrationSeamsForTests,
+    IntegrationSeams,
     register_process_accepted_incident_task,
 )
 from tests.worker_test_doubles import (
@@ -27,6 +23,7 @@ from tests.worker_test_doubles import (
     RetryableAgentFailure,
     StubAgentExecutor,
     TerminalAgentFailure,
+    replay_dlq_payload,
 )
 
 
@@ -75,7 +72,7 @@ def _local_worker_task(
     dlq = RecordingDlq()
     task = register_process_accepted_incident_task(
         policy,
-        PendingIntegrationSeamsForTests(
+        IntegrationSeams(
             agent=agent,  # type: ignore[arg-type]
             state_recorder=recorder,  # type: ignore[arg-type]
             dlq=dlq,
@@ -104,23 +101,41 @@ class _FailTwiceThenSucceed:
 class _S2StateManager:
     """TEST-ONLY double of the published S2.2 facade used by S2.3."""
 
-    retry_calls: list[tuple[object, ...]] = field(default_factory=list)
+    create_execution_calls: list[tuple[object, ...]] = field(default_factory=list)
+    retry_update_calls: list[tuple[object, ...]] = field(default_factory=list)
     failure_calls: list[tuple[object, ...]] = field(default_factory=list)
+    statuses: list[tuple[str, str]] = field(default_factory=list)
 
-    def create_retry_state(
+    def create_execution(
         self,
-        execution_reference: str,
+        incident_reference: str,
+        agent_version: str | None = None,
+        model_name: str | None = None,
+    ) -> object:
+        self.create_execution_calls.append(
+            (incident_reference, agent_version, model_name)
+        )
+        raise AssertionError("S2.3 retry/failure persistence must reuse one execution")
+
+    def update_execution_status(
+        self,
+        execution_identifier: str,
+        status: str,
+    ) -> object:
+        self.statuses.append((execution_identifier, status))
+        return object()
+
+    def update_retry_state(
+        self,
+        retry_state_id: int,
         attempt_count: int,
         last_error: str | None = None,
         next_attempt_time: object | None = None,
     ) -> object:
-        self.retry_calls.append(
-            (execution_reference, attempt_count, last_error, next_attempt_time)
+        self.retry_update_calls.append(
+            (retry_state_id, attempt_count, last_error, next_attempt_time)
         )
         return object()
-
-    def update_retry_state(self, *args: object, **kwargs: object) -> object:
-        raise AssertionError("the worker must not choose a retry-row lifecycle")
 
     def record_failure(
         self,
@@ -367,11 +382,10 @@ def test_malformed_and_hard_timeout_failures_go_directly_to_structured_dlq():
 
 def test_worker_persists_retry_and_failure_through_injected_s2_2_adapter():
     state_manager = _S2StateManager()
-    recorder = StateManagerRecorder(
-        state_manager=state_manager,
-        execution_reference="s2-2-created-uuid",
-        failing_node="pending-worker-boundary",
-        retry_state_operation=create_retry_state_operation,
+    recorder = StateManagerTaskRecorder(
+        ExecutionContext("s2-2-created-uuid", 42),
+        "pending-worker-boundary",
+        state_manager_factory=lambda: (state_manager, lambda: None),
     )
     retry_error = RetryableAgentFailure("temporary")
     _, retry_task, _, retry_dlq = _local_worker_task(
@@ -385,10 +399,12 @@ def test_worker_persists_retry_and_failure_through_injected_s2_2_adapter():
 
     assert retry_result.result == "scheduled"
     retry.assert_called_once_with(exc=retry_error, countdown=1, max_retries=1)
-    assert state_manager.retry_calls == [
-        ("s2-2-created-uuid", 1, "temporary", None)
+    assert state_manager.retry_update_calls == [
+        (42, 1, "temporary", None)
     ]
+    assert state_manager.create_execution_calls == []
     assert state_manager.failure_calls == []
+    assert state_manager.statuses == []
     assert retry_dlq.transitions == []
 
     terminal_error = TerminalAgentFailure("invalid")
@@ -410,6 +426,8 @@ def test_worker_persists_retry_and_failure_through_injected_s2_2_adapter():
             0,
         )
     ]
+    assert state_manager.statuses == [("s2-2-created-uuid", "failed")]
+    assert state_manager.create_execution_calls == []
     assert len(terminal_dlq.transitions) == 1
 
 

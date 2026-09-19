@@ -1,337 +1,532 @@
-# Sprint 2 Worker Topology and Configuration Contract
+# Sprint 2.3 — Worker Topology and Runtime Architecture
 
-## Purpose and ownership
+## Ownership
 
-This document defines the intended S2.3 Redis/Celery worker topology and the
-configuration contract needed to operate it. It records integration boundaries;
-it does not introduce worker code, database schema, API behavior, agent logic,
-or production configuration values.
+S2.3 owns Redis queue consumption, Celery worker configuration, task
+orchestration, retry classification and bounded exponential backoff, dead-letter
+handling, execution-context propagation, and the runtime composition layer that
+bridges S2.2 (state) and S2.5 (agent graph).
 
-| Area | Owner | S2.3 responsibility |
+**S2.3 does NOT own:**
+
+- S2.1 webhook implementation or producer-side Redis enqueue
+- S2.1 HTTP DLQ replay endpoint
+- S2.2 schema, migrations, or idempotency implementation
+- S2.4 retrieval or reranking
+- S2.5 agent-node or domain behavior implementation
+- Production deployment configuration values
+
+| Area | Owner | S2.3 role |
 |---|---|---|
-| Webhook acceptance and enqueue request | S2.1 | No; S2.3 consumes the accepted event at the worker boundary. |
-| PostgreSQL workflow state, idempotency, retry state, and failures | S2.2 | No; S2.3 calls the interface supplied by S2.2. |
-| Redis queue topology, Celery worker configuration, retries, time limits, DLQ, and shutdown | S2.3 | Yes. |
-| Retrieval and reranking | S2.4 | No. |
-| Agent runtime, LangGraph graph, nodes, state, and tracing | S2.5 | No; S2.3 invokes the agreed graph entry point. |
+| Webhook acceptance, validation, Redis enqueue | S2.1 | Consumer only. S2.3 reads from the list S2.1 writes to. |
+| PostgreSQL execution/retry/failure state, schema, migrations | S2.2 | Caller only. S2.3 calls the published `StateManager` API. |
+| Redis queue topology, Celery workers, retry, backoff, DLQ | S2.3 | Owner. |
+| Retrieval and reranking | S2.4 | None. |
+| Agent graph, LangGraph nodes, state, checkpointing, tracing | S2.5 | Invoker only. S2.3 calls the published graph entry point. |
 
-## Intended flow
+## Production modules
 
 ```text
-ServiceNow event
-  -> S2.1 webhook acceptance and validation
-  -> S2.1 enqueue to the configured main Celery queue in Redis
-  -> S2.3 Celery worker task boundary
-  -> S2.5 graph invocation
-  -> success: return task result and update state through the agreed S2.2 interface
-  -> retryable failure: record attempt through S2.2, calculate S2.3 backoff, retry
-  -> terminal or exhausted failure: record failure through S2.2, create preserved DLQ evidence, transition through the injected DLQ sink
-  -> DLQ replay: pass the preserved entry exactly once to the agreed replay processor
+src/workers/
+├── celery_app.py           Celery application factory
+├── retry_policy.py         RetryDecision enum, RetryPolicy with bounded backoff
+├── dlq.py                  DeadLetterEntry, RedisListDlq, serialization
+├── redis_consumer.py       BLPOP consumer bridging S2.1 Redis list → Celery
+├── tasks.py                Celery task registration, retry/DLQ orchestration
+├── runtime_integration.py  S2.2/S2.5 lazy composition (ExecutionContext, StateManagerTaskRecorder, GraphAgentExecutor)
+└── worker_runtime.py       Production entry point (IntegratedWorker, create_integrated_worker)
 ```
 
-The confirmed S2.1 event contract identifies the inbound event payload as
-`event_id`, `sys_id`, `number`, and `event_type`. S2.3 must preserve the
-complete accepted payload when retrying or dead-lettering it. S2.3 must not add
-incident data to that contract.
+### `celery_app.py`
 
-## Queue roles
+Factory `create_celery_app(config)` creates a Celery app from validated
+`WorkerConfig`. Maps environment-driven settings to Celery configuration:
+`worker_concurrency`, `worker_prefetch_multiplier`, `task_acks_late`,
+`task_reject_on_worker_lost`, `task_soft_time_limit`, `task_time_limit`,
+`worker_soft_shutdown_timeout`.
 
-| Queue role | Purpose | Required behavior | Status |
+### `retry_policy.py`
+
+Pure decision logic with no external dependencies.
+
+- `RetryDecision` enum: `RETRY`, `TERMINAL`, `EXHAUSTED`.
+- `RetryPolicy(base_delay_seconds, max_delay_seconds, max_retries)`:
+  - `decide(error, retries_completed)` — classifies using `error.retryable`.
+    Exceptions without `retryable=True` are `TERMINAL`. Retryable errors past
+    the configured limit are `EXHAUSTED`.
+  - `delay_for_retry(retry_number)` — bounded exponential backoff:
+    `min(base * 2^(n-1), max)`.
+
+### `dlq.py`
+
+- `DeadLetterEntry` — frozen dataclass retaining: original payload, optional
+  execution context, error type/message, retry count, task name/id, UTC
+  timestamp.
+- `RedisListDlq(redis_client, queue_name)` — publishes serialized JSON evidence
+  via `RPUSH` to the configured DLQ list.
+- `create_dead_letter_entry(...)` — factory with validation.
+- `serialize_dead_letter_entry(entry)` — JSON serialization including execution
+  context (`execution_identifier`, `retry_state_id`) when present.
+
+### `redis_consumer.py`
+
+Bridge from S2.1's Redis list to the Celery task boundary.
+
+- Reads from `incident_events` via blocking `BLPOP`.
+- Validates the four required S2.1 fields: `sys_id`, `event_id`, `event_type`,
+  `number`.
+- Valid payloads are dispatched via `apply_async` with S2.2 execution context
+  in Celery task headers.
+- Invalid JSON or missing fields produce a `MalformedIncidentPayload` marker
+  dispatched to the same task — the task handles it as a terminal failure and
+  creates DLQ evidence. The consumer loop continues.
+- `consume_next_incident_for_celery(redis_client, task, establish_context)` —
+  single-iteration production dispatch.
+- `run_incident_consumer_for_celery(...)` — production loop with
+  `should_stop` callback and exception isolation per iteration.
+
+### `tasks.py`
+
+Registers the `process_accepted_incident` Celery task via
+`register_process_accepted_incident_task(retry_policy, seams, app)`.
+
+The task is decorated with `@celery_app.task(bind=True, shared=False)`.
+See [Celery task registration reliability](#celery-task-registration-and-sharedfalsereliability) below.
+
+Integration seams (`IntegrationSeams` dataclass):
+- `agent` — `AgentExecutor` protocol (execute one incident).
+- `state_recorder` — `StateRecorder` protocol (record_retry, record_failure).
+- `dlq` — `DlqSink` protocol (transition one DLQ entry).
+- `execution_context` — optional, carried for DLQ evidence.
+
+Production path uses `ProductionIntegrationSeams.for_task(task)` which
+reconstructs `ExecutionContext` from Celery headers and instantiates
+`GraphAgentExecutor` and `StateManagerTaskRecorder` for that task invocation.
+
+Task orchestration:
+1. If payload is `MalformedIncidentPayload`, raise its stored error immediately.
+2. Otherwise invoke `agent.execute(accepted_incident)`.
+3. On success, call `state_recorder.record_success(...)` if available.
+4. On `SoftTimeLimitExceeded`, classify as retryable.
+5. On any other exception, classify using `RetryPolicy.decide()`.
+6. `RETRY` → `state_recorder.record_retry(...)`, `task.retry(exc, countdown,
+   headers)`. Headers are forwarded to preserve execution context across retries.
+7. `TERMINAL` or `EXHAUSTED` → `state_recorder.record_failure(...)`,
+   `dlq.transition(create_dead_letter_entry(...))`.
+
+### `runtime_integration.py`
+
+Lazy-import composition layer for S2.2 and S2.5 modules (developed on separate
+branches).
+
+- `ExecutionContext(execution_identifier, retry_state_id)` — frozen dataclass
+  with `task_headers()` producing `barq_execution_identifier` and
+  `barq_retry_state_id` header keys.
+- `establish_execution_context(accepted_incident)` — calls S2.2
+  `StateManager.create_execution(incident_reference=number)` and
+  `StateManager.create_retry_state(execution_reference=uuid, attempt_count=0)`.
+  Returns `ExecutionContext` with the generated identifiers. Uses
+  `SessionLocal()` with proper close.
+- `StateManagerTaskRecorder(context, failing_node)` — production state recorder:
+  - `record_retry(...)` → `update_retry_state(retry_state_id, count+1, error)`.
+  - `record_failure(...)` → `record_failure(execution_reference, ...)` +
+    `update_execution_status(id, "failed")`.
+  - `record_success(...)` → `update_execution_status(id, "succeeded")`.
+- `GraphAgentExecutor` — invokes S2.5 `compile_graph(checkpointer)`,
+  `graph.invoke({execution_id, incident_number, incident_payload}, config)`,
+  wrapped with `trace_execution("execute_incident_graph")`.
+- `context_from_task_headers(headers)` — reads execution context back from
+  Celery request headers.
+
+### `worker_runtime.py`
+
+Production composition root.
+
+- `create_integrated_worker(redis_client, config)` — assembles:
+  1. `WorkerConfig` from environment.
+  2. Celery app via `create_celery_app`.
+  3. `RetryPolicy` from config.
+  4. `RedisListDlq` connected to `config.dlq_queue`.
+  5. `ProductionIntegrationSeams` with the DLQ sink.
+  6. Registered `process_accepted_incident` task.
+  7. Returns `IntegratedWorker(redis_client, task)`.
+- `IntegratedWorker.run(should_stop)` — runs the BLPOP→Celery dispatch loop
+  via `run_incident_consumer_for_celery`.
+
+## End-to-end runtime flow
+
+```text
+S2.1 FastAPI webhook
+  → RPUSH "incident_events" ticket.model_dump_json()
+    (S2.1 payload: {event_id, sys_id, number, event_type, contract_version} — unchanged by S2.3)
+
+redis_consumer.py :: consume_next_incident_for_celery()
+  → BLPOP "incident_events"
+  → deserialize_incident_message()
+      → decode bytes/str
+      → parse JSON
+      → validate: sys_id, event_id, event_type, number
+      → valid dict OR MalformedIncidentPayload
+
+  [valid payload]
+  → runtime_integration.py :: establish_execution_context(payload)
+      → S2.2 StateManager.create_execution(incident_reference=number)
+      → S2.2 StateManager.create_retry_state(execution_reference=uuid, attempt_count=0)
+      → ExecutionContext(execution_identifier, retry_state_id)
+        (identifiers come from S2.2, never derived from event_id/sys_id/number)
+  → task.apply_async(args=(payload,), headers=context.task_headers())
+
+  [malformed payload]
+  → task.apply_async(args=(MalformedIncidentPayload,), headers=None)
+
+tasks.py :: process_accepted_incident(task, accepted_incident)
+  → ProductionIntegrationSeams.for_task(task)
+      → context_from_task_headers(task.request.headers)
+      → GraphAgentExecutor + StateManagerTaskRecorder + DLQ
+
+  [valid incident]
+  → GraphAgentExecutor.execute(incident)
+      → S2.5 compile_graph(checkpointer)
+      → S2.5 graph.invoke({execution_id, incident_number, incident_payload})
+      → S2.5 trace_execution("execute_incident_graph")
+  → success → StateManagerTaskRecorder.record_success()
+                → S2.2 update_execution_status(id, "succeeded")
+
+  [retryable failure, retries remaining]
+  → RetryPolicy.decide() → RETRY
+  → StateManagerTaskRecorder.record_retry()
+      → S2.2 update_retry_state(retry_state_id, count+1, error)
+  → task.retry(exc, countdown=delay, headers=SAME_HEADERS)
+    (same Execution and RetryState — no new execution is created on retry)
+
+  [terminal failure OR retries exhausted]
+  → RetryPolicy.decide() → TERMINAL or EXHAUSTED
+  → StateManagerTaskRecorder.record_failure()
+      → S2.2 record_failure(execution_reference, failing_node, error_class, message)
+      → S2.2 update_execution_status(id, "failed")
+  → create_dead_letter_entry(payload, execution_context, error, ...)
+  → RedisListDlq.transition() → RPUSH to DLQ list
+
+  [malformed incident]
+  → raises MalformedIncidentPayload.error (ValueError)
+  → _NoExecutionStateRecorder (no S2.2 state to update)
+  → DLQ entry with execution_context=None
+```
+
+## Redis queue topology
+
+| List | Producer | Consumer | Purpose |
 |---|---|---|---|
-| Main work queue | Carries accepted events to the Celery task boundary. | Healthy events are processed independently from failing events. | Queue name and route are pending S2.1/S2.3 agreement. |
-| Dead-letter queue (DLQ) | Holds malformed, terminal, and retry-exhausted events for investigation and replay. | Preserve the original accepted payload and failure context. It must not silently discard a failed event. | Queue name, message envelope, retention, and access controls are pending team agreement. |
-| Optional replay path | Returns a remediated DLQ event to the main queue. | Preserve the original event identity and create a traceable new processing attempt through S2.2. | Blocked by S2.1 enqueue and S2.2 retry/failure contracts. |
+| `incident_events` | S2.1 via `RPUSH` | S2.3 via `BLPOP` | Accepted webhook payloads. Not a Celery routing queue. |
+| Configured DLQ (`CELERY_DLQ_QUEUE`) | S2.3 via `RPUSH` | Operations/replay tooling | Terminal, exhausted, and malformed failure evidence. |
 
-The DLQ is an isolation mechanism, not a substitute for bounded retries or
-durable failure state. S2.3 will not create an independent PostgreSQL failure
-model; S2.2 owns that persistence.
+S2.3 also uses a Celery broker (configured via `CELERY_BROKER_URL`) for internal
+task dispatch. The `incident_events` list is separate from the Celery broker
+queue.
 
-## Retry, backoff, and failure flow
+## Execution context propagation
 
-1. The worker invokes the S2.5 graph through the agreed task boundary.
-2. S2.3 classifies a raised failure as retryable or terminal using deterministic
-   rules and the agreed exception taxonomy.
-3. For a retryable failure below the configured retry limit, S2.3 records the
-   attempt through S2.2, calculates a bounded exponential delay, and reschedules
-   the same event.
-4. For a terminal failure, malformed event, or retryable failure that has used
-   the configured retry limit, S2.3 records the failure through S2.2 and sends
-   the payload plus failure context to the DLQ.
-5. A replay, after its root cause is fixed, must use the agreed S2.1 enqueue and
-   S2.2 state-transition contracts. Replay behavior must be idempotent.
+`execution_identifier` and `retry_state_id` are created once per incident by
+`establish_execution_context()` before `apply_async`. They are **never derived
+from the S2.1 payload** (`event_id`, `sys_id`, or `number`). Both come
+exclusively from S2.2's `create_execution` and `create_retry_state` responses.
 
-### Failure classes
-
-| Class | Meaning | Worker action |
-|---|---|---|
-| Retryable | A transient dependency, transport, or service failure with a reasonable expectation that another attempt can succeed. | Retry with configured exponential backoff until exhausted. |
-| Terminal | Malformed input, validation failure, authorization failure, unsupported event, or another failure that cannot succeed merely by retrying. | Send directly to the DLQ. |
-| Exhausted | A retryable failure after the configured retry limit has been reached. | Send to the DLQ. |
-
-The final exception list remains pending the S2.5 graph exception contract.
-Existing ServiceNow client exceptions expose a `retryable` attribute, but that
-does not define the complete worker-level taxonomy.
-
-### Backoff requirements
-
-The retry calculation must be deterministic and testable. It must use the
-configured base delay and retry attempt number, grow exponentially, and cap at
-the configured maximum delay when one is supplied. Jitter policy is pending
-team agreement; no jitter behavior is assumed by this document.
-
-### Empirical retry evidence
-
-`tests/test_retry_dlq.py::test_empirical_celery_retry_intervals_follow_bounded_backoff`
-starts a local Celery worker using the in-memory broker and measures task-attempt
-timestamps with `time.monotonic()`. On 2026-09-18, configured delays of one and
-two seconds produced measured intervals of **[1.0, 2.0] seconds**. The test
-allows a bounded scheduling tolerance, records both retry-state calls, and
-asserts that no failure or DLQ transition occurs when the third attempt
-succeeds. This is worker scheduling evidence, not an assertion about Redis or
-webhook latency.
-
-## DLQ evidence and replay boundary
-
-The S2.3 worker creates a transport-neutral `DeadLetterEntry` before invoking
-the injected DLQ transition seam. It retains:
-
-- The original payload object, unchanged.
-- Optional explicitly injected execution context; it is never derived from
-  `event_id`, `sys_id`, or incident number.
-- Error class and message.
-- Retry count at failure.
-- Celery task name and task identifier when Celery supplies one.
-- A timezone-aware UTC occurrence timestamp.
-
-Terminal, malformed-as-terminal, hard-timeout-as-terminal, and exhausted
-retryable paths each invoke that transition exactly once in local acceptance
-tests. The worker does not implement a Redis publisher or choose a DLQ route:
-the queue name, task route, retention, and production envelope remain pending
-the S2.1/S2.3 producer agreement.
-
-`replay_dlq_payload` is the explicit, local replay seam. It passes the complete
-preserved entry exactly once to an injected processor and has no retry,
-enqueue, execution-creation, or DLQ-transition code. The corresponding replay
-test constructs a preserved `DeadLetterEntry`, replays it to a successful
-processor exactly once, and verifies that no retry state or second local DLQ
-entry is created. The original payload and injected execution context retain
-object identity. A production replay endpoint or re-enqueue path remains owned
-by the future S2.1 producer contract.
-
-`tests/test_retry_dlq.py::test_dependency_fix_replays_exhausted_dlq_entry_once_without_new_failures`
-also exercises the complete local recovery sequence: a retryable dependency
-failure is scheduled once, exhausts its configured retry budget into a
-preserved DLQ entry, the dependency test double is repaired, and the preserved
-entry is replayed to one successful task invocation. The existing retry and
-failure records and the original DLQ entry remain unchanged. This is local
-test-seam evidence, not production Redis re-enqueue evidence.
-
-## Task timeout requirements
-
-Each worker task needs a configured execution limit so a stuck or poison event
-cannot occupy a worker indefinitely. The final implementation must distinguish:
-
-| Limit | Purpose | Status |
-|---|---|---|
-| Soft task time limit | Gives task code an opportunity to stop or raise a controlled timeout. | Value and graph cancellation expectations are pending S2.5/S2.3 agreement. |
-| Hard task time limit | Terminates work that exceeds the permitted execution window. | Value and relationship to the soft limit are pending team agreement. |
-
-Timeouts must enter the same S2.3 classification, retry, and DLQ process as
-other failures. Whether a timeout is retryable depends on the agreed failure
-taxonomy and must not be guessed.
-
-The current worker boundary handles Celery `SoftTimeLimitExceeded` explicitly
-as retryable in the TEST-ONLY/PENDING TEAM AGREEMENT scaffold. It uses the same
-`RetryPolicy` decision and delay as other retryable failures. A local test
-injects `TimeLimitExceeded` at the boundary and verifies that it cannot report
-success: under the current generic classification it is recorded as a terminal
-failure and creates one DLQ entry. This is a simulated hard-timeout boundary
-check. Celery enforces actual hard termination at process level; real prefork
-hard-timeout recovery and DLQ delivery remain untested production evidence.
-
-## Worker reliability requirements
-
-| Concern | Requirement | Decision still needed |
-|---|---|---|
-| Concurrency | Read worker concurrency from configuration; never hard-code it. Configure enough parallelism that one failing event does not serialize healthy events. | Environment variable name and deployment-specific value. |
-| Prefetch | Configure bounded prefetch so a single worker does not reserve excessive work while long-running tasks execute. | Prefetch multiplier value. |
-| Acknowledgement | Accepted work must not be silently dropped on worker loss. Celery acknowledgement behavior must be selected to support recovery of uncompleted work. | Exact late-acknowledgement and worker-loss rejection settings, validated against S2.2 idempotency semantics. |
-| Poison-event isolation | Bound retries and task duration; route terminal/exhausted events out of the main processing path. | Main/DLQ routing names and retry values. |
-| Graceful shutdown | On `SIGTERM`, the worker should stop accepting new work, allow active work to follow configured timeout behavior, and leave uncompleted accepted work recoverable. | Shutdown grace period and Docker worker-service configuration. |
-| Observability | Log queue/task identity, attempt number, classification, retry delay, timeout, and DLQ transition without leaking credentials or incident content. | Structured logging format and S2.5 tracing boundary. |
-
-`WorkerConfig.from_environment()` requires `CELERY_WORKER_CONCURRENCY`, and
-`create_celery_app()` maps that validated value to Celery's
-`worker_concurrency` setting. Focused tests set the environment value to `9`
-and verify that both the resulting configuration and Celery app expose `9`; no
-configured worker-concurrency default is used.
-
-## Saturation validation boundary
-
-S2.3 validates worker-side configuration and deterministic isolation of retry,
-failure, and DLQ state between independent task attempts. These checks do not
-start a worker, use Redis, or measure webhook latency.
-
-The acceptance suite also runs a deterministic two-thread local orchestration
-simulation containing one terminal poison event and one healthy event. The
-healthy task returns successfully while only the poison task records one
-failure and one DLQ transition. This is not a deployed-worker saturation or
-throughput benchmark. The Celery concurrency and prefetch values remain
-configuration-driven and are asserted in `tests/test_celery_app.py`; real Redis
-worker/process isolation under load remains pending production evidence.
-
-End-to-end webhook acceptance and latency under worker saturation remain an
-S2.1 integration/load-testing concern. No latency SLA is claimed by S2.3 until
-that producer-to-broker path is exercised with the agreed enqueue contract.
-
-No S2.1 webhook saturation/load test or measured webhook-latency percentile is
-present in this repository. S2.3's asynchronous worker configuration is
-designed to keep graph execution out of webhook handling, but it cannot measure
-or claim webhook latency without the S2.1 acceptance and enqueue path. No
-synthetic latency value or target result is claimed here.
-
-## Required S2.3 configuration values
-
-The following values are needed before worker code can be finalized. The names
-below are proposed environment-variable names only. **No production defaults or
-values have been selected.**
-
-| Proposed environment variable | Required for | Value status |
-|---|---|---|
-| `CELERY_BROKER_URL` | Redis broker connection. | Pending environment-specific URL. |
-| `CELERY_RESULT_BACKEND` | Celery result backend, if task results are retained. | Pending decision whether a result backend is required and which backend to use. |
-| `CELERY_MAIN_QUEUE` | Main work-queue name. | Pending S2.1/S2.3 routing agreement. |
-| `CELERY_DLQ_QUEUE` | Dead-letter queue name. | Pending S2.3 operational agreement. |
-| `CELERY_WORKER_CONCURRENCY` | Worker process/thread concurrency. | Pending deployment capacity decision. |
-| `CELERY_WORKER_PREFETCH_MULTIPLIER` | Worker reservation limit. | Pending workload/throughput decision. |
-| `CELERY_TASK_SOFT_TIME_LIMIT_SECONDS` | Controlled task timeout. | Pending S2.3/S2.5 graph-runtime decision. |
-| `CELERY_TASK_TIME_LIMIT_SECONDS` | Hard task timeout. | Pending S2.3/S2.5 graph-runtime decision. |
-| `CELERY_TASK_MAX_RETRIES` | Maximum retry attempts before DLQ. | Pending reliability policy decision. |
-| `CELERY_RETRY_BASE_DELAY_SECONDS` | Initial exponential-backoff delay. | Pending reliability policy decision. |
-| `CELERY_RETRY_MAX_DELAY_SECONDS` | Upper bound for exponential backoff. | Pending reliability policy decision. |
-| `CELERY_RETRY_JITTER` | Whether and how retry delay jitter is applied. | Pending reliability policy decision. |
-| `CELERY_TASK_ACKS_LATE` | Acknowledgement timing. | Pending validation with S2.2 idempotency guarantees. |
-| `CELERY_TASK_REJECT_ON_WORKER_LOST` | Recovery behavior if a worker process is lost. | Pending validation with S2.2 idempotency guarantees. |
-| `CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS` | Grace period for controlled worker shutdown. | Pending Docker/deployment decision. |
-
-Configuration parsing must reject invalid values clearly. Secrets must remain in
-the local `.env`, not in source, logs, tests, or this document.
-
-## Graceful shutdown ownership
-
-S2.3 maps `CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS` to Celery's
-`worker_soft_shutdown_timeout`. Celery owns the actual `SIGTERM`/`SIGINT`
-worker lifecycle, including stopping consumption and its soft-to-cold shutdown
-transition. S2.3 owns only the validated timeout policy and must not install
-custom process signal handlers.
-
-The timeout policy does not replace task soft/hard time limits, retry handling,
-or DLQ handling. Deployment owners must still agree the grace-period value and
-Docker termination grace period; these are not production defaults.
-
-## S2.2 persistence boundary implemented by S2.3
-
-`src/workers/state_manager_adapter.py` adapts only the published S2.2
-`StateManager` facade behind the worker's injected state-recorder seam. Given
-an explicit S2.2-generated `execution_identifier`, S2.3 uses it as
-`execution_reference` for `create_retry_state` or a caller-selected
-`update_retry_state` operation, and for `record_failure`. The adapter preserves
-the retry count, error type/message, and an explicitly supplied pending worker
-boundary node label.
-
-S2.3 deliberately does not choose create-versus-update retry-row lifecycle,
-derive execution context from the S2.1 event, write a DLQ database record, or
-define database-write failure behavior. The local acceptance suite verifies
-that a selected S2.2-compatible recorder receives retry and terminal-failure
-calls; S2.2 retains ownership of sessions, transactions, schema, and policy.
-
-## Required integration contracts
-
-### S2.1: FastAPI/webhook/enqueueing
-
-S2.3 needs:
-
-- The final accepted-event payload and validation behavior.
-- The Celery task name, queue route, and enqueueing call used after acceptance.
-- The behavior when Redis is unavailable while S2.1 accepts an event.
-- The authorized entry point for DLQ replay, if replay is exposed through an API.
-
-S2.3 will not implement webhook routes, API endpoints, or producer-side
-idempotency.
-
-### S2.2: PostgreSQL state and failures
-
-The published `StateManager` retry and failure methods are represented by the
-S2.3 adapter. Remaining S2.2 operational contracts are:
-
-- How a worker receives the S2.2-generated execution identifier for one event.
-- Create-versus-update lifecycle for retry-state rows.
-- Execution status vocabulary and successful-outcome persistence.
-- Database-write failure policy, replay authorization, and transaction/idempotency
-  semantics compatible with late acknowledgement and redelivery.
-
-S2.3 will not create migrations, models, or a parallel retry/failure store.
-
-### S2.5: agent and LangGraph execution
-
-S2.3 needs:
-
-- The importable graph invocation callable and its input contract.
-- Its success result contract.
-- A documented exception taxonomy, including retryability and timeout/cancellation
-  behavior.
-- Any required cleanup behavior after soft timeout or worker shutdown.
-
-S2.3 owns only the Celery execution boundary around that callable. It will not
-implement agent state, graph nodes, model initialization, tracing, or ServiceNow
-business logic.
-
-## S2.3/S2.5 execution boundary
-
-**PENDING S2.5 AGREEMENT:** The S2.3 task boundary exists as an injected,
-TEST-ONLY/PENDING TEAM AGREEMENT orchestration scaffold. No S2.5 callable is
-imported or invoked by production wiring on this branch. The following is the
-minimum contract S2.3 needs to replace that seam; it is not an implemented API.
-
-| Boundary element | Contract needed from S2.5 |
+| Step | Action |
 |---|---|
-| Invocation | One importable synchronous or asynchronous callable that processes exactly one accepted incident. S2.5 must document its module path and whether S2.3 must call, await, or otherwise execute it. |
-| Input | The callable must accept the complete S2.1 accepted-event payload without S2.3 adding incident data. The only currently documented payload fields are event_id, sys_id, number, and event_type. |
-| Success | The callable must return a documented serializable result or a defined success signal. S2.5 must identify which result fields, if any, S2.3 returns from the Celery task or records through S2.2. |
-| Failure | The callable must raise documented exceptions, or return a documented failure result, that lets S2.3 distinguish retryable from terminal failures. A failure type may expose the existing retryable boolean convention, but S2.5 must confirm its exception taxonomy. |
-| Timeout and shutdown | S2.5 must document cancellation/cleanup expectations when S2.3 reaches the soft task limit or the worker receives shutdown. |
+| 1. Create | `establish_execution_context()` calls S2.2 and returns `ExecutionContext(execution_identifier, retry_state_id)` |
+| 2. Carry | Packed into Celery headers as `barq_execution_identifier` and `barq_retry_state_id` via `context.task_headers()` |
+| 3. Read back | `context_from_task_headers(task.request.headers)` inside the task |
+| 4. Forward on retry | `task.retry(headers=SAME_HEADERS)` — unchanged header set |
 
-### Identifier handling
+Design guarantees:
+- The **same** S2.2 Execution and RetryState are reused across all retry
+  attempts. No new execution is created per retry.
+- RetryState `attempt_count` is **updated** (not recreated) on each retry.
+- The S2.1 webhook payload travels as task arguments and is **never modified**
+  by S2.3.
 
-event_id is the only established cross-boundary identity: S1.3 documents it
-as the queue idempotency key. No separate correlation ID is documented.
-ServiceNow's existing execution-log execution_id is generated by the S1.5
-client for audit records, but it is not currently a worker-to-agent contract.
-**PENDING S2.5 AGREEMENT:** S2.5 must state whether it needs an execution ID,
-who creates it, and whether it must be propagated to tracing or graph state.
-S2.3 must not invent or rename either identifier.
+## Retry behavior
 
-### Shared file ownership
+### Classification
 
-`src/workers/tasks.py` is a shared integration boundary. Its current Celery
-wrapper, retry policy use, timeout handling, and injected test seams are S2.3
-code; S2.5 integration remains pending this contract:
+| Error characteristic | Decision | Worker action |
+|---|---|---|
+| `error.retryable is True`, retries < max | `RETRY` | Backoff delay, S2.2 retry state update, Celery `task.retry` |
+| `error.retryable is True`, retries ≥ max | `EXHAUSTED` | S2.2 failure record, execution → `failed`, DLQ |
+| `error.retryable` absent or `False` | `TERMINAL` | S2.2 failure record, execution → `failed`, DLQ |
+| `SoftTimeLimitExceeded` | Retryable | Classified as retryable at the worker boundary |
+| `MalformedIncidentPayload` | Terminal | No S2.2 state (no valid execution), DLQ only |
 
-| Owner | Permitted portion |
+The S2.5 ServiceNow exceptions expose `retryable=True` on `ServiceNowAuthError`
+and `ServiceNowServerError`. Exceptions without `retryable` are terminal.
+
+### Bounded exponential backoff
+
+```
+delay(n) = min(base_delay * 2^(n-1), max_delay)
+```
+
+- `n` is the one-based retry number.
+- First retry uses `base_delay_seconds`.
+- Growth is exponential, capped at `max_delay_seconds`.
+- No jitter is applied.
+- Empirical verification: `test_empirical_celery_retry_intervals_follow_bounded_backoff`
+  measures actual task retry intervals against the configured policy, asserting
+  they fall within `[-0.15s, +2.0s]` of their expected values.
+
+### State across retries
+
+- One `Execution` (S2.2) per incident consumption. Never recreated on retry.
+- One `RetryState` (S2.2) per execution. `attempt_count` incremented on each
+  retry via `update_retry_state`.
+- On exhaustion: `record_failure` + `update_execution_status` → `"failed"`.
+- On success: `update_execution_status` → `"succeeded"`.
+
+## Worker configuration
+
+All settings are loaded from environment variables via `WorkerConfig.from_environment()`.
+No defaults are assumed; missing or invalid values raise `ValueError`.
+
+| Environment variable | Purpose | Celery mapping |
+|---|---|---|
+| `CELERY_BROKER_URL` | Redis broker connection | `broker` |
+| `CELERY_MAIN_QUEUE` | Main work queue name | — (used by consumer, not Celery routing) |
+| `CELERY_DLQ_QUEUE` | Dead-letter list name | — (used by `RedisListDlq`) |
+| `CELERY_WORKER_CONCURRENCY` | Worker parallelism | `worker_concurrency` |
+| `CELERY_WORKER_PREFETCH_MULTIPLIER` | Task reservation limit | `worker_prefetch_multiplier` |
+| `CELERY_TASK_SOFT_TIME_LIMIT_SECONDS` | Soft timeout (raises `SoftTimeLimitExceeded`) | `task_soft_time_limit` |
+| `CELERY_TASK_TIME_LIMIT_SECONDS` | Hard timeout (kills task process) | `task_time_limit` |
+| `CELERY_TASK_MAX_RETRIES` | Maximum retry attempts before DLQ | `RetryPolicy.max_retries` |
+| `CELERY_RETRY_BASE_DELAY_SECONDS` | Initial backoff delay | `RetryPolicy.base_delay_seconds` |
+| `CELERY_RETRY_MAX_DELAY_SECONDS` | Backoff delay cap | `RetryPolicy.max_delay_seconds` |
+| `CELERY_TASK_ACKS_LATE` | Late acknowledgement | `task_acks_late` |
+| `CELERY_TASK_REJECT_ON_WORKER_LOST` | Reject on worker loss | `task_reject_on_worker_lost` |
+| `CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS` | Graceful shutdown grace period | `worker_soft_shutdown_timeout` |
+
+Validation rules:
+- `task_time_limit_seconds` must be greater than `task_soft_time_limit_seconds`.
+- `retry_max_delay_seconds` must be ≥ `retry_base_delay_seconds`.
+- Concurrency, prefetch, and time limits must be positive integers.
+- Retry values must be non-negative integers.
+
+## DLQ evidence and replay
+
+### Evidence structure
+
+Each DLQ entry (`DeadLetterEntry`) retains:
+
+- Original S2.1 payload (unchanged).
+- Execution context when present (`execution_identifier`, `retry_state_id`).
+  `None` for malformed payloads that never received an execution.
+- Error class name and message.
+- Retry count at the point of failure.
+- Celery task name and task ID.
+- Timezone-aware UTC timestamp.
+
+Published to the configured DLQ Redis list as compact JSON via `RPUSH`.
+
+### Replay
+
+`replay_dlq_payload(payload, process)` passes a preserved DLQ payload to an
+injected processor exactly once. It performs no retry, no execution creation, and
+no DLQ transition itself. The replay requirement is demonstrated in tests:
+
+- `test_dependency_fix_replays_exhausted_dlq_entry_once_without_new_failures`
+  exercises the full local recovery sequence: retryable failure → exhaustion →
+  DLQ → dependency repair → replay to success. Original retry/failure records
+  and the DLQ entry are unchanged after replay.
+
+A production replay endpoint or re-enqueue path remains owned by S2.1/operations.
+
+## Celery task registration and `shared=False` reliability
+
+`register_process_accepted_incident_task()` registers the dynamically-created
+`process_accepted_incident` task with:
+
+```python
+@celery_app.task(bind=True, shared=False)
+def process_accepted_incident(task: Task, accepted_incident: object) -> object:
+    ...
+```
+
+**Why `shared=False` is necessary.**
+
+Celery's default `shared=True` registers a `cons` closure — capturing the
+function and its closure variables, including the injected `seams` object — into
+a process-global registry (`celery._state._on_app_finalizers`). Whenever any
+subsequent Celery app is finalized (e.g., during `app.finalize()` at worker
+startup), Celery replays all entries in `_on_app_finalizers` against the new app.
+In a test process where multiple Celery apps are created and finalized in
+sequence, a `cons` from an earlier registration (e.g., one carrying
+`ProductionIntegrationSeams`) would overwrite the later app's task registration
+(e.g., one carrying test `IntegrationSeams`), causing the worker to execute
+the wrong task body.
+
+`shared=False` prevents the closure from entering `_on_app_finalizers`. The
+task is registered only with its intended Celery app. **No production behavior
+changes:** in production, `register_process_accepted_incident_task` is called
+exactly once per worker process, so the global finalizer registry is never
+re-applied.
+
+This fixed a confirmed cross-test global-state contamination that caused
+`test_empirical_celery_retry_intervals_follow_bounded_backoff` to report
+zero agent attempts when run after `test_worker_runtime_integration.py` in
+the full suite.
+
+## Reliability boundaries
+
+| Concern | Implementation |
 |---|---|
-| S2.3 | Celery task declaration, task input validation at the agreed boundary, invocation wrapper, timeout handling, retry classification/use of RetryPolicy, DLQ transition, and worker-side failure handling. |
-| S2.5 | The imported Agent/LangGraph callable, graph state, graph nodes, model initialization, tracing, domain execution, and its documented result/exception behavior. |
+| Malformed messages | `MalformedIncidentPayload` wraps invalid JSON/payloads. The consumer loop continues. The task records a terminal failure and DLQ entry. |
+| Poison job isolation | Bounded retries (`max_retries`), task time limits (soft + hard), DLQ routing. One failing event does not block healthy events. |
+| Task timeout | `SoftTimeLimitExceeded` is caught and classified as retryable. Hard `TimeLimitExceeded` terminates the task process; under the current classification it is terminal and produces a DLQ entry. |
+| Graceful shutdown | `worker_soft_shutdown_timeout` is set from `CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS`. Celery owns the `SIGTERM` lifecycle — S2.3 does not install custom signal handlers. The BLPOP consumer loop checks `should_stop()` between iterations. |
+| Late acknowledgement | `task_acks_late=True` + `task_reject_on_worker_lost=True` ensures uncompleted tasks are redelivered on worker loss, compatible with S2.2 idempotency. |
+| Consumer loop resilience | Each `consume_next_incident_for_celery` iteration is wrapped in a try/except. Redis transport failures are logged and do not crash the loop. |
+| Worker saturation | Concurrency and prefetch are configuration-driven. S2.3 does not claim webhook latency or throughput benchmarks — those are S2.1 integration concerns. |
 
-S2.3 must not embed Agent/LangGraph logic in the Celery task. S2.5 must not
-implement Celery retry, DLQ, or worker lifecycle behavior inside graph code.
+## S2.5 invocation boundary
 
-## Pending decisions before implementation
+| Element | Contract |
+|---|---|
+| Invocation | `GraphAgentExecutor.execute(accepted_incident, execution_id, incident_number)` |
+| Graph composition | `compile_graph(checkpointer=get_checkpointer())` |
+| Graph input | `{execution_id, incident_number, incident_payload}` with `config={configurable: {thread_id: execution_id}}` |
+| Tracing | `trace_execution("execute_incident_graph")` decorator from S2.5 observability |
+| Success | Graph result returned from Celery task; S2.3 records `succeeded` |
+| Failure | Exceptions with `retryable=True` are retried; others are terminal |
+| Timeout | S2.3 handles Celery timeout lifecycle; graph-specific cancellation is S2.5-owned |
 
-1. Approve the proposed configuration variable names and supply environment
-   values/default policy.
-2. Agree the main-queue, DLQ, and task-routing names with S2.1.
-3. Agree the retry limits, delays, cap, and jitter policy.
-4. Agree timeout and shutdown values with S2.5 and deployment owners.
-5. Agree S2.2 execution-reference propagation, retry-row lifecycle, successful
-   outcome persistence, and replay/database-write policy.
-6. Receive S2.5 graph invocation and exception contracts.
+## S2.2 persistence boundary
+
+| Operation | S2.3 call | S2.2 API |
+|---|---|---|
+| Create execution | `establish_execution_context()` | `StateManager.create_execution(incident_reference=number)` |
+| Create retry state | `establish_execution_context()` | `StateManager.create_retry_state(execution_reference=uuid, attempt_count=0)` |
+| Record retry | `StateManagerTaskRecorder.record_retry()` | `StateManager.update_retry_state(retry_state_id, count+1, error)` |
+| Record failure | `StateManagerTaskRecorder.record_failure()` | `StateManager.record_failure(execution_reference, failing_node, error_class, message, retry_count)` |
+| Mark failed | `StateManagerTaskRecorder.record_failure()` | `StateManager.update_execution_status(id, "failed")` |
+| Mark succeeded | `StateManagerTaskRecorder.record_success()` | `StateManager.update_execution_status(id, "succeeded")` |
+
+S2.3 never derives identifiers from the S2.1 event payload. All identifiers
+come from S2.2's `create_execution` response. S2.2 retains ownership of schema,
+sessions, transactions, and migrations.
+
+## Final verification
+
+All evidence below is from the S2.3 branch (`feature/s2.3-celery-workers`)
+as of the final cleanup and `shared=False` fix.
+
+| Check | Result |
+|---|---|
+| S2.3 focused test suite | **78 passed, 0 failed** |
+| Empirical retry/backoff test in isolation | **PASSED** (`test_empirical_celery_retry_intervals_follow_bounded_backoff`) |
+| Full suite including empirical test | **78 passed, 0 failed** (no regression after `shared=False` fix) |
+| `git diff --check` | **Clean** — no whitespace errors (LF/CRLF warnings only, not errors) |
+| Celery global-state contamination | **Identified and fixed** — `shared=False` eliminates `_on_app_finalizers` cross-test contamination |
+| Environment-driven concurrency | **Verified** — `WorkerConfig.from_environment()` with no hard-coded values |
+| DLQ dependency-fix replay | **Verified** — `test_dependency_fix_replays_exhausted_dlq_entry_once_without_new_failures` |
+| Malformed payload isolation | **Verified** — `MalformedIncidentPayload` path produces DLQ entry; consumer loop continues |
+| Retry execution context propagation | **Verified** — headers forwarded unchanged through `task.retry(headers=SAME_HEADERS)` |
+
+Webhook saturation benchmarks (p95 latency under load) are S2.1-owned evidence.
+No such benchmark is claimed by or attributed to S2.3.
+
+## Sarah review / acceptance coverage
+
+This section maps S2.3 to the Sprint 2.3 acceptance requirements.
+
+### 1. Environment-driven worker concurrency
+
+All worker configuration is environment-variable driven via `WorkerConfig.from_environment()`.
+`CELERY_WORKER_CONCURRENCY`, `CELERY_WORKER_PREFETCH_MULTIPLIER`, time limits,
+retry parameters, and queue names are all read from the environment. No value is
+hard-coded. Tested in `tests/test_worker_config.py`.
+
+### 2. Concrete DLQ replay after dependency recovery
+
+Tested in `test_retry_dlq.py::test_dependency_fix_replays_exhausted_dlq_entry_once_without_new_failures`:
+- Agent fails with a retryable error on every attempt.
+- After retry exhaustion, a DLQ entry is created with full context.
+- The root dependency is repaired (test double updated).
+- `replay_dlq_payload()` executes the payload against the repaired agent.
+- The replay succeeds with no additional DLQ entries and no mutation of original
+  retry/failure records.
+
+### 3. Webhook latency under worker saturation
+
+**This benchmark is S2.1-owned evidence, not an S2.3 benchmark.**
+
+S2.1 (`origin/s2.1/fast-api-webhook`) committed `tests/load/results/sustained_load_stats.csv`
+showing p50=14ms, p95=51ms at 92,010 webhook requests, and a queue-depth curve
+showing p95=51–55ms across queue depths 0 to 50,000. S2.3 does not own, operate,
+or re-claim these results. S2.3 documents that `CELERY_WORKER_CONCURRENCY` and
+`CELERY_WORKER_PREFETCH_MULTIPLIER` are environment-configurable to prevent
+worker saturation from being a fixed ceiling.
+
+### 4. Task timeout and poison-job isolation
+
+- Soft timeout (`CELERY_TASK_SOFT_TIME_LIMIT_SECONDS`): `SoftTimeLimitExceeded`
+  caught and classified as a retryable error — enters bounded backoff path.
+- Hard timeout (`CELERY_TASK_TIME_LIMIT_SECONDS`): terminates the task process;
+  classified as terminal → DLQ.
+- Bounded retries enforce a ceiling on how long one poison job can occupy the
+  retry queue before being dead-lettered.
+- Tested in `tests/test_retry_dlq.py` (timeout classification) and
+  `tests/test_worker_tasks.py` (poison job isolation under concurrent load).
+
+### 5. Retry-state and final execution-status recording
+
+On every retry: `StateManagerTaskRecorder.record_retry()` increments
+`RetryState.attempt_count` via S2.2 `update_retry_state`.
+On failure/exhaustion: `record_failure()` writes the `Failure` record and sets
+`Execution.status = "failed"` via S2.2 `update_execution_status`.
+On success: `record_success()` sets `Execution.status = "succeeded"`.
+Tested in `tests/test_worker_runtime_integration.py`.
+
+### 6. Graceful SIGTERM / shutdown behavior
+
+`task_acks_late=True` and `task_reject_on_worker_lost=True` ensure a task that
+is in-flight when the worker receives SIGTERM is redelivered rather than lost.
+`CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS` controls the soft-shutdown grace period.
+The BLPOP consumer loop checks `should_stop()` between iterations, ensuring the
+loop exits cleanly without dropping the next-iteration payload. Celery manages
+the SIGTERM lifecycle; S2.3 does not install custom signal handlers. Tested in
+`tests/test_worker_redis_consumer.py`.
+
+## Handoff / external dependencies
+
+S2.3 is complete. The following integration items are external to S2.3 and owned
+by other workstreams. They are documented here for integration planning, not as
+S2.3 defects.
+
+- **S2.5 node wiring (S2.5 team):** `load_node`, `retrieve_node`, and
+  `generate_node` in the S2.5 branch are currently stubs. At integration time,
+  S2.5 must wire these to the real S1.5 ServiceNow OAuth client and the S2.4
+  hybrid retrieval implementation. S2.3 is unaffected — it invokes
+  `GraphAgentExecutor.execute()` regardless of what the graph nodes do
+  internally.
+
+- **`GraphAgentExecutor` import path (S2.5/S2.3 joint):** S2.3's production
+  seams import `GraphAgentExecutor` from `src.agent.graph`. The S2.5 branch
+  currently places `GraphAgentExecutor` in `src/workers/tasks.py`. These import
+  paths must be aligned at integration/merge time. S2.3's integration seams
+  design requires only that `GraphAgentExecutor` satisfies the `AgentExecutor`
+  protocol — the resolution is a module placement decision, not a protocol
+  change.
+
+- **S2.1 webhook route contract (S2.1 team):** The S2.1 branch routes the
+  webhook at `POST /webhook` rather than the contract-specified
+  `POST /api/v1/webhook/incident`. This requires confirmation or correction by
+  the S2.1 team. S2.3 consumes from `incident_events` regardless of the HTTP
+  path — no S2.3 changes are required.
+
+- **Production HTTP DLQ replay (S2.1/operations):** The `POST /api/v1/dlq/{event_id}/replay`
+  endpoint in S2.1 is currently a stub with a TODO to re-enqueue to Redis once
+  S2.3 lands. Wiring this endpoint to the S2.3 DLQ format and Redis list is
+  S2.1/operations-owned. S2.3's DLQ evidence structure retains the original
+  payload and full context to support this.
+
+- **Branch integration:** All Sprint 2 branches remain unmerged as of this
+  handoff. Final Sprint 2 integration requires assembling the branches and
+  validating the end-to-end flow across S2.1 → S2.3 → S2.2/S2.5.
