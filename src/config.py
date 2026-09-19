@@ -70,6 +70,9 @@ class QdrantConfig:
 class EmbeddingConfig:
     dense_model: str = os.environ.get("DENSE_EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
     sparse_model: str = os.environ.get("SPARSE_EMBEDDING_MODEL", "Qdrant/bm25")
+    litellm_base_url: str = os.environ.get("LITELLM_BASE_URL", "").strip()
+    litellm_api_key: str = os.environ.get("LITELLM_API_KEY", "").strip()
+    litellm_embedding_model: str = os.environ.get("LITELLM_EMBEDDING_MODEL", "").strip()
 
 
 @dataclass(frozen=True)
