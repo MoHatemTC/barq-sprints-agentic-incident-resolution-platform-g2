@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import patch, MagicMock
 from src.agent.llm import get_llm, get_embeddings
 from src.agent.checkpointer import get_checkpointer
 
@@ -11,6 +12,12 @@ def test_llm_singletons():
     emb2 = get_embeddings()
     assert emb1 is emb2
 
-def test_checkpointer_initialization():
+@patch("src.agent.checkpointer.PostgresSaver")
+@patch("src.agent.checkpointer.ConnectionPool")
+def test_checkpointer_initialization(mock_pool_cls, mock_saver_cls):
+    mock_instance = MagicMock()
+    mock_saver_cls.return_value = mock_instance
+    
     checkpointer = get_checkpointer()
     assert checkpointer is not None
+    mock_instance.setup.assert_called_once()

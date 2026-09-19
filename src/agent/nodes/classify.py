@@ -36,14 +36,7 @@ def classify_node(state: Dict[str, Any]) -> Dict[str, Any]:
     Respond with ONLY the exact category name from the list above. Do not add any extra text.
     """
     
-    try:
-        from langfuse.decorators import langfuse_context
-        handler = langfuse_context.get_current_langchain_handler()
-        config = {"callbacks": [handler]}
-    except ImportError:
-        config = {}
-
-    response = llm.invoke(prompt, config=config)
+    response = llm.invoke(prompt)
     content = response.content if hasattr(response, "content") else str(response)
     
     classification = content.strip().lower()

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 def _same(sent, got):
     # ServiceNow returns every value as string
     if sent is None:
-        return got in (", None)
+        return got in ("", None)
     if isinstance(sent, bool):
         return str(got).lower() == str(sent).lower()
     if isinstance(sent, (int, float)):
@@ -109,7 +109,7 @@ class ServiceNowClient:
                 "sysparm_fields": "value",
             },
         )
-        if not check or note not in check[0].get("value", "):
+        if not check or note not in check[0].get("value", ""):
             raise ServiceNowWriteNotAppliedError(200, "Work note not applied")
         return result
 

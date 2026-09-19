@@ -32,14 +32,7 @@ def validate_node(state: Dict[str, Any]) -> Dict[str, Any]:
     Respond with ONLY the word "valid" or "invalid".
     """
     
-    try:
-        from langfuse.decorators import langfuse_context
-        handler = langfuse_context.get_current_langchain_handler()
-        config = {"callbacks": [handler]}
-    except ImportError:
-        config = {}
-
-    response = llm.invoke(prompt, config=config)
+    response = llm.invoke(prompt)
     content = response.content if hasattr(response, "content") else str(response)
     
     eligibility = content.strip().lower()

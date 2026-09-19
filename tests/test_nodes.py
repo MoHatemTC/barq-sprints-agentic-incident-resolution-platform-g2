@@ -1,13 +1,23 @@
 import pytest
+from unittest.mock import patch, MagicMock
+
 from src.agent.nodes.load import load_node
 from src.agent.nodes.determine_risk import determine_risk_node
 from src.agent.nodes.retrieve import retrieve_node
 
-def test_load_node():
+@patch("src.agent.nodes.load.ServiceNowClient")
+def test_load_node(mock_sn_client_class):
+    mock_instance = mock_sn_client_class.return_value
+    mock_instance.get_incident.return_value = {
+        "sys_id": "INC0001", 
+        "short_description": "Network down"
+    }
+
     state = {"incident_number": "INC0001"}
     result = load_node(state)
     assert result["incident_payload"]["sys_id"] == "INC0001"
     assert result["incident_payload"]["status"] == "loaded"
+    assert result["incident_payload"]["short_description"] == "Network down"
 
 def test_determine_risk_node_normal():
     state = {"incident_payload": {"description": "Server reboot requested."}}
@@ -19,8 +29,24 @@ def test_determine_risk_node_high():
     result = determine_risk_node(state)
     assert result["risk"] == "high"
 
-def test_retrieve_node():
-    state = {}
+@patch("src.agent.nodes.retrieve.QdrantClient")
+@patch("src.agent.nodes.retrieve.embed_dense")
+@patch("src.agent.nodes.retrieve.embed_sparse")
+def test_retrieve_node(mock_embed_sparse, mock_embed_dense, mock_qdrant_class):
+    mock_embed_dense.return_value = [0.1] * 384
+    mock_embed_sparse.return_value = {"indices": [1, 2], "values": [0.5, 0.5]}
+    
+    mock_client = mock_qdrant_class.return_value
+    mock_point = MagicMock()
+    mock_point.payload = {"number": "KB123", "text": "Reboot the router"}
+    mock_point.score = 0.99
+    
+    mock_results = MagicMock()
+    mock_results.points = [mock_point]
+    mock_client.query_points.return_value = mock_results
+
+    state = {"incident_payload": {"description": "router broken"}}
     result = retrieve_node(state)
     assert len(result["retrieved_evidence"]) > 0
     assert result["retrieved_evidence"][0]["id"] == "KB123"
+    assert result["retrieved_evidence"][0]["score"] == 0.99

@@ -13,6 +13,7 @@ langfuse
 langgraph
 langgraph-checkpoint-postgres
 langchain
+langchain-openai
 langchain-google-genai
 psycopg[binary]
 psycopg_pool

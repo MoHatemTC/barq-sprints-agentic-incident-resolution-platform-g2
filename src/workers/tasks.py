@@ -39,7 +39,7 @@ class GraphAgentExecutor:
 # ---------------------------------------------------------------------------
 # Temporary standalone task for local use until S2.3 branch is fully merged
 # ---------------------------------------------------------------------------
-redis_url = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+redis_url = os.environ.get("REDIS_URL")
 app = Celery('tasks', broker=redis_url, backend=redis_url)
 
 @app.task(bind=True, name="execute_incident_graph")

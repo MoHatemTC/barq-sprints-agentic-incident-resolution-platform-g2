@@ -6,11 +6,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 try:
-    from langchain_openai import ChatOpenAI
+    from langchain_openai import ChatOpenAI, OpenAIEmbeddings
     LANGCHAIN_AVAILABLE = True
 except ImportError:
     try:
         from langchain.chat_models import ChatOpenAI
+        from langchain.embeddings import OpenAIEmbeddings
         LANGCHAIN_AVAILABLE = True
     except ImportError:
         LANGCHAIN_AVAILABLE = False
@@ -18,15 +19,25 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 _llm_instance = None
+_embeddings_instance = None
 
 
-class MockLLM:
-    def invoke(self, prompt: str) -> str:
-        return "Mocked LLM Response"
-
+class MockEmbeddings:
+    """Fallback embeddings when langchain-openai is not installed."""
 
     def embed_query(self, query: str) -> list:
         return [0.0] * 768
+
+    def embed_documents(self, texts: list) -> list:
+        return [[0.0] * 768 for _ in texts]
+
+
+class MockLLM:
+    """Fallback LLM when langchain-openai is not installed."""
+
+    def invoke(self, prompt: str, **kwargs) -> str:
+        return "Mocked LLM Response"
+
 
 def get_llm() -> Any:
     global _llm_instance
@@ -55,6 +66,7 @@ def get_llm() -> Any:
     return _llm_instance
 
 
+def get_embeddings() -> Any:
     global _embeddings_instance
     if _embeddings_instance is None:
         if (

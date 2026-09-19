@@ -26,7 +26,14 @@ def get_checkpointer() -> Any:
 
     conn_string = os.environ.get("PG_CONN_STRING")
     if not conn_string:
-        raise ValueError("Environment variable 'PG_CONN_STRING' is not set")    
-    pool = ConnectionPool(conninfo=conn_string, max_size=20)
+        raise ValueError("Environment variable 'PG_CONN_STRING' is not set")
+    pool = ConnectionPool(
+        conninfo=conn_string,
+        max_size=20,
+        kwargs={"autocommit": True},
+    )
     checkpointer = PostgresSaver(pool)
+    # Create checkpoint tables/indexes on first run (requires autocommit
+    # because CREATE INDEX CONCURRENTLY cannot run inside a transaction).
+    checkpointer.setup()
     return checkpointer

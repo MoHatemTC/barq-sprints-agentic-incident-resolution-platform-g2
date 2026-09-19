@@ -22,15 +22,15 @@ def load_articles_from_json(json_path: str) -> list[Article]:
     articles = []
     for raw in raw_articles:
         articles.append(Article(
-            sys_id=raw.get("sys_id", raw.get("article_number", ")),  # placeholder until real sys_id exists
-            number=raw.get("article_number", "),
-            article_id=raw.get("article_number", "),
-            title=raw.get("title", "),
-            body=raw.get("body", "),
-            category=raw.get("category", "),
-            service=raw.get("service", "),
-            workflow_state=raw.get("workflow_state", "),
+            sys_id=raw.get("sys_id", raw.get("article_number", "")),  # placeholder until real sys_id exists
+            number=raw.get("article_number", ""),
+            article_id=raw.get("article_number", ""),
+            title=raw.get("title", ""),
+            body=raw.get("body", ""),
+            category=raw.get("category", ""),
+            service=raw.get("service", ""),
+            workflow_state=raw.get("workflow_state", ""),
             version=raw.get("version", 1),
-            security_level=raw.get("security_level", "),
+            security_level=raw.get("security_level", ""),
         ))
     return articles

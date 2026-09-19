@@ -25,19 +25,7 @@ def determine_risk_node(state: Dict[str, Any]) -> Dict[str, Any]:
     Respond with ONLY the word "high" or "low".
     """
     
-    # Get the LangChain handler linked to the current trace context
-    try:
-        import importlib
-
-        langfuse_context = importlib.import_module(
-            "langfuse.decorators"
-        ).langfuse_context
-        handler = langfuse_context.get_current_langchain_handler()
-        config = {"callbacks": [handler]}
-    except (ImportError, AttributeError):
-        config = {}
-
-    response = llm.invoke(prompt, config=config)
+    response = llm.invoke(prompt)
     content = response.content if hasattr(response, "content") else str(response)
     
     risk = content.strip().lower()
