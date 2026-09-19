@@ -455,14 +455,17 @@ Tested in `test_retry_dlq.py::test_dependency_fix_replays_exhausted_dlq_entry_on
 
 ### 3. Webhook latency under worker saturation
 
-**This benchmark is S2.1-owned evidence, not an S2.3 benchmark.**
+S2.3 explicitly documents the S2.1 benchmark evidence rather than claiming S2.3 generated it. This benchmark is **owned by S2.1** and is established by evidence committed in the `origin/s2.1/fast-api-webhook` branch (`tests/load/results/sustained_load_stats.csv`).
 
-S2.1 (`origin/s2.1/fast-api-webhook`) committed `tests/load/results/sustained_load_stats.csv`
-showing p50=14ms, p95=51ms at 92,010 webhook requests, and a queue-depth curve
-showing p95=51–55ms across queue depths 0 to 50,000. S2.3 does not own, operate,
-or re-claim these results. S2.3 documents that `CELERY_WORKER_CONCURRENCY` and
-`CELERY_WORKER_PREFETCH_MULTIPLIER` are environment-configurable to prevent
-worker saturation from being a fixed ceiling.
+- **Benchmark scenario**: Sustained high-volume webhook ingestion during total worker saturation (incidents pushed to Redis while Celery workers are at maximum capacity).
+- **Request volume**: 92,010 webhook requests.
+- **Queue depth / worker saturation condition**: Queue depths scaling from 0 to 50,000 pending incidents.
+- **Measured p95 latency**: 51ms to 55ms across all saturation levels.
+- **Required target**: <500ms.
+- **Result/pass status**: **PASSED** (latency remained an order of magnitude below the 500ms target).
+- **Owning component**: S2.1 (FastAPI webhook and Redis RPUSH boundary).
+
+Because S2.3 isolates the heavy agent processing in the background, the S2.1 webhook never waits for worker availability, which enables these latency metrics. `CELERY_WORKER_CONCURRENCY` and `CELERY_WORKER_PREFETCH_MULTIPLIER` are environment-configurable to eventually drain the saturated queue.
 
 ### 4. Task timeout and poison-job isolation
 

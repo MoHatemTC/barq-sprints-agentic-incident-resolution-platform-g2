@@ -141,3 +141,19 @@ def test_consumer_uses_blocking_read_and_returns_on_empty_list():
 
     assert consume_next_incident(redis_client, task, block_timeout_seconds=3) is False
     assert redis_client.calls == [(INCIDENT_EVENTS_LIST, 3)]
+
+from src.workers.redis_consumer import run_incident_consumer_for_celery
+def test_consumer_loop_graceful_shutdown_stops_accepting_new_work():
+    redis_client = _FakeRedisList(values=[json.dumps(S2_1_PAYLOAD).encode('utf-8'), json.dumps(S2_1_PAYLOAD).encode('utf-8')])
+    stop_flags = [False, True]
+    def should_stop(): return stop_flags.pop(0) if stop_flags else True
+    class FakeContext:
+        def task_headers(self): return {'exec_id': '123'}
+    class FakeTaskInvoker:
+        def __init__(self): self.calls = []
+        def apply_async(self, args, headers=None): self.calls.append((args, headers))
+    invoker = FakeTaskInvoker()
+    run_incident_consumer_for_celery(redis_client, invoker, lambda p: FakeContext(), should_stop, block_timeout_seconds=1)
+    assert len(invoker.calls) == 1
+    assert invoker.calls[0][0][0] == S2_1_PAYLOAD
+    assert len(redis_client.values) == 1
