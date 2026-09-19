@@ -37,6 +37,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
 
 volumes:
   qdrant_data:
