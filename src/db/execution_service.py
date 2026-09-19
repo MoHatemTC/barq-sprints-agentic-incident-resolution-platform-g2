@@ -1,8 +1,17 @@
 import uuid
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
 from src.db.models import Execution
+
+
+TERMINAL_STATUSES = {
+    "succeeded",
+    "failed",
+    "blocked",
+    "abandoned",
+}
 
 
 def create_execution(
@@ -40,13 +49,14 @@ def update_execution_status(
 ):
     """
     Update the status of an existing execution.
+
+    Terminal statuses also receive an ended_at timestamp.
     """
 
     execution = (
         db.query(Execution)
         .filter(
-            Execution.execution_identifier
-            == execution_identifier
+            Execution.execution_identifier == execution_identifier
         )
         .first()
     )
@@ -55,6 +65,9 @@ def update_execution_status(
         return None
 
     execution.status = status
+
+    if status in TERMINAL_STATUSES:
+        execution.ended_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(execution)

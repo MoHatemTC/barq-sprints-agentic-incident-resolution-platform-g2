@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import (
     Column,
@@ -47,7 +47,7 @@ class Event(Base):
     received_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc)
     )
 
 
@@ -64,7 +64,7 @@ class IdempotencyKey(Base):
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc)
     )
 
     __table_args__ = (
@@ -114,7 +114,7 @@ class Execution(Base):
     started_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow
+       default=lambda: datetime.now(timezone.utc)
     )
 
     ended_at = Column(
@@ -140,13 +140,13 @@ class WorkflowState(Base):
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow
+        default=lambda: datetime.now(timezone.utc)
     )
 
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=datetime.utcnow
+      default=lambda: datetime.now(timezone.utc)
     )
 
 class Approval(Base):
