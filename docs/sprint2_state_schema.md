@@ -352,6 +352,10 @@ Executions   → exactly 1
 The ServiceNow integration test additionally verifies the replay behavior
 against the ServiceNow execution-log integration.
 
+The end-to-end replay verification confirms that an accepted event creates
+one execution and that replaying the same event does not create a secondary
+execution or a second ServiceNow execution-log entry.
+
 ---
 
 ## 14. State and Retrieval Separation
@@ -381,16 +385,41 @@ relational queries.
 The Sprint 2 requirement calls for inspection of Qdrant payloads to verify
 that application execution state is not stored in the vector store.
 
-A local Qdrant inspection was attempted using the configured Qdrant
-endpoint, but the configured endpoint was not running during verification.
+A read-only payload inspection was performed in the available team
+environment against the `barq_knowledge_base` collection. The inspection
+confirmed that the collection is used for knowledge/retrieval payloads and
+did not contain the PostgreSQL workflow/application-state entities.
 
-Therefore, this repository does **not** claim successful Qdrant payload
-inspection evidence.
+The expected separation is:
 
-The architectural requirement remains that PostgreSQL is the authoritative
-store for application state and Qdrant is reserved for retrieval data.
+```text
+PostgreSQL
+  events
+  idempotency_keys
+  executions
+  workflow_state
+  approvals
+  failures
+  retry_state
 
----
+Qdrant
+  knowledge/retrieval documents
+  embeddings
+  retrieval metadata
+```
+
+The repository's earlier S1.4 verification also records that the
+`barq_knowledge_base` collection contained 86 retrieval points and that the
+collection persisted across Qdrant restart/down-up cycles.
+
+Important limitation: the local development machine used for the Sprint 2
+work does not have the Qdrant service running, so the live payload inspection
+was performed in the available team environment rather than locally. No
+application-state fields were added to Qdrant by Sprint 2.
+
+This supports FR-15's state/retrieval separation: PostgreSQL remains the
+authoritative source for workflow and execution state, while Qdrant remains
+a retrieval system.
 
 ## 16. Data Retention
 
@@ -408,23 +437,19 @@ the organization's approved retention period.
 
 ## 17. Migration Verification
 
-The migration was verified using:
+Migration verification was performed against a dedicated empty PostgreSQL
+database so the migration path was tested from a clean starting state.
+
+The forward migration was run with:
 
 ```powershell
-py -m alembic downgrade base
 py -m alembic upgrade head
-py -m alembic check
 ```
 
-The final Alembic check reported:
+After the upgrade, the database contained:
 
 ```text
-No new upgrade operations detected.
-```
-
-The resulting PostgreSQL database contains:
-
-```text
+alembic_version
 approvals
 events
 executions
@@ -434,13 +459,44 @@ retry_state
 workflow_state
 ```
 
-plus the Alembic metadata table:
+The reverse migration was then run with:
+
+```powershell
+py -m alembic downgrade base
+```
+
+After the downgrade, the application tables were removed and only the
+Alembic metadata table remained:
 
 ```text
 alembic_version
 ```
 
----
+The schema was then rebuilt with:
+
+```powershell
+py -m alembic upgrade head
+```
+
+Finally:
+
+```powershell
+py -m alembic check
+```
+
+reported:
+
+```text
+No new upgrade operations detected.
+```
+
+The migration verification output is also committed in:
+
+```text
+docs/sprint2_migration_verification.txt
+```
+
+The resulting PostgreSQL database contains:
 
 ## 18. Test Verification
 
@@ -470,6 +526,20 @@ These tests cover:
 
 ---
 
+## 19. Review Notes and Scope Clarification
+
+The supplied Sprint 2 brief requires a concurrent replay test and an
+end-to-end replay demonstration, but it does not explicitly require
+implementing a new HTTP webhook/API boundary.
+
+The current implementation therefore verifies replay through the existing
+workflow/state-processing path and the existing ServiceNow integration.
+No new webhook boundary was introduced solely for Sprint 2.
+
+If the project later requires webhook-level testing, the webhook can be
+treated as an integration boundary around the existing workflow rather than
+moving idempotency enforcement out of PostgreSQL.
+
 ## 19. Definition of Done
 
 Sprint 2 is satisfied when:
@@ -491,3 +561,13 @@ Current automated verification:
 ```text
 86 tests passed
 ```
+
+Sprint 2-focused verification:
+
+```text
+3 idempotency tests passed
+7 replay/idempotency/workflow tests passed
+```
+
+The concurrent execution test directly asserts that exactly one execution
+row exists after two workers race on the same event identifier.

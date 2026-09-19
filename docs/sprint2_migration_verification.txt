@@ -1,0 +1,76 @@
+Sprint 2 Migration Verification
+================================
+
+Database:
+barq_ai_migration_test
+
+Purpose:
+Verify that the Sprint 2 PostgreSQL schema can be created from an empty
+database and completely reversed using Alembic.
+
+1. Upgrade from empty database
+------------------------------
+
+Command:
+
+py -m alembic upgrade head
+
+Result:
+
+ALEMBIC TABLES: dict_keys([
+    'events',
+    'idempotency_keys',
+    'executions',
+    'workflow_state',
+    'approvals',
+    'failures',
+    'retry_state'
+])
+
+No errors were reported.
+
+Database verification:
+
+psql -U postgres -d barq_ai_migration_test -c "\dt"
+
+Result:
+
+public | alembic_version  | table
+public | approvals        | table
+public | events           | table
+public | executions       | table
+public | failures         | table
+public | idempotency_keys | table
+public | retry_state      | table
+public | workflow_state   | table
+
+All seven required application tables were created successfully.
+
+2. Downgrade to base
+--------------------
+
+Command:
+
+py -m alembic downgrade base
+
+Result:
+
+No errors were reported.
+
+Database verification:
+
+psql -U postgres -d barq_ai_migration_test -c "\dt"
+
+Result:
+
+public | alembic_version | table
+
+All seven Sprint 2 application tables were removed successfully.
+
+Conclusion
+----------
+
+The Sprint 2 migration supports both directions cleanly:
+
+- Empty database -> upgrade -> seven required state tables
+- Seven state tables -> downgrade -> application tables removed

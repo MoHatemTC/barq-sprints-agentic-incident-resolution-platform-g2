@@ -1,7 +1,9 @@
 import threading
 
 from src.db.database import SessionLocal
-from src.db.models import IdempotencyKey
+from src.db.models import IdempotencyKey, Execution
+from src.orchestrator.state_manager import StateManager
+from src.orchestrator.workflow import IncidentWorkflow
 from src.db.idempotency import check_and_create_idempotency_key
 
 
@@ -67,11 +69,23 @@ def test_duplicate_event_is_rejected():
         cleanup_event(event_identifier)
 
 
-def test_concurrent_event_is_accepted_only_once():
-
-    event_identifier = "event-concurrent-001"
+def test_concurrent_event_creates_only_one_execution():
+    event_identifier = "event-concurrent-execution-001"
+    incident_number = "INC-CONCURRENT-001"
 
     cleanup_event(event_identifier)
+
+    # Remove any executions left by a previous test run.
+    db = SessionLocal()
+
+    try:
+        db.query(Execution).filter(
+            Execution.incident_reference == incident_number
+        ).delete()
+
+        db.commit()
+    finally:
+        db.close()
 
     results = []
     errors = []
@@ -82,13 +96,18 @@ def test_concurrent_event_is_accepted_only_once():
         db = SessionLocal()
 
         try:
-            # Make both workers reach the insert at approximately
-            # the same time.
+            state_manager = StateManager(db)
+            workflow = IncidentWorkflow(state_manager)
+
+            # Make both workers start at approximately the same time.
             barrier.wait()
 
-            result = check_and_create_idempotency_key(
-                db,
-                event_identifier,
+            result = workflow.run(
+                event_identifier=event_identifier,
+                incident_sys_id="incident-concurrent-sys-id",
+                incident_number=incident_number,
+                event_type="incident.updated",
+                contract_version="v1",
             )
 
             results.append(result)
@@ -111,29 +130,47 @@ def test_concurrent_event_is_accepted_only_once():
     try:
         assert errors == []
 
-        # Exactly one worker must win.
-        assert results.count(True) == 1
+        # Exactly one worker must start the workflow.
+        assert sum(
+            result["status"] == "started"
+            for result in results
+        ) == 1
 
-        # Exactly one worker must be rejected.
-        assert results.count(False) == 1
+        # Exactly one worker must be rejected as a duplicate.
+        assert sum(
+            result["status"] == "duplicate"
+            for result in results
+        ) == 1
 
-        # The database must contain exactly one key.
+        # Verify the database contains exactly one execution.
         db = SessionLocal()
 
         try:
-            keys = (
-                db.query(IdempotencyKey)
+            executions = (
+                db.query(Execution)
                 .filter(
-                    IdempotencyKey.event_identifier
-                    == event_identifier
+                    Execution.incident_reference
+                    == incident_number
                 )
                 .all()
             )
 
-            assert len(keys) == 1
+            assert len(executions) == 1
 
         finally:
             db.close()
 
     finally:
         cleanup_event(event_identifier)
+
+        db = SessionLocal()
+
+        try:
+            db.query(Execution).filter(
+                Execution.incident_reference == incident_number
+            ).delete()
+
+            db.commit()
+
+        finally:
+            db.close()
