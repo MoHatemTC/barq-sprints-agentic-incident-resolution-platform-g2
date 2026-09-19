@@ -1,0 +1,38 @@
+{
+  "purpose": "Deliberately excluded decoys for the pre-filter proof. Each body copies a real published article's Symptom text, so WITHOUT the filter the decoy would rank #1 for its probe_query. Each carries a deliberately wrong Resolution so a leak is visible. If a decoy ever appears in search results, pre-filtering is broken.",
+  "documents": [
+    {
+      "article_number": "KB9001",
+      "title": "VPN authentication fails after a password change (RETIRED copy)",
+      "workflow_state": "retired",
+      "security_level": "internal",
+      "category": "network",
+      "service": "corporate-vpn",
+      "version": 1,
+      "probe_query": "VPN client says invalid credentials ERR_VPN_AUTH_004 after I reset my password",
+      "body": "## Symptom\nThe user can reach the internet but the VPN client reports an authentication failure. It began after a password reset. The client may report \"invalid credentials\" or error code ERR_VPN_AUTH_004 even when the new password is entered correctly.\n\n## Resolution\nRETIRED PROCEDURE: ask the user to reboot twice and retry. Do not follow this article."
+    },
+    {
+      "article_number": "KB9002",
+      "title": "Account is locked after repeated failed sign-ins (DRAFT copy)",
+      "workflow_state": "draft",
+      "security_level": "internal",
+      "category": "identity",
+      "service": "identity",
+      "version": 1,
+      "probe_query": "account locked AADSTS50053 after several failed sign-ins",
+      "body": "## Symptom\nThe user cannot sign in to any corporate system. Errors mention a locked or disabled account, often surfacing as AADSTS50053 in the sign-in diagnostics. Often follows a password change, and often presents as several services failing at once.\n\n## Resolution\nDRAFT, NOT REVIEWED: unlock the account without identity verification. Do not follow this article."
+    },
+    {
+      "article_number": "KB9003",
+      "title": "SAP GUI connection cleanup after APPSRV-OLD-04 migration (RESTRICTED copy)",
+      "workflow_state": "published",
+      "security_level": "restricted",
+      "category": "software",
+      "service": "sap-erp",
+      "version": 1,
+      "probe_query": "SAP GUI RFC_ERROR_COMMUNICATION saved connection APPSRV-OLD-04",
+      "body": "## Symptom\nSAP GUI fails to connect with RFC_ERROR_COMMUNICATION after a workstation uses a saved connection entry for APPSRV-OLD-04. The user may still be on the corporate network and other SAP users may connect normally.\n\n## Resolution\nRESTRICTED: contains internal server credentials and must never be shown to the model. Do not follow this article."
+    }
+  ]
+}
