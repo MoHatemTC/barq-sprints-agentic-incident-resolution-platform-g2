@@ -59,7 +59,7 @@ fails.
 
 | Method | Path | Auth | Status codes |
 |---|---|---|---|
-| POST | `/webhook` | `verify_token` | 202, 401, 422 |
+| POST | `/api/v1/webhook/incident` | `verify_token` | 202, 401, 422 |
 
 **Request — `Payload`**
 ```json

@@ -1,7 +1,7 @@
 from fastapi import Response, HTTPException, Depends, APIRouter
 from src.api.schemas import Payload
 from sqlalchemy.exc import IntegrityError
-from src.api.dependencies import get_redis, get_db_session
+from src.api.dependencies import get_redis, get_db_session, get_redis_producer
 from src.api.auth import verify_token
 from src.db.models import Event
 
@@ -10,8 +10,8 @@ router = APIRouter()
 SUPPORTED_CONTRACT_VERSIONS = {"v1"}
 
 #checks payload and return 202 quickly
-@router.post("/webhook")
-async def webhook(ticket: Payload, redis_client = Depends(get_redis), authenticated: None = Depends(verify_token), db = Depends(get_db_session)):
+@router.post("api/v1/webhook/incident")
+async def webhook(ticket: Payload, producer = Depends(get_redis_producer), authenticated: None = Depends(verify_token), db = Depends(get_db_session)):
 
     #reject unknown contract versions distinctly, before doing anything else
     if ticket.contract_version not in SUPPORTED_CONTRACT_VERSIONS:
@@ -37,7 +37,7 @@ async def webhook(ticket: Payload, redis_client = Depends(get_redis), authentica
         return Response(status_code=202, content="Duplicate, already processed")
 
     #enqueue to Redis, after persistence
-    await redis_client.rpush("incident_events", ticket.model_dump_json())
+    await producer.enqueue(ticket.model_dump_json())
 
     return Response(status_code=202, content="Incident received successfully")
 
