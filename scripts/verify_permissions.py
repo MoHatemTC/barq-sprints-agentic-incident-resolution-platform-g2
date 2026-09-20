@@ -1,4 +1,5 @@
 """
+<<<<<<< HEAD
 Verifies exactly what the ServiceNow OAuth integration identity
 (ai_orchestrator_svc) can do, by executed attempt -- not by reading
 intended ACL configuration.
@@ -30,6 +31,14 @@ This script merges two things into one run:
       journal back, because ServiceNow commits Journal entries
       slightly after the Table API PATCH response returns -- reading
       immediately can misreport a real success as FAIL.
+=======
+Verifies exactly what the ServiceNow OAuth integration identity can do,
+by executed attempt -- not by reading intended ACL configuration.
+
+This exists because "the identity is supposed to have access" and "the
+identity was observed successfully calling the API" are different claims.
+Only the second is evidence.
+>>>>>>> origin/s2.1/fast-api-webhook
 
 Usage:
     python scripts/verify_permissions.py
@@ -37,16 +46,21 @@ Usage:
 
 import os
 import sys
+<<<<<<< HEAD
 import time
 
 import httpx
 from dotenv import load_dotenv
+=======
+import httpx
+>>>>>>> origin/s2.1/fast-api-webhook
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.config import SERVICENOW
 from src.retrieval.servicenow_auth import ServiceNowOAuthClient, ServiceNowAuthError
 
 
+<<<<<<< HEAD
 load_dotenv()
 
 # Only needed for the fine-grained incident field tests in Part B --
@@ -86,15 +100,23 @@ def incident_url():
 # PART A -- identity capability sanity check
 # ---------------------------------------------------------------------------
 
+=======
+>>>>>>> origin/s2.1/fast-api-webhook
 def check_authentication(auth: ServiceNowOAuthClient) -> bool:
     try:
         auth.get_token()
         print("[PASS] OAuth authentication succeeded (token issued).")
+<<<<<<< HEAD
         record_result("Auth: token issued", "PASS")
         return True
     except ServiceNowAuthError as e:
         print(f"[FAIL] OAuth authentication failed: {e}")
         record_result("Auth: token issued", "FAIL", str(e))
+=======
+        return True
+    except ServiceNowAuthError as e:
+        print(f"[FAIL] OAuth authentication failed: {e}")
+>>>>>>> origin/s2.1/fast-api-webhook
         return False
 
 
@@ -106,7 +128,10 @@ def check_read(client: httpx.Client, auth: ServiceNowOAuthClient, table: str) ->
     )
     ok = resp.status_code == 200
     print(f"[{'PASS' if ok else 'FAIL'}] READ  {table}: HTTP {resp.status_code}")
+<<<<<<< HEAD
     record_result(f"Read table: {table}", "PASS" if ok else "FAIL", f"HTTP {resp.status_code}")
+=======
+>>>>>>> origin/s2.1/fast-api-webhook
     return ok
 
 
@@ -125,10 +150,15 @@ def check_write(client: httpx.Client, auth: ServiceNowOAuthClient, table: str) -
         json=payload,
     )
     ok = resp.status_code == 201
+<<<<<<< HEAD
     note = f"HTTP {resp.status_code}"
     if not ok:
         note += f" -- {resp.json().get('error', {}).get('message', '')}"
     print(f"[{'PASS' if ok else 'FAIL'}] WRITE {table}: {note}")
+=======
+    print(f"[{'PASS' if ok else 'FAIL'}] WRITE {table}: HTTP {resp.status_code}"
+          + (f" -- {resp.json().get('error', {}).get('message', '')}" if not ok else ""))
+>>>>>>> origin/s2.1/fast-api-webhook
 
     if ok:
         sys_id = resp.json()["result"]["sys_id"]
@@ -139,6 +169,7 @@ def check_write(client: httpx.Client, auth: ServiceNowOAuthClient, table: str) -
         cleanup_ok = cleanup.status_code == 204
         print(f"       cleanup (delete test record): "
               f"{'ok' if cleanup_ok else 'FAILED -- manual cleanup needed, sys_id=' + sys_id}")
+<<<<<<< HEAD
         if not cleanup_ok:
             note += f"; cleanup FAILED, sys_id={sys_id}"
 
@@ -153,6 +184,19 @@ def run_identity_capability_checks(auth: ServiceNowOAuthClient) -> bool:
 
     if not check_authentication(auth):
         return False
+=======
+
+    return ok
+
+
+def main():
+    auth = ServiceNowOAuthClient()
+
+    print("=== ServiceNow OAuth Identity Permission Verification ===\n")
+
+    if not check_authentication(auth):
+        sys.exit(1)
+>>>>>>> origin/s2.1/fast-api-webhook
 
     with httpx.Client(timeout=15) as client:
         print()
@@ -161,6 +205,7 @@ def run_identity_capability_checks(auth: ServiceNowOAuthClient) -> bool:
         print()
         check_write(client, auth, SERVICENOW.kb_table)
 
+<<<<<<< HEAD
     return True
 
 
@@ -497,10 +542,13 @@ def print_summary():
             "the likely cause is the ACL, the payload, or something else."
         )
 
+=======
+>>>>>>> origin/s2.1/fast-api-webhook
     print("\nThis output -- not the ACL configuration screen -- is the evidence "
           "of what this identity can actually do.")
 
 
+<<<<<<< HEAD
 def main():
     print("Starting ServiceNow OAuth Identity Permission Verification")
     print("=" * 50)
@@ -516,5 +564,7 @@ def main():
     print_summary()
 
 
+=======
+>>>>>>> origin/s2.1/fast-api-webhook
 if __name__ == "__main__":
     main()
