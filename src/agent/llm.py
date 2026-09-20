@@ -36,8 +36,11 @@ class MockLLM:
     """Fallback LLM when langchain-openai is not installed."""
 
     def invoke(self, prompt: str, **kwargs) -> str:
+        if 'determine if it is "high" risk or "low" risk' in prompt:
+            if "high-risk" in prompt or "major data breach" in prompt or "data center wipe" in prompt:
+                return "high"
+            return "low"
         return "Mocked LLM Response"
-
 
 def get_llm() -> Any:
     global _llm_instance

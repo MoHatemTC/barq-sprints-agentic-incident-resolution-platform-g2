@@ -13,7 +13,7 @@ _NETWORK_CATEGORY_SYS_ID = "fake-network-category-sys-id"
 
 def _article(workflow_state="published"):
     return Article(
-        sys_id=",
+        sys_id="test_sys_id_123",
         number="KB0010",
         article_id="KB0010",
         title="VPN outage",
@@ -92,9 +92,9 @@ def publish_env(monkeypatch):
         SimpleNamespace(
             instance_url="https://example.service-now.com",
             kb_table="kb_knowledge",
-            kb_sys_id=",
+            kb_sys_id="",
             kb_metadata_field_map={},
-            kb_publish_action_path=",
+            kb_publish_action_path="",
         ),
     )
     monkeypatch.setattr(publish_kb, "ServiceNowOAuthClient", _FakeAuth)

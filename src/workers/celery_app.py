@@ -1,15 +1,21 @@
 """Celery application factory for S2.3 worker infrastructure."""
 
+import os
 from celery import Celery
-
 from src.config import WorkerConfig
 
 
 def create_celery_app(config: WorkerConfig | None = None) -> Celery:
     """Create a Celery app using validated S2.3 worker configuration."""
     worker_config = config or WorkerConfig.from_environment()
+    
+    # Temporarily or directly set env so Celery configuration picks it up
+    os.environ["CELERY_BROKER_URL"] = worker_config.broker_url
+    
     app = Celery("barq_workers", broker=worker_config.broker_url)
+    
     app.conf.update(
+        broker_url=worker_config.broker_url,
         worker_concurrency=worker_config.worker_concurrency,
         worker_prefetch_multiplier=worker_config.worker_prefetch_multiplier,
         task_acks_late=worker_config.task_acks_late,

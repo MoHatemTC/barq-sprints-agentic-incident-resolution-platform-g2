@@ -28,22 +28,14 @@ def test_determine_risk_node_high():
     state = {"incident_payload": {"description": "high-risk data center wipe"}}
     result = determine_risk_node(state)
     assert result["risk"] == "high"
-
-@patch("src.agent.nodes.retrieve.QdrantClient")
-@patch("src.agent.nodes.retrieve.embed_dense")
-@patch("src.agent.nodes.retrieve.embed_sparse")
-def test_retrieve_node(mock_embed_sparse, mock_embed_dense, mock_qdrant_class):
-    mock_embed_dense.return_value = [0.1] * 384
-    mock_embed_sparse.return_value = {"indices": [1, 2], "values": [0.5, 0.5]}
-    
-    mock_client = mock_qdrant_class.return_value
-    mock_point = MagicMock()
-    mock_point.payload = {"number": "KB123", "text": "Reboot the router"}
-    mock_point.score = 0.99
-    
-    mock_results = MagicMock()
-    mock_results.points = [mock_point]
-    mock_client.query_points.return_value = mock_results
+@patch("src.agent.nodes.retrieve.search")
+def test_retrieve_node(mock_search):
+    mock_chunk = MagicMock()
+    mock_chunk.number = "KB123"
+    mock_chunk.point_id = "KB123"
+    mock_chunk.text = "Reboot the router"
+    mock_chunk.score = 0.99
+    mock_search.return_value = [mock_chunk]
 
     state = {"incident_payload": {"description": "router broken"}}
     result = retrieve_node(state)
