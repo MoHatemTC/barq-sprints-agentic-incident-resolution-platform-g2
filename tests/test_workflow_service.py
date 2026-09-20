@@ -1,9 +1,29 @@
+from datetime import datetime, timezone
+
 from src.db.database import SessionLocal
 from src.db.workflow_service import (
     save_checkpoint,
     get_latest_checkpoint,
 )
-from src.db.models import WorkflowState
+from src.db.models import Execution, WorkflowState
+
+
+def create_test_execution(db, execution_reference):
+
+    execution = Execution(
+        execution_identifier=execution_reference,
+        incident_reference="INC-TEST-001",
+        status="started",
+        agent_version="v1",
+        model_name="test-model",
+        started_at=datetime.now(timezone.utc),
+    )
+
+    db.add(execution)
+    db.commit()
+    db.refresh(execution)
+
+    return execution
 
 
 def cleanup(execution_reference):
@@ -13,7 +33,15 @@ def cleanup(execution_reference):
     try:
         db.query(WorkflowState).filter(
             WorkflowState.execution_reference == execution_reference
-        ).delete()
+        ).delete(
+            synchronize_session=False
+        )
+
+        db.query(Execution).filter(
+            Execution.execution_identifier == execution_reference
+        ).delete(
+            synchronize_session=False
+        )
 
         db.commit()
 
@@ -30,15 +58,22 @@ def test_checkpoint_is_saved():
     db = SessionLocal()
 
     try:
+        create_test_execution(
+            db,
+            execution_reference,
+        )
+
         state = save_checkpoint(
             db,
             execution_reference,
-            '{"node":"analyze_incident","step":1}'
+            "analyze_incident",
+            '{"step":1}',
         )
 
         assert state is not None
         assert state.execution_reference == execution_reference
-        assert "analyze_incident" in state.checkpoint
+        assert state.node_name == "analyze_incident"
+        assert state.checkpoint == '{"step":1}'
 
     finally:
         db.close()
@@ -54,25 +89,33 @@ def test_latest_checkpoint_is_returned():
     db = SessionLocal()
 
     try:
-        save_checkpoint(
+        create_test_execution(
             db,
             execution_reference,
-            '{"node":"step_1"}'
         )
 
         save_checkpoint(
             db,
             execution_reference,
-            '{"node":"step_2"}'
+            "step_1",
+            '{"step":1}',
+        )
+
+        save_checkpoint(
+            db,
+            execution_reference,
+            "step_2",
+            '{"step":2}',
         )
 
         latest = get_latest_checkpoint(
             db,
-            execution_reference
+            execution_reference,
         )
 
         assert latest is not None
-        assert "step_2" in latest.checkpoint
+        assert latest.node_name == "step_2"
+        assert latest.checkpoint == '{"step":2}'
 
     finally:
         db.close()

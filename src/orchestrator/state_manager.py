@@ -81,11 +81,13 @@ class StateManager:
     def save_checkpoint(
         self,
         execution_reference: str,
+        node_name: str,
         checkpoint: str,
     ):
         return save_checkpoint(
             self.db,
             execution_reference,
+            node_name,
             checkpoint,
         )
 

@@ -3,6 +3,7 @@ from src.db.models import (
     Event,
     Execution,
     WorkflowState,
+    Failure,
     IdempotencyKey,
 )
 from src.orchestrator.state_manager import StateManager
@@ -23,26 +24,42 @@ def cleanup(event_identifier, incident_number):
             for execution in executions
         ]
 
-        # Delete checkpoints first.
+        # Delete failures first because they reference executions.
+        for execution_id in execution_ids:
+            db.query(Failure).filter(
+                Failure.execution_reference == execution_id
+            ).delete(
+                synchronize_session=False
+            )
+
+        # Delete workflow checkpoints because they also reference executions.
         for execution_id in execution_ids:
             db.query(WorkflowState).filter(
                 WorkflowState.execution_reference == execution_id
-            ).delete()
+            ).delete(
+                synchronize_session=False
+            )
 
-        # Delete executions.
+        # Delete executions last.
         db.query(Execution).filter(
             Execution.incident_reference == incident_number
-        ).delete()
+        ).delete(
+            synchronize_session=False
+        )
 
         # Delete event.
         db.query(Event).filter(
             Event.event_identifier == event_identifier
-        ).delete()
+        ).delete(
+            synchronize_session=False
+        )
 
         # Delete idempotency key.
         db.query(IdempotencyKey).filter(
             IdempotencyKey.event_identifier == event_identifier
-        ).delete()
+        ).delete(
+            synchronize_session=False
+        )
 
         db.commit()
 
@@ -85,7 +102,8 @@ def test_workflow_starts_execution():
         )
 
         assert checkpoint is not None
-        assert "workflow_started" in checkpoint.checkpoint
+        assert checkpoint.node_name == "workflow_started"
+        assert checkpoint.checkpoint == '{"step":1}'
 
     finally:
         db.close()
@@ -112,7 +130,6 @@ def test_duplicate_event_does_not_create_second_execution():
         state_manager = StateManager(db)
         workflow = IncidentWorkflow(state_manager)
 
-        # First delivery.
         first = workflow.run(
             event_identifier=event_identifier,
             incident_sys_id="incident-sys-002",
@@ -121,7 +138,6 @@ def test_duplicate_event_does_not_create_second_execution():
             contract_version="v1",
         )
 
-        # Replay of the exact same event.
         second = workflow.run(
             event_identifier=event_identifier,
             incident_sys_id="incident-sys-002",
@@ -130,29 +146,24 @@ def test_duplicate_event_does_not_create_second_execution():
             contract_version="v1",
         )
 
-        # First event must start an execution.
         assert first["status"] == "started"
         assert first["execution"] is not None
 
-        # Replay must be rejected.
         assert second["status"] == "duplicate"
         assert second["execution"] is None
 
-        # Exactly one event exists.
         events = db.query(Event).filter(
             Event.event_identifier == event_identifier
         ).all()
 
         assert len(events) == 1
 
-        # Exactly one idempotency key exists.
         idempotency_keys = db.query(IdempotencyKey).filter(
             IdempotencyKey.event_identifier == event_identifier
         ).all()
 
         assert len(idempotency_keys) == 1
 
-        # Exactly one execution exists.
         executions = db.query(Execution).filter(
             Execution.incident_reference == incident_number
         ).all()
@@ -161,7 +172,6 @@ def test_duplicate_event_does_not_create_second_execution():
 
         execution = executions[0]
 
-        # Exactly one workflow checkpoint exists.
         checkpoints = db.query(WorkflowState).filter(
             WorkflowState.execution_reference
             == execution.execution_identifier
@@ -169,7 +179,8 @@ def test_duplicate_event_does_not_create_second_execution():
 
         assert len(checkpoints) == 1
 
-        assert "workflow_started" in checkpoints[0].checkpoint
+        assert checkpoints[0].node_name == "workflow_started"
+        assert checkpoints[0].checkpoint == '{"step":1}'
 
     finally:
         db.close()

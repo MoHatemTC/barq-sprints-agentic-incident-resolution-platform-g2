@@ -6,7 +6,7 @@ from src.db.retry_service import (
     get_retry_state,
     update_retry_state,
 )
-from src.db.models import RetryState
+from src.db.models import Execution, RetryState
 
 
 def cleanup(execution_reference):
@@ -18,10 +18,32 @@ def cleanup(execution_reference):
             RetryState.execution_reference == execution_reference
         ).delete()
 
+        db.query(Execution).filter(
+            Execution.execution_identifier == execution_reference
+        ).delete()
+
         db.commit()
 
     finally:
         db.close()
+
+
+def create_test_execution(db, execution_reference):
+
+    execution = Execution(
+        execution_identifier=execution_reference,
+        incident_reference=f"INC-{execution_reference}",
+        status="started",
+        agent_version="v1",
+        model_name="test-model",
+        started_at=datetime.now(timezone.utc),
+    )
+
+    db.add(execution)
+    db.commit()
+    db.refresh(execution)
+
+    return execution
 
 
 def test_retry_state_is_created():
@@ -33,6 +55,11 @@ def test_retry_state_is_created():
     db = SessionLocal()
 
     try:
+        create_test_execution(
+            db,
+            execution_reference,
+        )
+
         retry = create_retry_state(
             db,
             execution_reference,
@@ -60,6 +87,11 @@ def test_retry_state_is_retrieved():
     db = SessionLocal()
 
     try:
+        create_test_execution(
+            db,
+            execution_reference,
+        )
+
         create_retry_state(
             db,
             execution_reference,
@@ -90,6 +122,11 @@ def test_retry_state_is_updated():
     db = SessionLocal()
 
     try:
+        create_test_execution(
+            db,
+            execution_reference,
+        )
+
         retry = create_retry_state(
             db,
             execution_reference,

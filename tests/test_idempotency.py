@@ -1,7 +1,12 @@
 import threading
 
 from src.db.database import SessionLocal
-from src.db.models import IdempotencyKey, Execution
+from src.db.models import (
+    IdempotencyKey,
+    Execution,
+    WorkflowState,
+    Failure,
+)
 from src.orchestrator.state_manager import StateManager
 from src.orchestrator.workflow import IncidentWorkflow
 from src.db.idempotency import check_and_create_idempotency_key
@@ -13,7 +18,49 @@ def cleanup_event(event_identifier):
     try:
         db.query(IdempotencyKey).filter(
             IdempotencyKey.event_identifier == event_identifier
-        ).delete()
+        ).delete(
+            synchronize_session=False
+        )
+
+        db.commit()
+
+    finally:
+        db.close()
+
+
+def cleanup_executions(incident_number):
+    db = SessionLocal()
+
+    try:
+        executions = db.query(Execution).filter(
+            Execution.incident_reference == incident_number
+        ).all()
+
+        execution_ids = [
+            execution.execution_identifier
+            for execution in executions
+        ]
+
+        # Delete child records first.
+        for execution_id in execution_ids:
+            db.query(Failure).filter(
+                Failure.execution_reference == execution_id
+            ).delete(
+                synchronize_session=False
+            )
+
+            db.query(WorkflowState).filter(
+                WorkflowState.execution_reference == execution_id
+            ).delete(
+                synchronize_session=False
+            )
+
+        # Delete parent executions last.
+        db.query(Execution).filter(
+            Execution.incident_reference == incident_number
+        ).delete(
+            synchronize_session=False
+        )
 
         db.commit()
 
@@ -70,22 +117,12 @@ def test_duplicate_event_is_rejected():
 
 
 def test_concurrent_event_creates_only_one_execution():
+
     event_identifier = "event-concurrent-execution-001"
     incident_number = "INC-CONCURRENT-001"
 
     cleanup_event(event_identifier)
-
-    # Remove any executions left by a previous test run.
-    db = SessionLocal()
-
-    try:
-        db.query(Execution).filter(
-            Execution.incident_reference == incident_number
-        ).delete()
-
-        db.commit()
-    finally:
-        db.close()
+    cleanup_executions(incident_number)
 
     results = []
     errors = []
@@ -99,7 +136,6 @@ def test_concurrent_event_creates_only_one_execution():
             state_manager = StateManager(db)
             workflow = IncidentWorkflow(state_manager)
 
-            # Make both workers start at approximately the same time.
             barrier.wait()
 
             result = workflow.run(
@@ -130,19 +166,16 @@ def test_concurrent_event_creates_only_one_execution():
     try:
         assert errors == []
 
-        # Exactly one worker must start the workflow.
         assert sum(
             result["status"] == "started"
             for result in results
         ) == 1
 
-        # Exactly one worker must be rejected as a duplicate.
         assert sum(
             result["status"] == "duplicate"
             for result in results
         ) == 1
 
-        # Verify the database contains exactly one execution.
         db = SessionLocal()
 
         try:
@@ -162,15 +195,4 @@ def test_concurrent_event_creates_only_one_execution():
 
     finally:
         cleanup_event(event_identifier)
-
-        db = SessionLocal()
-
-        try:
-            db.query(Execution).filter(
-                Execution.incident_reference == incident_number
-            ).delete()
-
-            db.commit()
-
-        finally:
-            db.close()
+        cleanup_executions(incident_number)

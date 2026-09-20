@@ -129,6 +129,15 @@ def upgrade() -> None:
             sa.DateTime(timezone=True),
             nullable=True,
         ),
+        sa.CheckConstraint(
+            "status IN "
+            "('started', 'succeeded', 'failed', 'blocked', 'abandoned')",
+            name="ck_executions_status",
+        ),
+        sa.CheckConstraint(
+            "ended_at IS NULL OR ended_at >= started_at",
+            name="ck_executions_time_order",
+        ),
     )
 
     op.create_index(
@@ -149,6 +158,15 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), primary_key=True),
         sa.Column(
             "execution_reference",
+            sa.String(length=255),
+            sa.ForeignKey(
+                "executions.execution_identifier",
+                name="fk_workflow_state_execution",
+            ),
+            nullable=False,
+        ),
+        sa.Column(
+            "node_name",
             sa.String(length=255),
             nullable=False,
         ),
@@ -181,6 +199,10 @@ def upgrade() -> None:
         sa.Column(
             "execution_reference",
             sa.String(length=255),
+            sa.ForeignKey(
+                "executions.execution_identifier",
+                name="fk_approvals_execution",
+            ),
             nullable=False,
         ),
         sa.Column(
@@ -226,7 +248,7 @@ def upgrade() -> None:
     op.execute(
         """
         CREATE TRIGGER approval_immutable
-        BEFORE UPDATE ON approvals
+        BEFORE UPDATE OR DELETE ON approvals
         FOR EACH ROW
         EXECUTE FUNCTION prevent_approval_update();
         """
@@ -238,6 +260,10 @@ def upgrade() -> None:
         sa.Column(
             "execution_reference",
             sa.String(length=255),
+            sa.ForeignKey(
+                "executions.execution_identifier",
+                name="fk_failures_execution",
+            ),
             nullable=False,
         ),
         sa.Column(
@@ -274,6 +300,10 @@ def upgrade() -> None:
         sa.Column(
             "execution_reference",
             sa.String(length=255),
+            sa.ForeignKey(
+                "executions.execution_identifier",
+                name="fk_retry_state_execution",
+            ),
             nullable=False,
         ),
         sa.Column(

@@ -96,7 +96,8 @@ class IncidentWorkflow:
             # Step 4: save the first workflow checkpoint.
             self.state.save_checkpoint(
                 execution_id,
-                '{"node":"workflow_started","step":1}',
+                "workflow_started",
+                '{"step":1}',
             )
 
             # Temporary failure simulation.
