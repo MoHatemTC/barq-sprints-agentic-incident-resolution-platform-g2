@@ -1,0 +1,385 @@
+{
+  "version": "1.1",
+  "source": "data/coverage_matrix.csv",
+  "built": "2026-09-18",
+  "counts": {
+    "total": 37,
+    "answerable": 32,
+    "unanswerable": 5,
+    "multi_doc": 8,
+    "by_source": {
+      "coverage_matrix": 27,
+      "identifier_probe": 10
+    }
+  },
+  "items": [
+    {
+      "query_id": "INC0010023",
+      "query": "Cannot connect to VPN since password reset this morning",
+      "expected_articles": [
+        "KB0001"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC0010047",
+      "query": "Grinding noise from meeting room printer, queue is empty, mechanical fault",
+      "expected_articles": [],
+      "answerable": false,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC0010064",
+      "query": "No email, shared drive gone, and Teams repeatedly asking to sign in -- three symptoms one morning",
+      "expected_articles": [
+        "KB0005"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC0010052",
+      "query": "Order service returning 500s under load, pool saturation on dashboard",
+      "expected_articles": [
+        "KB0010"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1006",
+      "query": "Outlook shows Disconnected, no mail since 08:00, webmail also down for whole floor",
+      "expected_articles": [
+        "KB0002"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1007",
+      "query": "New employee cannot see finance shared folder after onboarding",
+      "expected_articles": [
+        "KB0020"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1008",
+      "query": "External monitor flickers and drops signal intermittently at docking station",
+      "expected_articles": [
+        "KB0013",
+        "KB0021"
+      ],
+      "answerable": true,
+      "requires_multi_doc": true,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1009",
+      "query": "SAP GUI times out with RFC_ERROR_COMMUNICATION from office network",
+      "expected_articles": [
+        "KB0008"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1010",
+      "query": "Wi-Fi keeps dropping on 5GHz while walking between floors 3 and 4",
+      "expected_articles": [
+        "KB0009"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1011",
+      "query": "User locked out and also cannot connect VPN after password change this morning",
+      "expected_articles": [
+        "KB0005",
+        "KB0001"
+      ],
+      "answerable": true,
+      "requires_multi_doc": true,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1012",
+      "query": "Lost phone, cannot approve MFA prompts for any system",
+      "expected_articles": [
+        "KB0006"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1013",
+      "query": "2FA codes never arrive via SMS during login",
+      "expected_articles": [
+        "KB0023"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1014",
+      "query": "Laptop battery drains from 100% to 20% in under two hours",
+      "expected_articles": [
+        "KB0015"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1015",
+      "query": "Please order me a second monitor for my desk",
+      "expected_articles": [],
+      "answerable": false,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1016",
+      "query": "When will my expense claim be paid this month",
+      "expected_articles": [],
+      "answerable": false,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1017",
+      "query": "Zoom shows no audio device during client call",
+      "expected_articles": [],
+      "answerable": false,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1018",
+      "query": "Legacy timesheet portal login not working, need to submit hours",
+      "expected_articles": [],
+      "answerable": false,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1019",
+      "query": "Teams calls drop every 15 minutes while connected to VPN",
+      "expected_articles": [
+        "KB0019"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1020",
+      "query": "Shared mailbox for the support team no longer shows in Outlook folder list",
+      "expected_articles": [
+        "KB0025"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1021",
+      "query": "New laptop VPN client installer fails halfway through, error code shown",
+      "expected_articles": [
+        "KB0026"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1022",
+      "query": "Laptop screen stays black after closing and reopening the lid, requires hard reset",
+      "expected_articles": [
+        "KB0024"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1023",
+      "query": "Print jobs stuck in queue on 3rd floor printer, no error shown on device",
+      "expected_articles": [
+        "KB0004"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1024",
+      "query": "Mapped H: drive missing after login but path works when typed manually",
+      "expected_articles": [
+        "KB0003"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1025",
+      "query": "Employee requests VPN access and email account setup on first day",
+      "expected_articles": [
+        "KB0001",
+        "KB0018"
+      ],
+      "answerable": true,
+      "requires_multi_doc": true,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1026",
+      "query": "Docked laptop won't wake from sleep and external monitor also shows no signal",
+      "expected_articles": [
+        "KB0024",
+        "KB0021"
+      ],
+      "answerable": true,
+      "requires_multi_doc": true,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1027",
+      "query": "New starter locked out on day one and also cannot see the finance shared folder",
+      "expected_articles": [
+        "KB0005",
+        "KB0020"
+      ],
+      "answerable": true,
+      "requires_multi_doc": true,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "INC1028",
+      "query": "SAP GUI still points to APPSRV-OLD-04 after the 2025 migration",
+      "expected_articles": [
+        "KB0022"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "coverage_matrix"
+    },
+    {
+      "query_id": "PROBE-01",
+      "query": "ERR_VPN_AUTH_004",
+      "expected_articles": [
+        "KB0001"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-02",
+      "query": "AADSTS50053",
+      "expected_articles": [
+        "KB0005"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-03",
+      "query": "APPSRV-OLD-04",
+      "expected_articles": [
+        "KB0022"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-04",
+      "query": "ERR_VPN_INSTALL_012",
+      "expected_articles": [
+        "KB0026"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-05",
+      "query": "MFA_TIMEOUT_003",
+      "expected_articles": [
+        "KB0023"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-06",
+      "query": "PWD_RESET_LOCKED",
+      "expected_articles": [
+        "KB0018"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-07",
+      "query": "SYNC_ERR_0091",
+      "expected_articles": [
+        "KB0016"
+      ],
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-08",
+      "query": "0x8004010F",
+      "expected_articles": [
+        "KB0002",
+        "KB0025"
+      ],
+      "answerable": true,
+      "requires_multi_doc": true,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-09",
+      "query": "DISP_NOSIGNAL_04",
+      "expected_articles": [
+        "KB0013",
+        "KB0021"
+      ],
+      "answerable": true,
+      "requires_multi_doc": true,
+      "source": "identifier_probe"
+    },
+    {
+      "query_id": "PROBE-10",
+      "query": "RFC_ERROR_COMMUNICATION",
+      "expected_articles": [
+        "KB0008",
+        "KB0022"
+      ],
+      "answerable": true,
+      "requires_multi_doc": true,
+      "source": "identifier_probe"
+    }
+  ]
+}
