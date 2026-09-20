@@ -5,6 +5,13 @@ import contextvars
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
 
+# Ensure .env is loaded before Langfuse reads LANGFUSE_PUBLIC_KEY etc.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 # In Langfuse v4+, observe and get_client are imported directly from langfuse
 try:
     from langfuse import observe, get_client
@@ -62,6 +69,11 @@ def trace_execution(name: str):
     Creates a single Langfuse trace per execution keyed to
     the execution_id and incident_number, and propagates the
     trace_id via a context variable so child nodes nest under it.
+
+    Uses Langfuse v4 SDK:
+      - client.create_trace_id() to generate a deterministic trace ID
+      - client.start_as_current_observation() as a context manager for
+        the root span (which implicitly creates the trace)
     """
     def decorator(func: Callable) -> Callable:
         @wraps(func)
@@ -79,60 +91,66 @@ def trace_execution(name: str):
 
             client = get_client()
 
-            # Create a root trace via the Langfuse v4 client API
-            trace = None
-            try:
-                trace_kwargs = {"name": name}
-                if exec_id:
-                    trace_kwargs["session_id"] = str(exec_id)
-                if inc_num:
-                    trace_kwargs["user_id"] = str(inc_num)
-                trace_kwargs["input"] = sanitize_payload(kwargs)
-                trace = client.trace(**trace_kwargs)
-            except Exception as trace_err:
-                logger.debug(f"Could not create Langfuse trace: {trace_err}")
+            # Generate a deterministic trace_id from execution_id
+            trace_id = client.create_trace_id(
+                seed=str(exec_id) if exec_id else None
+            )
 
-            # Set the trace_id in context so child nodes nest under it
-            token = None
-            if trace:
-                token = _current_trace_id.set(trace.id)
-
+            token = _current_trace_id.set(trace_id)
             start = time.perf_counter()
+
             try:
-                result = func(*args, **kwargs)
-
-                # Record success on the root trace
-                if trace:
+                with client.start_as_current_observation(
+                    name=name,
+                    as_type="span",
+                    trace_context={"trace_id": trace_id},
+                    input=sanitize_payload(kwargs),
+                    metadata={
+                        "session_id": str(exec_id) if exec_id else None,
+                        "user_id": str(inc_num) if inc_num else None,
+                    },
+                ) as root_span:
                     try:
-                        trace.update(
-                            output=sanitize_payload(result) if isinstance(result, dict) else str(result),
-                            level="DEFAULT",
-                            status_message="success",
-                        )
-                    except Exception:
-                        pass
+                        result = func(*args, **kwargs)
 
-                return result
+                        # Record success on the root span
+                        try:
+                            root_span.update(
+                                output=sanitize_payload(result) if isinstance(result, dict) else str(result),
+                                level="DEFAULT",
+                                status_message="success",
+                            )
+                        except Exception:
+                            pass
+
+                        return result
+
+                    except Exception as e:
+                        # Record the error on the root span
+                        try:
+                            root_span.update(
+                                level="ERROR",
+                                status_message=f"{type(e).__name__}: {e}",
+                            )
+                        except Exception:
+                            pass
+                        raise
 
             except Exception as e:
-                # Record the error on the root trace
-                if trace:
-                    try:
-                        trace.update(
-                            level="ERROR",
-                            status_message=f"{type(e).__name__}: {e}",
-                        )
-                    except Exception:
-                        pass
+                # If it's a Langfuse SDK error (not a user func error), fall back
+                # to running the function without tracing. Re-raise user errors.
+                if isinstance(e, (AttributeError, TypeError)) and "start_as_current_observation" in str(e):
+                    logger.debug(f"Langfuse tracing unavailable: {e}")
+                    return func(*args, **kwargs)
                 raise
+
             finally:
                 elapsed = time.perf_counter() - start
                 logger.info(
                     f"[tracing] {name} completed in {elapsed:.3f}s"
                 )
                 # Reset context
-                if token:
-                    _current_trace_id.reset(token)
+                _current_trace_id.reset(token)
                 # Flush — never crash on flush failure
                 try:
                     if client:
@@ -155,6 +173,11 @@ def trace_node(name: str, observation_type: str = "span"):
     If a root trace_id exists in context (set by trace_execution),
     the span is nested under it — ensuring all nodes in one execution
     share a single correlated trace.
+
+    Uses Langfuse v4 SDK:
+      - client.start_observation() to create a child span
+      - span.update() to record output/level/status before ending
+      - span.end() to close the span (takes only optional end_time)
     """
     def decorator(func: Callable) -> Callable:
         @wraps(func)
@@ -172,16 +195,18 @@ def trace_node(name: str, observation_type: str = "span"):
             ]
             clean_kwargs = sanitize_payload(kwargs)
 
-            # Create span under the parent trace (or a new trace if standalone)
+            # Build trace_context so this span nests under the root trace
+            trace_context = {"trace_id": parent_trace_id} if parent_trace_id else None
+
+            # Create span via the v4 API
             span = None
             try:
-                span_kwargs = {
-                    "name": name,
-                    "input": {"args": [str(a)[:500] for a in clean_args], "kwargs": clean_kwargs},
-                }
-                if parent_trace_id:
-                    span_kwargs["trace_id"] = parent_trace_id
-                span = client.span(**span_kwargs)
+                span = client.start_observation(
+                    name=name,
+                    as_type="span",
+                    trace_context=trace_context,
+                    input={"args": [str(a)[:500] for a in clean_args], "kwargs": clean_kwargs},
+                )
             except Exception:
                 pass
 
@@ -189,14 +214,15 @@ def trace_node(name: str, observation_type: str = "span"):
             try:
                 result = func(*args, **kwargs)
 
-                # Record outcome in the span
+                # Record outcome in the span: update() then end()
                 if span:
                     try:
-                        span.end(
+                        span.update(
                             output=sanitize_payload(result) if isinstance(result, dict) else str(result),
                             level="DEFAULT",
                             status_message="success",
                         )
+                        span.end()
                     except Exception:
                         pass
 
@@ -206,10 +232,11 @@ def trace_node(name: str, observation_type: str = "span"):
                 # Record error — never let tracing crash execution
                 if span:
                     try:
-                        span.end(
+                        span.update(
                             level="ERROR",
                             status_message=f"{type(e).__name__}: {e}",
                         )
+                        span.end()
                     except Exception:
                         pass
                 raise
