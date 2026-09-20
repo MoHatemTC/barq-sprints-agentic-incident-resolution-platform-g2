@@ -132,3 +132,6 @@ win32_setctime==1.2.0
 wrapt==2.4.1
 xxhash==4.0.1
 zstandard==0.25.0
+
+SQLAlchemy==2.0.43
+alembic==1.16.5

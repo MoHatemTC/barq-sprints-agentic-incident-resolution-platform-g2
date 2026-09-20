@@ -49,9 +49,16 @@ The migration supports both forward and reverse execution.
 The diagram represents logical application-level relationships between
 the state tables.
 
-The current schema uses reference columns such as
-`execution_reference` and `incident_reference`. These relationships are
-not implemented as SQL `FOREIGN KEY` constraints in the current migration.
+Execution-related reference columns are implemented as SQL `FOREIGN KEY`
+constraints in the migration:
+
+- `workflow_state.execution_reference` → `executions.execution_identifier`
+- `approvals.execution_reference` → `executions.execution_identifier`
+- `failures.execution_reference` → `executions.execution_identifier`
+- `retry_state.execution_reference` → `executions.execution_identifier`
+
+This prevents child state records from referencing an execution that does
+not exist and protects the integrity of the audit trail.
 
 ---
 
@@ -133,14 +140,16 @@ Worker B → rejected
 Database → exactly one idempotency key
 ```
 
-The assertions are:
+The concurrency assertions verify that:
 
 ```python
 assert errors == []
-assert results.count(True) == 1
-assert results.count(False) == 1
-assert len(keys) == 1
+assert sum(result["status"] == "started" for result in results) == 1
+assert sum(result["status"] == "duplicate" for result in results) == 1
 ```
+
+The database is also checked to contain exactly one accepted event,
+one idempotency key, and one execution.
 
 This verifies duplicate suppression under concurrent worker access.
 
@@ -167,6 +176,27 @@ execution.
 It is also the reference used by workflow checkpoints, approvals,
 failures, and retry state.
 
+The database enforces these relationships with foreign keys.
+
+
+Execution status is constrained at the database level to:
+
+```text
+started
+succeeded
+failed
+blocked
+abandoned
+```
+
+The database also enforces:
+
+```text
+ended_at IS NULL OR ended_at >= started_at
+```
+
+These constraints prevent invalid execution states from being persisted.
+
 ---
 
 ## 8. Workflow State
@@ -181,8 +211,10 @@ workflow_state.execution_reference
 executions.execution_identifier
 ```
 
-This allows the workflow to persist progress and recover the latest
-checkpoint for an execution.
+The `node_name` is stored separately from the serialized checkpoint so
+audit queries can identify the node without parsing the JSON payload.
+
+Checkpoints can be ordered using `created_at` and `id`.
 
 ---
 
@@ -198,13 +230,11 @@ It stores:
 - decision timestamp
 - reviewer identity
 
-Approval records are intended to be immutable after creation.
+Approval records are immutable after creation.
 
-The approval service creates a record rather than modifying an existing
-decision.
-
-The approval tests verify that attempting to overwrite an existing
-approval decision is rejected.
+The PostgreSQL migration installs a trigger that rejects both UPDATE and
+DELETE operations on approval records. The approval tests verify that
+attempting to overwrite or delete an existing approval is rejected.
 
 ---
 
@@ -242,8 +272,40 @@ attempts for the same workflow execution.
 
 ## 12. Audit Query Layer
 
-The PostgreSQL state tables provide the information required to reconstruct
-an execution timeline.
+The platform provides an application-level audit query layer in:
+
+```text
+src/db/audit_service.py
+```
+
+The main function is:
+
+```python
+get_execution_audit(db, execution_identifier)
+```
+
+It reconstructs the audit trail for one execution by querying the
+execution, workflow checkpoints, failures, and approvals.
+
+The returned structure includes:
+
+- execution status and timing
+- termination reason
+- workflow nodes in execution order
+- checkpoint/evidence data
+- failure information
+- approval decisions and evidence
+
+The audit layer is covered by:
+
+```text
+tests/test_audit_service.py
+```
+
+The SQL examples below remain useful as low-level diagnostic queries, but
+they are not the application's primary audit interface.
+
+### Low-Level Diagnostic Queries
 
 A basic execution query is:
 
@@ -313,8 +375,9 @@ FROM retry_state
 WHERE execution_reference = '<EXECUTION_ID>';
 ```
 
-Together, these queries provide execution nodes, sequence information,
-timing, evidence, decisions, retry information, and failure information.
+Together with `src/db/audit_service.py`, these queries provide execution
+nodes, sequence information, timing, evidence, decisions, retry information,
+and failure information.
 
 ---
 
@@ -423,15 +486,48 @@ a retrieval system.
 
 ## 16. Data Retention
 
-PostgreSQL execution and audit data should be retained according to the
-platform's operational and compliance requirements.
+Sprint 2 defines the following retention policy for PostgreSQL execution
+and audit state.
 
-The current Sprint 2 implementation establishes the state schema but does
-not implement an automated deletion or archival job.
+| Data | Retention Period | Post-Retention Action |
+|---|---:|---|
+| `executions` | 1 year | Archive or delete |
+| `workflow_state` | 1 year | Archive or delete |
+| `approvals` | 1 year | Archive or delete |
+| `failures` | 1 year | Archive or delete |
+| `retry_state` | 90 days after the execution becomes terminal | Delete |
 
-Any production retention automation should preserve sufficient execution
-history for incident investigation and audit requirements while applying
-the organization's approved retention period.
+### Retention Rules
+
+Execution records and their associated workflow, approval, and failure
+records are retained for one year to support incident investigation,
+execution reconstruction, and audit requirements.
+
+Retry state is operational state rather than long-term audit evidence.
+It is retained for 90 days after the associated execution reaches a
+terminal state:
+
+- `succeeded`
+- `failed`
+- `blocked`
+- `abandoned`
+
+### Deletion and Archival
+
+Sprint 2 defines the retention policy but does not run automatic deletion
+or archival inside the application workflow.
+
+Production retention automation must:
+
+1. identify records whose retention period has expired;
+2. preserve required audit evidence before deletion;
+3. delete dependent records before their referenced execution records;
+4. record the retention/archival operation in an appropriate operational
+   audit log;
+5. avoid deleting records subject to an active investigation, legal hold,
+   or other compliance requirement.
+
+No automatic retention job is included in Sprint 2.
 
 ---
 
@@ -500,21 +596,9 @@ The resulting PostgreSQL database contains:
 
 ## 18. Test Verification
 
-The complete test suite was executed successfully.
+The automated verification suite has been executed successfully.
 
-Result:
-
-```text
-86 passed
-```
-
-The Sprint 2-specific replay and idempotency tests also passed:
-
-```text
-7 passed
-```
-
-These tests cover:
+The tests cover:
 
 - first-event acceptance
 - duplicate-event rejection
@@ -523,6 +607,28 @@ These tests cover:
 - workflow replay protection
 - workflow failure recording
 - ServiceNow replay behavior
+- execution status validation
+- execution timestamp ordering
+- foreign-key enforcement
+- audit reconstruction
+- approval immutability
+- retry state management
+
+Database-level verification also confirms that:
+
+```text
+invalid execution status
+    → rejected by ck_executions_status
+
+ended_at < started_at
+    → rejected by ck_executions_time_order
+
+child row referencing a nonexistent execution
+    → rejected by the corresponding foreign-key constraint
+```
+
+The full test suite was rerun after the schema and validation changes and
+passed successfully.
 
 ---
 
@@ -540,34 +646,15 @@ If the project later requires webhook-level testing, the webhook can be
 treated as an integration boundary around the existing workflow rather than
 moving idempotency enforcement out of PostgreSQL.
 
-## 19. Definition of Done
 
-Sprint 2 is satisfied when:
-
-- PostgreSQL contains all seven required state tables.
-- Forward migrations execute successfully.
-- Reverse migrations execute successfully.
-- Alembic reports no pending schema changes.
-- Event identifiers are protected by a database-level unique constraint.
-- Concurrent duplicate events produce exactly one accepted event.
-- Duplicate events do not create secondary executions.
-- Execution state is stored in PostgreSQL.
-- Approval records cannot be overwritten.
-- Workflow, failure, approval, and retry state can be queried by execution.
-- The ER diagram is committed with the documentation.
-
-Current automated verification:
+Current verification status:
 
 ```text
-86 tests passed
+Full automated test suite: PASSED
 ```
 
-Sprint 2-focused verification:
-
-```text
-3 idempotency tests passed
-7 replay/idempotency/workflow tests passed
-```
+The concurrent execution test directly asserts that exactly one execution
+row exists after two workers race on the same event identifier.
 
 The concurrent execution test directly asserts that exactly one execution
 row exists after two workers race on the same event identifier.

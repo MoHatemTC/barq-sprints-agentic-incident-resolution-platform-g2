@@ -1,8 +1,10 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    CheckConstraint,
     Column,
     DateTime,
+    ForeignKey,
     Integer,
     String,
     Text,
@@ -73,6 +75,8 @@ class IdempotencyKey(Base):
             name="uq_event_identifier"
         ),
     )
+
+
 class Execution(Base):
     __tablename__ = "executions"
 
@@ -114,13 +118,27 @@ class Execution(Base):
     started_at = Column(
         DateTime(timezone=True),
         nullable=False,
-       default=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(timezone.utc)
     )
 
     ended_at = Column(
         DateTime(timezone=True),
         nullable=True
     )
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN "
+            "('started', 'succeeded', 'failed', 'blocked', 'abandoned')",
+            name="ck_executions_status",
+        ),
+        CheckConstraint(
+            "ended_at IS NULL OR ended_at >= started_at",
+            name="ck_executions_time_order",
+        ),
+    )
+
+
 class WorkflowState(Base):
     __tablename__ = "workflow_state"
 
@@ -128,8 +146,17 @@ class WorkflowState(Base):
 
     execution_reference = Column(
         String(255),
+        ForeignKey(
+            "executions.execution_identifier",
+            name="fk_workflow_state_execution",
+        ),
         nullable=False,
         index=True
+    )
+
+    node_name = Column(
+        String(255),
+        nullable=False
     )
 
     checkpoint = Column(
@@ -146,8 +173,9 @@ class WorkflowState(Base):
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
-      default=lambda: datetime.now(timezone.utc)
+        default=lambda: datetime.now(timezone.utc)
     )
+
 
 class Approval(Base):
     __tablename__ = "approvals"
@@ -156,6 +184,10 @@ class Approval(Base):
 
     execution_reference = Column(
         String(255),
+        ForeignKey(
+            "executions.execution_identifier",
+            name="fk_approvals_execution",
+        ),
         nullable=False,
         index=True
     )
@@ -180,6 +212,7 @@ class Approval(Base):
         nullable=False
     )
 
+
 class Failure(Base):
     __tablename__ = "failures"
 
@@ -187,6 +220,10 @@ class Failure(Base):
 
     execution_reference = Column(
         String(255),
+        ForeignKey(
+            "executions.execution_identifier",
+            name="fk_failures_execution",
+        ),
         nullable=False,
         index=True
     )
@@ -212,6 +249,7 @@ class Failure(Base):
         default=0
     )
 
+
 class RetryState(Base):
     __tablename__ = "retry_state"
 
@@ -219,6 +257,10 @@ class RetryState(Base):
 
     execution_reference = Column(
         String(255),
+        ForeignKey(
+            "executions.execution_identifier",
+            name="fk_retry_state_execution",
+        ),
         nullable=False,
         index=True
     )
@@ -238,4 +280,3 @@ class RetryState(Base):
         DateTime(timezone=True),
         nullable=True
     )
-

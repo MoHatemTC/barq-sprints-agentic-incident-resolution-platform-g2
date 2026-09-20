@@ -87,17 +87,21 @@ def test_state_manager_coordinates_event_and_execution():
 
         checkpoint = manager.save_checkpoint(
             execution.execution_identifier,
-            '{"node":"test_node","step":1}',
+            "test_node",
+            '{"step":1}',
         )
 
         assert checkpoint is not None
+        assert checkpoint.node_name == "test_node"
+        assert checkpoint.checkpoint == '{"step":1}'
 
         latest = manager.get_latest_checkpoint(
             execution.execution_identifier
         )
 
         assert latest is not None
-        assert "test_node" in latest.checkpoint
+        assert latest.node_name == "test_node"
+        assert latest.checkpoint == '{"step":1}'
 
     finally:
         db.close()
@@ -105,7 +109,8 @@ def test_state_manager_coordinates_event_and_execution():
             event_identifier,
             execution.execution_identifier,
         )
-        
+
+
 def test_state_manager_updates_execution_status():
 
     db = SessionLocal()
