@@ -9,16 +9,21 @@ from src.agent.nodes.retrieve import retrieve_node
 def test_load_node(mock_sn_client_class):
     mock_instance = mock_sn_client_class.return_value
     mock_instance.get_incident.return_value = {
-        "sys_id": "INC0001", 
+        "sys_id": "abc123",
         "short_description": "Network down"
     }
 
-    state = {"incident_number": "INC0001"}
+    state = {
+        "incident_number": "INC0001",
+        "incident_payload": {"sys_id": "abc123"},
+    }
     result = load_node(state)
-    assert result["incident_payload"]["sys_id"] == "INC0001"
-    assert result["incident_payload"]["status"] == "loaded"
-    assert result["incident_payload"]["short_description"] == "Network down"
 
+    mock_instance.get_incident.assert_called_once_with("abc123")
+    assert result["incident_payload"]["sys_id"] == "abc123"
+    assert result["incident_payload"]["short_description"] == "Network down"
+    assert result["incident_payload"]["status"] == "loaded"
+    
 def test_determine_risk_node_normal():
     state = {"incident_payload": {"description": "Server reboot requested."}}
     result = determine_risk_node(state)

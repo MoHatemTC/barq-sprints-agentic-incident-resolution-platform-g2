@@ -15,9 +15,17 @@ def interrupt_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     if risk == "high":
         reason = "high_risk_incident"
+    elif state.get("retrieval_failed"):
+        reason = "retrieval_failed"
+    elif not state.get("retrieved_evidence"):
+        reason = "no_evidence"
     elif confidence is not None and confidence < 0.7:
         reason = "low_confidence"
     else:
         reason = "manual_review_requested"
 
-    return {"action_taken": f"interrupted:{reason}"}
+    return {
+        "action_taken": f"interrupted:{reason}",
+        "human_review_required": True,
+        "failure_reason": reason,
+    }

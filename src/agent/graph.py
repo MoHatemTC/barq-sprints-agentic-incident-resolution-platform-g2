@@ -24,6 +24,13 @@ def route_after_risk(state: AgentState) -> str:
     return "retrieve"
 
 
+def route_after_retrieve(state: AgentState) -> str:
+    """No evidence (empty or retrieval failed) -> human path, else continue."""
+    if not state.get("retrieved_evidence"):
+        return "interrupt"
+    return "diagnose"
+
+
 def route_after_confidence(state: AgentState) -> str:
     """Route low-confidence results to interrupt; high-confidence to act."""
     confidence = state.get("confidence", 0.0)
@@ -34,8 +41,6 @@ def route_after_confidence(state: AgentState) -> str:
 
 def create_graph():
     workflow = StateGraph(AgentState)
-
-    # Add all 11 nodes + interrupt
 
     workflow.add_node("load", load_node)
     workflow.add_node("validate", validate_node)
@@ -50,42 +55,35 @@ def create_graph():
     workflow.add_node("interrupt", interrupt_node)
     workflow.add_node("act", act_node)
 
-    # Entry point
     workflow.set_entry_point("load")
 
-    # Standard sequence: load -> validate -> classify -> determine_risk
     workflow.add_edge("load", "validate")
     workflow.add_edge("validate", "classify")
     workflow.add_edge("classify", "determine_risk")
 
-    # Conditional edge after risk: high risk -> interrupt, normal -> retrieve
     workflow.add_conditional_edges(
         "determine_risk",
         route_after_risk,
-        {
-            "retrieve": "retrieve",
-            "interrupt": "interrupt",
-        },
+        {"retrieve": "retrieve", "interrupt": "interrupt"},
     )
 
-    # Automated path: retrieve -> diagnose -> generate -> verify -> safety -> confidence
-    workflow.add_edge("retrieve", "diagnose")
+    workflow.add_conditional_edges(
+        "retrieve",
+        route_after_retrieve,
+        {"diagnose": "diagnose", "interrupt": "interrupt"},
+    )
+
     workflow.add_edge("diagnose", "generate")
     workflow.add_edge("generate", "verify_evidence")
     workflow.add_edge("verify_evidence", "safety_check")
     workflow.add_edge("safety_check", "confidence_check")
 
-    # Conditional edge after confidence: below floor -> interrupt, above -> act
     workflow.add_conditional_edges(
         "confidence_check",
         route_after_confidence,
-        {
-            "interrupt": "interrupt",
-            "act": "act",
-        },
+        {"interrupt": "interrupt", "act": "act"},
     )
 
-    # Both interrupt and act terminate the graph
     workflow.add_edge("interrupt", END)
     workflow.add_edge("act", END)
 
