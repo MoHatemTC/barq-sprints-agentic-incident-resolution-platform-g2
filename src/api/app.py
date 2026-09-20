@@ -6,7 +6,7 @@ from pythonjsonlogger import jsonlogger
 from fastapi import FastAPI
 from fastapi.exceptions import HTTPException
 from src.api.exceptions import unhandled_exception_handler
-from src.api.schemas import Base
+from src.api.schemas import Base #delete at merge with s2.2
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
@@ -52,8 +52,9 @@ def create_app() -> FastAPI:
 
     app = FastAPI(lifespan=lifespan)
 
-    app.add_middleware(CorrelationIDMiddleware)
     app.add_middleware(LangfuseTracingMiddleware)
+    app.add_middleware(CorrelationIDMiddleware)
+    
     app.add_exception_handler(HTTPException, http_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
 

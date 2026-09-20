@@ -1,16 +1,17 @@
 from fastapi import Response, HTTPException, Depends, APIRouter
 from src.api.schemas import Payload
 from sqlalchemy.exc import IntegrityError
-from src.api.dependencies import get_redis, get_db_session, get_redis_producer
+from src.api.dependencies import get_db_session, get_redis_producer
 from src.api.auth import verify_token
-from src.db.models import Event
+#from src.db.models import Event #uncoment at merge with s2.2
+from src.api.schemas import Event #delete at merge with s2.2
 
 router = APIRouter()
 
 SUPPORTED_CONTRACT_VERSIONS = {"v1"}
 
 #checks payload and return 202 quickly
-@router.post("api/v1/webhook/incident")
+@router.post("/api/v1/webhook/incident")
 async def webhook(ticket: Payload, producer = Depends(get_redis_producer), authenticated: None = Depends(verify_token), db = Depends(get_db_session)):
 
     #reject unknown contract versions distinctly, before doing anything else

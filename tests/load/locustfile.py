@@ -17,8 +17,8 @@ class WebhookUser(HttpUser):
             "contract_version": "v1",
         }
         self.client.post(
-            "api/v1/webhook/incident",
+            "/api/v1/webhook/incident",
             json=payload,
             headers={"Authorization": f"Bearer {AUTH_TOKEN}"},
-            name="api/v1/webhook/incident",
+            name="/api/v1/webhook/incident",
         )

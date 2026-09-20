@@ -19,6 +19,10 @@ class RedisIncidentProducer:
 def get_redis_producer(request: Request) -> RedisIncidentProducer:
     return RedisIncidentProducer(request.app.state.redis)
 
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
 class ServiceNowClient:
 
     """
@@ -34,9 +38,6 @@ class ServiceNowClient:
 def get_servicenow_client(settings: Settings = Depends(get_settings)) -> ServiceNowClient:
     raise NotImplementedError("ServiceNow client wiring lands with worker integration")
 
-@lru_cache
-def get_settings() -> Settings:
-    return Settings()
 
 def get_redis(request: Request):
     return request.app.state.redis
