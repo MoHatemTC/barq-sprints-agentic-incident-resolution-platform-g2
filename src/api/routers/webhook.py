@@ -3,8 +3,7 @@ from src.api.schemas import Payload
 from sqlalchemy.exc import IntegrityError
 from src.api.dependencies import get_db_session, get_redis_producer
 from src.api.auth import verify_token
-#from src.db.models import Event #uncoment at merge with s2.2
-from src.api.schemas import Event #delete at merge with s2.2
+from src.db.models import Event
 
 router = APIRouter()
 

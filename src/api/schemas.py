@@ -4,29 +4,6 @@ from typing import Optional
 from datetime import datetime
 from enum import Enum
 
-# src/api/schemas.py
-
-# ─────────────────────────────────────────────────────────────
-# TEMP — DELETE once Mostafa's S2.2 model merges.
-# Replace the import in webhook.py with:
-#   from src.db.models import Event
-# and remove Base/Event from this file. Nothing else should need to change —
-# field names below already match what Mostafa confirmed (event_id unique).
-# ─────────────────────────────────────────────────────────────
-from sqlalchemy.orm import declarative_base
-from sqlalchemy import Column, String
-
-Base = declarative_base()
-
-# src/api/schemas.py
-class Event(Base):
-    __tablename__ = "events"
-    event_identifier = Column(String, primary_key=True, unique=True)
-    incident_sys_id = Column(String, nullable=False)
-    incident_number = Column(String, nullable=False)
-    event_type = Column(String, nullable=False)
-    contract_version = Column(String, nullable=False)
-
 #settings pydantic model to validate the environment variables
 class Settings(BaseSettings):
     postgres_host: str = Field(default="localhost", description="The hostname of the PostgreSQL database")

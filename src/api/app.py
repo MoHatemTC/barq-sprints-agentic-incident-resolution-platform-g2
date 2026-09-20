@@ -6,7 +6,6 @@ from pythonjsonlogger import jsonlogger
 from fastapi import FastAPI
 from fastapi.exceptions import HTTPException
 from src.api.exceptions import unhandled_exception_handler
-from src.api.schemas import Base #delete at merge with s2.2
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
@@ -15,6 +14,7 @@ from src.api.routers import approvals, dlq, webhook, health, config, executions,
 from src.api.middleware import CorrelationIDMiddleware, LangfuseTracingMiddleware
 from src.api.exceptions import http_exception_handler
 from langfuse import get_client
+from src.db.models import Base, Event
 
 langfuse = get_client()
 
