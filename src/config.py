@@ -1,3 +1,17 @@
+"""
+Central, non-secret configuration for the retrieval pipeline.
+
+Anything in this file is safe to commit and safe for any developer to read
+or change directly -- these are defaults, not credentials. Real secrets
+(ServiceNow OAuth client id/secret, username/password) stay in .env and
+are never given defaults here, so a missing secret fails loudly instead
+of silently falling back to something wrong.
+
+Every value can still be overridden via an environment variable of the
+same name, so CI or a different environment can change behavior without
+editing this file.
+"""
+
 import json
 import os
 import re
@@ -17,6 +31,7 @@ _SERVICENOW_FIELD_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
 def _metadata_field_map() -> dict[str, str]:
     """Return canonical article field -> configured ServiceNow column name.
+
     The Knowledge table does not currently have the S1.4 metadata columns.
     Keeping this mapping opt-in prevents the publisher from guessing custom
     column names while letting the ServiceNow schema be wired in later.
