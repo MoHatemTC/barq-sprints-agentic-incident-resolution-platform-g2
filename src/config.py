@@ -20,6 +20,7 @@ os.environ["SSL_CERT_FILE"] = certifi.where()
 
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
+from typing import Mapping
 
 load_dotenv()
 
@@ -118,8 +119,188 @@ class ChunkingConfig:
             )
 
 
+def _csv_env(name: str, default: str) -> tuple[str, ...]:
+    """Read a comma-separated env var into a tuple, e.g. "a, b" -> ("a", "b")."""
+    raw = os.environ.get(name, default)
+    return tuple(item.strip() for item in raw.split(",") if item.strip())
+
+
+# The three retrieval modes S2.4 compares. Switching between them is a
+# config change only -- no code changes anywhere.
+RETRIEVAL_MODES = ("dense", "hybrid", "hybrid_rerank")
+
+
+
+
+# S2.4 query-side settings: mode switch, fusion, filters, reranking
+@dataclass(frozen=True)
+class RetrievalConfig:
+    # Which retrieval pipeline to run : "dense" is the baseline we measure against
+    mode: str = os.environ.get("RETRIEVAL_MODE", "hybrid_rerank")
+    # How many passages are finally returned
+    top_k: int = int(os.environ.get("RETRIEVAL_TOP_K", "5"))
+    # How many candidates each branch (dense / sparse) fetches BEFORE fusion and reranking. Must be >= top_k.
+    candidate_k: int = int(os.environ.get("RETRIEVAL_CANDIDATE_K", "20"))
+    # Reciprocal Rank Fusion constant: score = sum(1 / (rrf_k + rank)).
+    rrf_k: int = int(os.environ.get("RRF_K", "60"))
+    # Cross-encoder used only in "hybrid_rerank" mode (fastembed model name).
+    rerank_model: str = os.environ.get("RERANK_MODEL", "Xenova/ms-marco-MiniLM-L-6-v2")
+
+    # Metadata pre-filters (applied inside the search, before any ranking).
+    # Only these workflow states may be retrieved 
+    allowed_workflow_states: tuple[str, ...] = field(
+        default_factory=lambda: _csv_env("ALLOWED_WORKFLOW_STATES", "published")
+    )
+    # security levels are never retrieved.
+    blocked_security_levels: tuple[str, ...] = field(
+        default_factory=lambda: _csv_env("BLOCKED_SECURITY_LEVELS", "restricted")
+    )
+
+    # Latency budget (ms) that the ablation report compares p50/p95 against.
+    latency_budget_ms: int = int(os.environ.get("LATENCY_BUDGET_MS", "500"))
+
+    # Optional: if you run Qdrant embedded on disk instead of Docker (empty = use QDRANT_URL).
+    qdrant_local_path: str = os.environ.get("QDRANT_LOCAL_PATH", "")
+
+    # for evalution matrix later : the service-desk manual gets its own collection and eval dataset.
+    manual_collection_name: str = os.environ.get("MANUAL_COLLECTION_NAME", "barq_manual")
+    manual_pdf_path: str = os.environ.get(
+        "MANUAL_PDF_PATH", "data/BARQ_IT_Service_Desk_Manual_Ed5.1.pdf"
+    )
+    eval_dataset_path: str = os.environ.get(
+        "EVAL_DATASET_PATH", "eval/barq_rag_eval_dataset.json"
+    )
+
+    def __post_init__(self):
+        if self.mode not in RETRIEVAL_MODES:
+            raise ValueError(
+                f"RETRIEVAL_MODE must be one of {RETRIEVAL_MODES}, got {self.mode!r}"
+            )
+        if self.top_k <= 0:
+            raise ValueError(f"RETRIEVAL_TOP_K must be > 0, got {self.top_k}")
+        if self.candidate_k < self.top_k:
+            raise ValueError(
+                "RETRIEVAL_CANDIDATE_K must be >= RETRIEVAL_TOP_K, "
+                f"got {self.candidate_k} < {self.top_k}"
+            )
+        if self.rrf_k <= 0:
+            raise ValueError(f"RRF_K must be > 0, got {self.rrf_k}")
+        if not self.allowed_workflow_states:
+            raise ValueError("ALLOWED_WORKFLOW_STATES must list at least one state")
+@dataclass(frozen=True)
+class WorkerConfig:
+    """Validated S2.3 worker settings, loaded only when a worker is configured."""
+
+    broker_url: str
+    main_queue: str
+    dlq_queue: str
+    worker_concurrency: int
+    worker_prefetch_multiplier: int
+    task_soft_time_limit_seconds: int
+    task_time_limit_seconds: int
+    task_max_retries: int
+    retry_base_delay_seconds: int
+    retry_max_delay_seconds: int
+    task_acks_late: bool
+    task_reject_on_worker_lost: bool
+    worker_shutdown_timeout_seconds: int
+
+    @classmethod
+    def from_environment(
+        cls,
+        environment: Mapping[str, str] | None = None,
+    ) -> "WorkerConfig":
+        """Build worker settings from an environment mapping."""
+        env = os.environ if environment is None else environment
+        config = cls(
+            broker_url=_required_worker_text(env, "CELERY_BROKER_URL"),
+            main_queue=_required_worker_text(env, "CELERY_MAIN_QUEUE"),
+            dlq_queue=_required_worker_text(env, "CELERY_DLQ_QUEUE"),
+            worker_concurrency=_required_worker_positive_int(
+                env, "CELERY_WORKER_CONCURRENCY"
+            ),
+            worker_prefetch_multiplier=_required_worker_positive_int(
+                env, "CELERY_WORKER_PREFETCH_MULTIPLIER"
+            ),
+            task_soft_time_limit_seconds=_required_worker_positive_int(
+                env, "CELERY_TASK_SOFT_TIME_LIMIT_SECONDS"
+            ),
+            task_time_limit_seconds=_required_worker_positive_int(
+                env, "CELERY_TASK_TIME_LIMIT_SECONDS"
+            ),
+            task_max_retries=_required_worker_non_negative_int(
+                env, "CELERY_TASK_MAX_RETRIES"
+            ),
+            retry_base_delay_seconds=_required_worker_non_negative_int(
+                env, "CELERY_RETRY_BASE_DELAY_SECONDS"
+            ),
+            retry_max_delay_seconds=_required_worker_non_negative_int(
+                env, "CELERY_RETRY_MAX_DELAY_SECONDS"
+            ),
+            task_acks_late=_required_worker_bool(env, "CELERY_TASK_ACKS_LATE"),
+            task_reject_on_worker_lost=_required_worker_bool(
+                env, "CELERY_TASK_REJECT_ON_WORKER_LOST"
+            ),
+            worker_shutdown_timeout_seconds=_required_worker_positive_int(
+                env, "CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS"
+            ),
+        )
+        if config.task_time_limit_seconds <= config.task_soft_time_limit_seconds:
+            raise ValueError(
+                "CELERY_TASK_TIME_LIMIT_SECONDS must be greater than "
+                "CELERY_TASK_SOFT_TIME_LIMIT_SECONDS"
+            )
+        if config.retry_max_delay_seconds < config.retry_base_delay_seconds:
+            raise ValueError(
+                "CELERY_RETRY_MAX_DELAY_SECONDS must be >= "
+                "CELERY_RETRY_BASE_DELAY_SECONDS"
+            )
+        return config
+
+
+def _required_worker_text(environment: Mapping[str, str], name: str) -> str:
+    value = environment.get(name, "").strip()
+    if not value:
+        raise ValueError(f"Missing required environment variable: {name}")
+    return value
+
+
+def _required_worker_non_negative_int(
+    environment: Mapping[str, str],
+    name: str,
+) -> int:
+    value = _required_worker_text(environment, name)
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be a non-negative integer") from exc
+    if parsed < 0:
+        raise ValueError(f"{name} must be a non-negative integer")
+    return parsed
+
+
+def _required_worker_positive_int(
+    environment: Mapping[str, str],
+    name: str,
+) -> int:
+    parsed = _required_worker_non_negative_int(environment, name)
+    if parsed <= 0:
+        raise ValueError(f"{name} must be a positive integer")
+    return parsed
+
+
+def _required_worker_bool(environment: Mapping[str, str], name: str) -> bool:
+    value = _required_worker_text(environment, name).lower()
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    raise ValueError(f"{name} must be true or false")
+
+
 QDRANT = QdrantConfig()
 EMBEDDING = EmbeddingConfig()
 SERVICENOW = ServiceNowConfig()
 PATHS = PathsConfig()
 CHUNKING = ChunkingConfig()
+RETRIEVAL = RetrievalConfig()
