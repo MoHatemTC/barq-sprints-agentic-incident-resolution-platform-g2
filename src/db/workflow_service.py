@@ -36,6 +36,10 @@ def get_latest_checkpoint(
 ):
     """
     Get the latest checkpoint for an execution.
+
+    created_at determines chronological order.
+    id provides a deterministic tie-breaker when two
+    checkpoints have the same created_at timestamp.
     """
 
     return (
@@ -44,7 +48,8 @@ def get_latest_checkpoint(
             WorkflowState.execution_reference == execution_reference
         )
         .order_by(
-            WorkflowState.created_at.desc()
+            WorkflowState.created_at.desc(),
+            WorkflowState.id.desc(),
         )
         .first()
     )
