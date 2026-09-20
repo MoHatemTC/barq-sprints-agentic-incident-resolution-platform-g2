@@ -43,6 +43,7 @@ services:
     ports:
       - "8000:8000"
     environment:
+      UVICORN_WORKERS: ${UVICORN_WORKERS}
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
     depends_on:
