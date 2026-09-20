@@ -246,3 +246,23 @@ def trace_node(name: str, observation_type: str = "span"):
 
         return wrapper
     return decorator
+
+try:
+    from langfuse.langchain import CallbackHandler
+except ImportError:
+    CallbackHandler = None
+def get_llm_callback():
+    """
+    Returns a LangChain CallbackHandler tied to the current trace.
+    Pass this to llm.invoke(..., config={"callbacks": [get_llm_callback()]})
+    """
+    if not LANGFUSE_AVAILABLE or CallbackHandler is None:
+        return []
+        
+    parent_trace_id = _current_trace_id.get()
+    
+    # Initialize the handler and link it to the existing trace tree
+    trace_context = {"trace_id": parent_trace_id} if parent_trace_id else None
+    handler = CallbackHandler(trace_context=trace_context)
+    
+    return [handler]
