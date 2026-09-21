@@ -42,3 +42,7 @@ data/servicenow_kb_mapping.json
 data/kb_category_mapping.json
 
 .agents
+
+# KB reset backups and moved mapping files
+data/backup/
+data/servicenow_kb_mapping.bak-*.json

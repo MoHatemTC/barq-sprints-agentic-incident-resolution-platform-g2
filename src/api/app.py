@@ -4,6 +4,7 @@ import logging
 
 from pythonjsonlogger import jsonlogger
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException
 from src.api.exceptions import unhandled_exception_handler
 from src.api.schemas import Base #delete at merge with s2.2
@@ -11,7 +12,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from src.api.dependencies import get_settings
-from src.api.routers import approvals, dlq, webhook, health, config, executions, eval
+from src.api.routers import approvals, dlq, webhook, health, config, executions, eval, dashboard, kb
 from src.api.middleware import CorrelationIDMiddleware, LangfuseTracingMiddleware
 from src.api.exceptions import http_exception_handler
 from langfuse import get_client
@@ -51,6 +52,12 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
 
     app = FastAPI(lifespan=lifespan)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     app.add_middleware(LangfuseTracingMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
@@ -65,6 +72,8 @@ def create_app() -> FastAPI:
     app.include_router(approvals.router)
     app.include_router(dlq.router)
     app.include_router(eval.router)
+    app.include_router(dashboard.router)
+    app.include_router(kb.router)
 
     return app
 

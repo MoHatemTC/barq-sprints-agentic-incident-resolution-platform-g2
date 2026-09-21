@@ -1,0 +1,22 @@
+mostafa | Sun Sep 20 11:05:44 2026 +0300 | fix: address Sprint 2 review findings
+
+ .env.example                                       |   3 [32m+[m[31m-[m
+ docs/sprint2_state_schema.md                       | 213 [32m+++++++++++++++[m[31m------[m
+ .../416136e54c32_create_sprint2_state_schema.py    |  32 [32m+++[m[31m-[m
+ requirements.txt                                   |   2 [32m+[m
+ src/db/audit_service.py                            | 129 [32m+++++++++++++[m
+ src/db/models.py                                   |  49 [32m++++[m[31m-[m
+ src/db/workflow_service.py                         |   6 [32m+[m[31m-[m
+ src/orchestrator/state_manager.py                  |   2 [32m+[m
+ src/orchestrator/workflow.py                       |   5 [32m+[m[31m-[m
+ tests/test_approval_service.py                     | 140 [32m+++++++++++++[m[31m-[m
+ tests/test_audit_service.py                        | 142 [32m++++++++++++++[m
+ tests/test_execution_service.py                    |  80 [32m+++++++[m[31m-[m
+ tests/test_failure_service.py                      |  46 [32m++++[m[31m-[m
+ tests/test_idempotency.py                          |  82 [32m+++++[m[31m---[m
+ tests/test_referential_integrity.py                |  29 [32m+++[m
+ tests/test_retry_service.py                        |  39 [32m+++[m[31m-[m
+ tests/test_state_manager.py                        |  11 [32m+[m[31m-[m
+ tests/test_workflow.py                             |  43 [32m+++[m[31m--[m
+ tests/test_workflow_service.py                     |  59 [32m+++++[m[31m-[m
+ 19 files changed, 970 insertions(+), 142 deletions(-)

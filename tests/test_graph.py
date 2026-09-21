@@ -19,7 +19,7 @@ def test_graph_routing_normal_risk(mock_search):
     initial_state = {
         "execution_id": "test_1",
         "incident_number": "INC_TEST_01",
-        "incident_payload": {"desc": "normal issue"},
+        "incident_payload": {"description": "normal issue"},
     }
 
     result = graph.invoke(initial_state)

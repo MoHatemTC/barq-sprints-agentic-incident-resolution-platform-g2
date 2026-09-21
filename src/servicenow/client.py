@@ -64,6 +64,16 @@ class ServiceNowClient:
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
         return self._request("GET", url)
 
+    def create_incident(self, short_description, description=None, caller_id=None):
+        # Create a new incident, returns the created record (sys_id, number, ...)
+        payload = {"short_description": short_description}
+        if description:
+            payload["description"] = description
+        if caller_id:
+            payload["caller_id"] = caller_id
+        url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
+        return self._request("POST", url, json=payload)
+
     def get_published_kb_articles(self, page_size=100):
         # Read all published KB articles, page by page
         url = f"{config.TABLE_API}/kb_knowledge"
