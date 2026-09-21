@@ -1,5 +1,6 @@
 import os, certifi
 os.environ["SSL_CERT_FILE"] = certifi.where()
+
 import logging
 import time
 import uuid

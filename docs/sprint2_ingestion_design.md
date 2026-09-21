@@ -16,7 +16,8 @@ for incoming ServiceNow events:
 ServiceNow Business Rule
         |
         v
-POST /webhook  (FastAPI)
+POST /api/v1/webhook/incident  (FastAPI)
+>>>>>>> development
         |
         1. verify_token()      — reject 401 on missing/invalid Bearer token
         2. validate Payload    — reject 422 on schema or unsupported
@@ -79,11 +80,16 @@ retries.
 
 ## Performance
 
+<<<<<<< HEAD
 Sustained load testing (100 concurrent users, 5 minutes, ~92,000 requests)
+=======
+Sustained load testing (100 concurrent users, 5 minutes, 90,408 requests)
+>>>>>>> development
 against the containerized application measured:
 
 | Metric | Value |
 |---|---|
+<<<<<<< HEAD
 | p50 | 14ms |
 | p95 | 51ms |
 | p99 | 110ms |
@@ -93,6 +99,24 @@ This is well within the NFR-01 500ms p95 budget. A queue-depth independence
 test confirmed p95 latency stays flat (51–55ms) whether the Redis queue is
 empty or holds 50,000 pending items, consistent with `rpush` being an O(1)
 operation regardless of list length.
+=======
+| p50 | 17ms |
+| p95 | 70ms |
+| p99 | 140ms |
+| Failures | 0 |
+
+This is well within the NFR-01 500ms p95 budget. A queue-depth independence
+test confirmed p95 latency stays flat (~52–63ms) whether the Redis queue is
+empty or holds 50,000 pending items, consistent with `rpush` being an O(1)
+operation regardless of list length:
+
+| Queue depth | p95 |
+|---|---|
+| 0 | 62.61ms |
+| 1,000 | 52.30ms |
+| 10,000 | 52.80ms |
+| 50,000 | 53.13ms |
+>>>>>>> development
 
 Reaching this result required fixing three real bottlenecks found during
 testing, documented here since they inform future performance work:
@@ -153,7 +177,11 @@ Example of structured request log output under normal ingestion traffic:
   "level": "INFO",
   "correlation_id": "c1f7a08b-986c-482d-8bb3-d9d15024b480",
   "method": "POST",
+<<<<<<< HEAD
   "path": "/webhook",
+=======
+  "path": "/api/v1/webhook/incident",
+>>>>>>> development
   "status_code": 202,
   "duration_ms": 14.82
 }

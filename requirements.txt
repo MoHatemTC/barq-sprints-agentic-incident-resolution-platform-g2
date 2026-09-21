@@ -53,6 +53,7 @@ langgraph-checkpoint-postgres==3.1.2
 langgraph-prebuilt==1.1.0
 langgraph-sdk==0.4.4
 langsmith==0.13.0
+locust==2.32.0
 loguru==0.7.3
 Mako==1.4.1
 markdown-it-py==4.2.0
@@ -98,7 +99,7 @@ python-json-logger==4.2.0
 pywin32==312; sys_platform == "win32"
 PyYAML==6.0.3
 qdrant-client==1.19.0
-redis==6.4.0
+redis==8.1.0
 regex==2026.9.3
 requests==2.34.2
 requests-toolbelt==1.0.0

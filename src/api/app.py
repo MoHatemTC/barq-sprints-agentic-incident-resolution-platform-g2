@@ -7,7 +7,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException
 from src.api.exceptions import unhandled_exception_handler
-from src.api.schemas import Base #delete at merge with s2.2
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
@@ -16,6 +15,8 @@ from src.api.routers import approvals, dlq, webhook, health, config, executions,
 from src.api.middleware import CorrelationIDMiddleware, LangfuseTracingMiddleware
 from src.api.exceptions import http_exception_handler
 from langfuse import get_client
+from src.db.models import Base, Event
+
 
 langfuse = get_client()
 
@@ -52,13 +53,13 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
 
     app = FastAPI(lifespan=lifespan)
+    
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
     app.add_middleware(LangfuseTracingMiddleware)
     app.add_middleware(CorrelationIDMiddleware)
     
@@ -76,6 +77,5 @@ def create_app() -> FastAPI:
     app.include_router(kb.router)
 
     return app
-
 
 app = create_app()  #registers the lifespan event handler
