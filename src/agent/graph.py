@@ -23,6 +23,11 @@ def route_after_risk(state: AgentState) -> str:
         return "interrupt"
     return "retrieve"
 
+def route_after_retrieve(state: AgentState) -> str:
+    """No evidence (empty or retrieval failed) -> human path, else continue."""
+    if not state.get("retrieved_evidence"):
+        return "interrupt"
+    return "diagnose"
 
 def route_after_confidence(state: AgentState) -> str:
     """Route low-confidence results to interrupt; high-confidence to act."""
@@ -34,6 +39,7 @@ def route_after_confidence(state: AgentState) -> str:
 
 def create_graph():
     workflow = StateGraph(AgentState)
+
 
     # Add all 11 nodes + interrupt
 
@@ -58,18 +64,19 @@ def create_graph():
     workflow.add_edge("validate", "classify")
     workflow.add_edge("classify", "determine_risk")
 
-    # Conditional edge after risk: high risk -> interrupt, normal -> retrieve
     workflow.add_conditional_edges(
         "determine_risk",
         route_after_risk,
-        {
-            "retrieve": "retrieve",
-            "interrupt": "interrupt",
-        },
+        {"retrieve": "retrieve", "interrupt": "interrupt"},
     )
 
-    # Automated path: retrieve -> diagnose -> generate -> verify -> safety -> confidence
-    workflow.add_edge("retrieve", "diagnose")
+    workflow.add_conditional_edges(
+        "retrieve",
+        route_after_retrieve,
+        {"diagnose": "diagnose", "interrupt": "interrupt"},
+    )
+
+
     workflow.add_edge("diagnose", "generate")
     workflow.add_edge("generate", "verify_evidence")
     workflow.add_edge("verify_evidence", "safety_check")
@@ -85,7 +92,6 @@ def create_graph():
         },
     )
 
-    # Both interrupt and act terminate the graph
     workflow.add_edge("interrupt", END)
     workflow.add_edge("act", END)
 
@@ -96,4 +102,6 @@ def compile_graph(checkpointer=None):
     workflow = create_graph()
     if checkpointer:
         return workflow.compile(checkpointer=checkpointer)
+
     return workflow.compile()
+

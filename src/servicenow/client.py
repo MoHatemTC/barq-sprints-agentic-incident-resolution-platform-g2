@@ -28,6 +28,7 @@ def _same(sent, got):
             return False
     return str(got) == str(sent)
 
+
 class ServiceNowClient:
     # OAuth authenticated Table API client
 
@@ -38,8 +39,6 @@ class ServiceNowClient:
     def new_execution_id():
         return str(uuid.uuid4())  # for logs
 
-    
-    
     def _send(self, method, url, **kwargs):
         return requests.request(
             method,
@@ -49,8 +48,6 @@ class ServiceNowClient:
             **kwargs,
         )
 
-    
-    
     def _request(self, method, url, **kwargs):
         # Send a request, refreshing the token once on 401
         response = self._send(method, url, **kwargs)
@@ -62,15 +59,40 @@ class ServiceNowClient:
         raise_for_status(response)
         return response.json().get("result")
 
-    
-    
     def get_incident(self, sys_id):
         # Read one incident by sys_id
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
         return self._request("GET", url)
 
-    
-    
+    def create_incident(self, short_description, description=None, caller_id=None):
+        # Create a new incident, returns the created record (sys_id, number, ...)
+        payload = {"short_description": short_description}
+        if description:
+            payload["description"] = description
+        if caller_id:
+            payload["caller_id"] = caller_id
+        url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
+        return self._request("POST", url, json=payload)
+
+    def get_published_kb_articles(self, page_size=100):
+        # Read all published KB articles, page by page
+        url = f"{config.TABLE_API}/kb_knowledge"
+        articles, offset = [], 0
+        while True:
+            batch = self._request(
+                "GET",
+                url,
+                params={
+                    "sysparm_query": "workflow_state=published^ORDERBYsys_id",
+                    "sysparm_limit": page_size,
+                    "sysparm_offset": offset,
+                },
+            ) or []
+            articles.extend(batch)
+            if len(batch) < page_size:
+                return articles
+            offset += page_size
+
     def update_incident(self, sys_id, fields):
         # Write AI fields, keys are logical names from config file
         payload = {}
@@ -88,8 +110,6 @@ class ServiceNowClient:
             raise ServiceNowWriteNotAppliedError(200, f"Fields not written: {dropped}")
         return result
 
-    
-    
     def add_work_note(self, sys_id, note):
         # Append a work note to incident
         if not note or not note.strip():
@@ -98,7 +118,7 @@ class ServiceNowClient:
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
         result = self._request("PATCH", url, json={config.WORK_NOTES: note})
 
-        # neither the PATCH response nor a GET on the incident exposes the jornal
+        # neither the PATCH response nor a GET on the incident exposes the journal
         check = self._request(
             "GET",
             f"{config.TABLE_API}/sys_journal_field",
@@ -114,8 +134,6 @@ class ServiceNowClient:
         return result
 
     # audit logs one record per attempt, including failures
-    
-    
     def write_execution_log(self, incident_sys_id, execution_id, action,
                             status, agent=None, result=None, error=None):
         # Never raises on a ServiceNow failure: audit must not break the caller

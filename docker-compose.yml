@@ -37,6 +37,57 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+
+  worker:
+    build: .
+    command: python run_worker.py
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      PG_CONN_STRING: postgresql://app:app@postgres:5432/orchestrator
+      CELERY_BROKER_URL: redis://redis:6379/0
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+
+  consumer:
+    build: .
+    command: python run_consumer.py
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+      PG_CONN_STRING: postgresql://app:app@postgres:5432/orchestrator
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    env_file:
+      - .env
 
 volumes:
   qdrant_data:

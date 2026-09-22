@@ -8,16 +8,27 @@ from src.agent.nodes.retrieve import retrieve_node
 @patch("src.agent.nodes.load.ServiceNowClient")
 def test_load_node(mock_sn_client_class):
     mock_instance = mock_sn_client_class.return_value
+    # 1. Setup the mock to return the enriched data from ServiceNow
     mock_instance.get_incident.return_value = {
-        "sys_id": "INC0001", 
-        "short_description": "Network down"
+        "sys_id": "abc123",  
+        "short_description": "Network down",
+        "priority": "1" # Adding an extra field to prove the merge worked
     }
-
-    state = {"incident_number": "INC0001"}
+    
+    # 2. Add the sys_id to the incoming state payload
+    state = {
+        "incident_number": "INC0001",
+        "incident_payload": {
+            "sys_id": "abc123"
+        }
+    }
+        
     result = load_node(state)
-    assert result["incident_payload"]["sys_id"] == "INC0001"
-    assert result["incident_payload"]["status"] == "loaded"
+    
+    # 3. Assertions
+    assert result["incident_payload"]["sys_id"] == "abc123"
     assert result["incident_payload"]["short_description"] == "Network down"
+    assert result["incident_payload"]["status"] == "loaded"
 
 def test_determine_risk_node_normal():
     state = {"incident_payload": {"description": "Server reboot requested."}}
@@ -33,10 +44,10 @@ def test_determine_risk_node_high():
 def test_retrieve_node(mock_search):
     mock_chunk = MagicMock()
     mock_chunk.number = "KB123"
-    mock_chunk.point_id = "123"
+    mock_chunk.point_id = "KB123"
     mock_chunk.text = "Reboot the router"
     mock_chunk.score = 0.99
-    
+
     mock_search.return_value = [mock_chunk]
 
     state = {"incident_payload": {"description": "router broken"}}
@@ -45,3 +56,4 @@ def test_retrieve_node(mock_search):
     assert result["retrieved_evidence"][0]["id"] == "KB123"
     assert result["retrieved_evidence"][0]["score"] == 0.99
     assert result["retrieved_evidence"][0]["text"] == "Reboot the router"
+

@@ -9,11 +9,23 @@ existing client rather than reimplement Table API access.
 
 from ...config import SERVICENOW
 from ..schema import Article
+from functools import lru_cache
+
+from ...config import PATHS
+import json
+
 
 
 def _value(value):
     """Return the stored value from either Table API reference representation."""
     return value.get("value", "") if isinstance(value, dict) else value
+
+@lru_cache(maxsize=1)
+def _category_names() -> dict[str, str]:
+    """sys_id -> category name (reverse of kb_category_mapping.json)."""
+    with open(PATHS.servicenow_kb_category_mapping, encoding="utf-8") as f:
+        name_to_id = json.load(f)
+    return {sys_id: name for name, sys_id in name_to_id.items()}
 
 
 def article_from_servicenow(record: dict) -> Article:
@@ -41,7 +53,10 @@ def article_from_servicenow(record: dict) -> Article:
         article_id=article_number,
         title=_value(record.get("short_description", "")),
         body=_value(record.get("text", "")),
-        category=_value(record.get("kb_category", "")),
+        category=_category_names().get(
+            _value(record.get("kb_category", "")),
+            _value(record.get("kb_category", "")),
+        ),
         service=metadata.get("service", ""),
         workflow_state=_value(record.get("workflow_state", "")),
         version=version,
@@ -50,11 +65,8 @@ def article_from_servicenow(record: dict) -> Article:
 
 
 def load_articles_from_servicenow() -> list[Article]:
-    """
-    TODO: replace with a call into S1.5's read client once handed off.
-    Expected: fetch published kb_knowledge records, map fields to Article.
-    """
-    raise NotImplementedError(
-        "ServiceNow article source not yet wired up -- waiting on S1.5 "
-        "Table API read client hand-off. Use local_json_source for now."
-    )
+    """Fetch published kb_knowledge records and map them to Article."""
+    from ...servicenow.client import ServiceNowClient
+
+    records = ServiceNowClient().get_published_kb_articles()
+    return [article_from_servicenow(r) for r in records]

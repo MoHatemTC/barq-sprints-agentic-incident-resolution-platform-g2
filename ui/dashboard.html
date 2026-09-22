@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Incident Resolution Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="common.js"></script>
+</head>
+<body>
+<header id="chrome"></header>
+
+<main class="page">
+  <div class="page-head">
+    <div>
+      <h1>Incident pipeline</h1>
+      <p class="lede">Every incident, from webhook to resolution.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="kbSyncBtn" type="button"><span id="kbSyncLabel">Update Vector DB</span></button>
+      <button class="btn btn-primary" id="newIncidentBtn" type="button">New incident</button>
+    </div>
+  </div>
+
+  <section class="stats" aria-label="Summary">
+    <div class="stat"><div class="lbl"><i></i>Shown</div><div class="val" id="m-total" data-v="0">0</div></div>
+    <div class="stat"><div class="lbl"><i class="ok"></i>Succeeded</div><div class="val" id="m-ok" data-v="0">0</div></div>
+    <div class="stat"><div class="lbl"><i class="bad"></i>Failed</div><div class="val" id="m-bad" data-v="0">0</div></div>
+    <div class="stat"><div class="lbl"><i class="accent"></i>In progress</div><div class="val" id="m-run" data-v="0">0</div></div>
+    <div class="stat"><div class="lbl"><i></i>Avg duration</div><div class="val" id="m-avg">&mdash;</div></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <span class="lbl">Show last</span>
+      <div class="segmented" id="limitSeg" role="group" aria-label="Number of executions">
+        <button type="button" data-value="5">5</button>
+        <button type="button" data-value="10">10</button>
+        <button type="button" data-value="20">20</button>
+        <button type="button" data-value="30">30</button>
+      </div>
+      <select class="select sm" id="statusFilter" aria-label="Filter by status">
+        <option value="">All statuses</option>
+        <option value="succeeded">Succeeded</option>
+        <option value="started">In progress</option>
+        <option value="failed">Failed</option>
+        <option value="blocked">Blocked</option>
+        <option value="awaiting_approval">Awaiting approval</option>
+      </select>
+    </div>
+    <div class="toolbar-group">
+      <span class="updated" id="updated"></span>
+      <span class="switch-wrap">
+        <button class="switch" id="liveSwitch" type="button" role="switch" aria-checked="true" aria-label="Live updates"><span class="knob"></span></button>
+        Live
+      </span>
+      <button class="btn btn-sm" id="refreshBtn" type="button">Refresh</button>
+    </div>
+  </div>
+
+  <section class="panel" aria-live="polite">
+    <div id="list"></div>
+    <div class="empty" id="empty" hidden></div>
+  </section>
+</main>
+
+<div class="overlay" id="modal" aria-hidden="true">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h3 id="modalTitle">New incident</h3>
+    <div class="field">
+      <label for="f-short">Short description</label>
+      <input class="input" type="text" id="f-short" placeholder="VPN authentication fails after password change" data-autofocus />
+    </div>
+    <div class="field">
+      <label for="f-sysid">ServiceNow sys_id (optional)</label>
+      <input class="input" type="text" id="f-sysid" placeholder="Leave empty for a random test sys_id" />
+    </div>
+    <div class="field">
+      <label for="f-number">Incident number (optional)</label>
+      <input class="input" type="text" id="f-number" placeholder="INC0010100" />
+      <div class="err-text" id="f-error"></div>
+    </div>
+    <div class="dialog-actions">
+      <div class="right">
+        <button class="btn" type="button" id="modalCancel">Cancel</button>
+        <button class="btn btn-primary" type="button" id="modalSubmit">Create and enqueue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="dashboard.js"></script>
+</body>
+</html>

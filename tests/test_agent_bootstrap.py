@@ -15,6 +15,9 @@ def test_llm_singletons():
 @patch("src.agent.checkpointer.PostgresSaver")
 @patch("src.agent.checkpointer.ConnectionPool")
 def test_checkpointer_initialization(mock_pool_cls, mock_saver_cls):
+    import os
+    os.environ["PG_CONN_STRING"] = "postgresql://test:test@localhost:5432/test"
+    
     mock_instance = MagicMock()
     mock_saver_cls.return_value = mock_instance
     

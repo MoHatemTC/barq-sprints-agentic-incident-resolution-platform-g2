@@ -36,8 +36,9 @@ def classify_node(state: Dict[str, Any]) -> Dict[str, Any]:
     Respond with ONLY the exact category name from the list above. Do not add any extra text.
     """
     
-    response = llm.invoke(prompt,
-                          config={"callbacks": get_llm_callback()})
+
+    response = llm.invoke(prompt, config={"callbacks": get_llm_callback()})
+
     content = response.content if hasattr(response, "content") else str(response)
     
     classification = content.strip().lower()

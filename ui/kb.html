@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Knowledge Base</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="common.js"></script>
+</head>
+<body>
+<header id="chrome"></header>
+
+<main class="page">
+  <div class="page-head">
+    <div>
+      <h1>Knowledge base</h1>
+      <p class="lede">Published ServiceNow articles and whether the Vector DB has them.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="syncBtn" type="button"><span id="syncLabel">Update Vector DB</span></button>
+      <button class="btn btn-primary" id="newBtn" type="button">Add article</button>
+    </div>
+  </div>
+
+  <section class="stats" aria-label="Summary">
+    <div class="stat"><div class="lbl"><i></i>Articles</div><div class="val" id="m-total" data-v="0">0</div></div>
+    <div class="stat"><div class="lbl"><i class="ok"></i>Indexed</div><div class="val" id="m-indexed" data-v="0">0</div></div>
+    <div class="stat"><div class="lbl"><i class="warn"></i>Pending sync</div><div class="val" id="m-pending" data-v="0">0</div></div>
+    <div class="stat"><div class="lbl"><i class="violet"></i>Not indexed</div><div class="val" id="m-not" data-v="0">0</div></div>
+    <div class="stat"><div class="lbl"><i class="bad"></i>To remove at sync</div><div class="val" id="m-del" data-v="0">0</div></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <span class="lbl">Show</span>
+      <div class="segmented" id="sizeSeg" role="group" aria-label="Articles per page">
+        <button type="button" data-value="10">10</button>
+        <button type="button" data-value="20">20</button>
+        <button type="button" data-value="50">50</button>
+        <button type="button" data-value="all">All</button>
+      </div>
+      <input class="input sm search" type="search" id="q" placeholder="Search number, title or service" aria-label="Search articles" />
+      <select class="select sm" id="statusFilter" aria-label="Filter by index status">
+        <option value="">All statuses</option>
+        <option value="indexed">Indexed</option>
+        <option value="pending_sync">Pending sync</option>
+        <option value="not_indexed">Not indexed</option>
+      </select>
+      <select class="select sm" id="catFilter" aria-label="Filter by category">
+        <option value="">All categories</option>
+      </select>
+    </div>
+    <div class="toolbar-group">
+      <button class="btn btn-sm" id="refreshBtn" type="button">Refresh</button>
+    </div>
+  </div>
+
+  <section class="panel" aria-live="polite">
+    <div id="list"></div>
+    <div class="empty" id="empty" hidden></div>
+  </section>
+
+  <div class="list-foot">
+    <span id="count"></span>
+    <button class="btn btn-sm" id="moreBtn" type="button" hidden>Show more</button>
+  </div>
+</main>
+
+<div class="overlay" id="modal" aria-hidden="true">
+  <div class="dialog wide" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h3 id="modalTitle">Add article</h3>
+
+    <div class="dropzone" id="dropzone">
+      <button class="btn btn-sm" type="button" id="pickFileBtn">Choose file</button>
+      <span class="hint">or drop a .txt / .md file here (max 200 KB). A first line like <code># Title</code> becomes the title.</span>
+      <input type="file" id="fileInput" accept=".txt,.md,text/plain,text/markdown" hidden />
+      <div class="ok-text" id="upload-info" style="flex-basis:100%"></div>
+      <div class="err-text" id="upload-error" style="flex-basis:100%"></div>
+    </div>
+
+    <div class="field" id="fld-title">
+      <label for="f-title">Title</label>
+      <input class="input" type="text" id="f-title" maxlength="200" placeholder="VPN authentication fails after password change" data-autofocus />
+      <div class="err-text" id="e-title"></div>
+    </div>
+
+    <div class="row2">
+      <div class="field" id="fld-category">
+        <label for="f-category">Category</label>
+        <select class="select" id="f-category"></select>
+        <div class="err-text" id="e-category"></div>
+      </div>
+      <div class="field" id="fld-security_level">
+        <label for="f-security">Security level</label>
+        <select class="select" id="f-security"></select>
+        <div class="err-text" id="e-security_level"></div>
+      </div>
+    </div>
+
+    <div class="field" id="fld-service">
+      <label for="f-service">Service</label>
+      <input class="input" type="text" id="f-service" list="serviceList" placeholder="general" />
+      <datalist id="serviceList"></datalist>
+      <div class="hint">Lowercase, for example video-conferencing. Retrieval can filter on it.</div>
+      <div class="err-text" id="e-service"></div>
+    </div>
+
+    <div class="field" id="fld-body">
+      <label for="f-body">Article text</label>
+      <textarea class="textarea" id="f-body" placeholder="## Resolution&#10;1. Clear the saved VPN credentials.&#10;2. Sign in again with the new password."></textarea>
+      <div class="hint"><span id="bodyCount">0</span> / 50,000 characters. Start sections with <code>##</code> headings.</div>
+      <div class="err-text" id="e-body"></div>
+    </div>
+
+    <div class="err-text" id="f-error"></div>
+
+    <div class="dialog-actions">
+      <label class="check"><input type="checkbox" id="syncAfter" checked /> Update Vector DB after saving</label>
+      <div class="right">
+        <button class="btn" type="button" id="modalCancel">Cancel</button>
+        <button class="btn btn-primary" type="button" id="modalSubmit">Save to ServiceNow</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="kb.js"></script>
+</body>
+</html>
