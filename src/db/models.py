@@ -9,6 +9,8 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    DDL,
+    event,
 )
 
 from src.db.database import Base
@@ -280,3 +282,25 @@ class RetryState(Base):
         DateTime(timezone=True),
         nullable=True
     )
+
+
+# ==========================================
+# Database Triggers & DDL
+# ==========================================
+
+approval_trigger_ddl = DDL("""
+CREATE OR REPLACE FUNCTION prevent_approval_modification() RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'approval records are immutable';
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS approval_immutable ON approvals;
+
+CREATE TRIGGER approval_immutable
+BEFORE UPDATE OR DELETE ON approvals
+FOR EACH ROW EXECUTE FUNCTION prevent_approval_modification();
+""")
+
+# Tell SQLAlchemy to run this SQL immediately after creating the 'approvals' table
+event.listen(Approval.__table__, 'after_create', approval_trigger_ddl)

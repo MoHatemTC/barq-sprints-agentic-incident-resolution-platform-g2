@@ -8,21 +8,27 @@ from src.agent.nodes.retrieve import retrieve_node
 @patch("src.agent.nodes.load.ServiceNowClient")
 def test_load_node(mock_sn_client_class):
     mock_instance = mock_sn_client_class.return_value
+    # 1. Setup the mock to return the enriched data from ServiceNow
     mock_instance.get_incident.return_value = {
-        "sys_id": "abc123",
-        "short_description": "Network down"
+        "sys_id": "abc123",  
+        "short_description": "Network down",
+        "priority": "1" # Adding an extra field to prove the merge worked
     }
-
+    
+    # 2. Add the sys_id to the incoming state payload
     state = {
-        "sys_id": "INC0001", 
-        "short_description": "Network down"
+        "incident_number": "INC0001",
+        "incident_payload": {
+            "sys_id": "abc123"
+        }
     }
-
-    state = {"incident_number": "INC0001"}
+        
     result = load_node(state)
-    assert result["incident_payload"]["sys_id"] == "INC0001"
-    assert result["incident_payload"]["status"] == "loaded"
+    
+    # 3. Assertions
+    assert result["incident_payload"]["sys_id"] == "abc123"
     assert result["incident_payload"]["short_description"] == "Network down"
+    assert result["incident_payload"]["status"] == "loaded"
 
 def test_determine_risk_node_normal():
     state = {"incident_payload": {"description": "Server reboot requested."}}
