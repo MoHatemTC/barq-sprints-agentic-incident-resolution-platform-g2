@@ -23,13 +23,11 @@ def route_after_risk(state: AgentState) -> str:
         return "interrupt"
     return "retrieve"
 
-
 def route_after_retrieve(state: AgentState) -> str:
     """No evidence (empty or retrieval failed) -> human path, else continue."""
     if not state.get("retrieved_evidence"):
         return "interrupt"
     return "diagnose"
-
 
 def route_after_confidence(state: AgentState) -> str:
     """Route low-confidence results to interrupt; high-confidence to act."""
@@ -41,6 +39,9 @@ def route_after_confidence(state: AgentState) -> str:
 
 def create_graph():
     workflow = StateGraph(AgentState)
+
+
+    # Add all 11 nodes + interrupt
 
     workflow.add_node("load", load_node)
     workflow.add_node("validate", validate_node)
@@ -55,8 +56,10 @@ def create_graph():
     workflow.add_node("interrupt", interrupt_node)
     workflow.add_node("act", act_node)
 
+    # Entry point
     workflow.set_entry_point("load")
 
+    # Standard sequence: load -> validate -> classify -> determine_risk
     workflow.add_edge("load", "validate")
     workflow.add_edge("validate", "classify")
     workflow.add_edge("classify", "determine_risk")
@@ -73,15 +76,20 @@ def create_graph():
         {"diagnose": "diagnose", "interrupt": "interrupt"},
     )
 
+
     workflow.add_edge("diagnose", "generate")
     workflow.add_edge("generate", "verify_evidence")
     workflow.add_edge("verify_evidence", "safety_check")
     workflow.add_edge("safety_check", "confidence_check")
 
+    # Conditional edge after confidence: below floor -> interrupt, above -> act
     workflow.add_conditional_edges(
         "confidence_check",
         route_after_confidence,
-        {"interrupt": "interrupt", "act": "act"},
+        {
+            "interrupt": "interrupt",
+            "act": "act",
+        },
     )
 
     workflow.add_edge("interrupt", END)
@@ -94,4 +102,6 @@ def compile_graph(checkpointer=None):
     workflow = create_graph()
     if checkpointer:
         return workflow.compile(checkpointer=checkpointer)
+
     return workflow.compile()
+

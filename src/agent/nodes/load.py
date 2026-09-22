@@ -26,3 +26,4 @@ def load_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     payload["status"] = "loaded"
     return {"incident_payload": payload}
+

@@ -11,7 +11,7 @@ def test_llm_singletons():
     emb1 = get_embeddings()
     emb2 = get_embeddings()
     assert emb1 is emb2
-    
+
 @patch("src.agent.checkpointer.PostgresSaver")
 @patch("src.agent.checkpointer.ConnectionPool")
 def test_checkpointer_initialization(mock_pool_cls, mock_saver_cls):

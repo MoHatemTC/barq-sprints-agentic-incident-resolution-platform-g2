@@ -7,7 +7,6 @@ from src.retrieval.filters import RetrievalFilters
 
 logger = logging.getLogger(__name__)
 
-
 @trace_node(name="retrieve", observation_type="retriever")
 def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Execute hybrid retrieval. Returns an empty list when nothing is found."""

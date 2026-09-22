@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import patch, MagicMock
 
 from src.agent.graph import create_graph
@@ -25,6 +26,7 @@ def test_graph_routing_normal_risk(mock_search):
     result = graph.invoke(initial_state)
 
     assert result["action_taken"] == "resolved_automatically"
+    assert result["risk"] == "low"  # Kept from incoming branch
 
 
 @patch("src.agent.nodes.retrieve.search", return_value=[])
@@ -55,3 +57,22 @@ def test_graph_routes_to_interrupt_when_retrieval_fails(mock_search):
     assert result["action_taken"] == "interrupted:retrieval_failed"
     assert result["human_review_required"] is True
     assert result["failure_reason"] == "retrieval_failed"
+
+
+def test_graph_routing_high_risk():
+    """High-risk incident should skip retrieval and go to interrupt."""
+    graph = create_graph().compile()
+
+    initial_state = {
+        "execution_id": "test_4",  # Updated to 4 to avoid conflict with test_2 above
+        "incident_number": "INC_TEST_04",
+        "incident_payload": {"description": "this is a high-risk task"}, # Standardized to "description"
+    }
+
+    result = graph.invoke(initial_state)
+
+    # High risk routes to interrupt, NOT act
+    assert result["action_taken"] == "interrupted:high_risk_incident"
+    assert result["risk"] == "high"
+    # Should NOT have retrieved evidence (skipped retrieval entirely)
+    assert result.get("retrieved_evidence") is None

@@ -1,6 +1,6 @@
 import json
 from typing import Dict, Any
-from src.observability.tracing import trace_node
+from src.observability.tracing import get_llm_callback, trace_node
 from src.agent.llm import get_llm
 
 @trace_node(name="classify", observation_type="generation")
@@ -36,7 +36,9 @@ def classify_node(state: Dict[str, Any]) -> Dict[str, Any]:
     Respond with ONLY the exact category name from the list above. Do not add any extra text.
     """
     
-    response = llm.invoke(prompt)
+
+    response = llm.invoke(prompt, config={"callbacks": get_llm_callback()})
+
     content = response.content if hasattr(response, "content") else str(response)
     
     classification = content.strip().lower()

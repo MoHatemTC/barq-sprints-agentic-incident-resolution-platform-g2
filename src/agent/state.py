@@ -1,6 +1,5 @@
 from typing import TypedDict, Any, List, Dict, Optional
 
-
 class AgentState(TypedDict, total=False):
     incident_payload: Dict[str, Any]
     retrieved_evidence: List[Dict[str, Any]]

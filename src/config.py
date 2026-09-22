@@ -102,6 +102,7 @@ class ChunkingConfig:
 
 
 def _csv_env(name: str, default: str) -> tuple[str, ...]:
+
     raw = os.environ.get(name, default)
     return tuple(item.strip() for item in raw.split(",") if item.strip())
 
@@ -151,6 +152,7 @@ class RetrievalConfig:
 
 
 def _csv_env(name: str, default: str) -> tuple[str, ...]:
+
     """Read a comma-separated env var into a tuple, e.g. "a, b" -> ("a", "b")."""
     raw = os.environ.get(name, default)
     return tuple(item.strip() for item in raw.split(",") if item.strip())
@@ -241,6 +243,9 @@ class WorkerConfig:
         cls,
         environment: Mapping[str, str] | None = None,
     ) -> "WorkerConfig":
+
+        """Build worker settings from an environment mapping."""
+
         env = os.environ if environment is None else environment
         config = cls(
             broker_url=_required_worker_text(env, "CELERY_BROKER_URL"),
