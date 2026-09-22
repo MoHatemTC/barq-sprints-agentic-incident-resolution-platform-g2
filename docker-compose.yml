@@ -54,6 +54,36 @@ services:
     env_file:
       - .env
 
+  worker:
+    build: .
+    command: python run_worker.py
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+
+  consumer:
+    build: .
+    command: python run_consumer.py
+    environment:
+      POSTGRES_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_started
+    env_file:
+      - .env
+
 volumes:
   qdrant_data:
   pg_data:
