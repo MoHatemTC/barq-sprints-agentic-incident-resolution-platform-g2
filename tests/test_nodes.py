@@ -5,6 +5,15 @@ from src.agent.nodes.load import load_node
 from src.agent.nodes.determine_risk import determine_risk_node
 from src.agent.nodes.retrieve import retrieve_node
 
+
+def _mock_llm_response(content: str) -> MagicMock:
+    mock_llm = MagicMock()
+    mock_response = MagicMock()
+    mock_response.content = content
+    mock_llm.invoke.return_value = mock_response
+    return mock_llm
+
+
 @patch("src.agent.nodes.load.ServiceNowClient")
 def test_load_node(mock_sn_client_class):
     mock_instance = mock_sn_client_class.return_value
@@ -30,12 +39,16 @@ def test_load_node(mock_sn_client_class):
     assert result["incident_payload"]["short_description"] == "Network down"
     assert result["incident_payload"]["status"] == "loaded"
 
-def test_determine_risk_node_normal():
+@patch("src.agent.nodes.determine_risk.get_llm")
+def test_determine_risk_node_normal(mock_get_llm):
+    mock_get_llm.return_value = _mock_llm_response("low")
     state = {"incident_payload": {"description": "Server reboot requested."}}
     result = determine_risk_node(state)
     assert result["risk"] == "low"
 
-def test_determine_risk_node_high():
+@patch("src.agent.nodes.determine_risk.get_llm")
+def test_determine_risk_node_high(mock_get_llm):
+    mock_get_llm.return_value = _mock_llm_response("high")
     state = {"incident_payload": {"description": "high-risk data center wipe"}}
     result = determine_risk_node(state)
     assert result["risk"] == "high"
@@ -416,3 +429,208 @@ def test_generate_node_no_revision_when_critic_passed(mock_get_llm):
     # Revision-mode prompt would include "PREVIOUS DRAFT" — it must not be present
     assert "PREVIOUS DRAFT" not in prompt
     assert "CRITIC FEEDBACK" not in prompt
+
+
+# ---------------------------------------------------------------------------
+# Mini-Task 4 — Critic / Verifier Agent tests
+# ---------------------------------------------------------------------------
+
+from src.agent.nodes.verify_evidence import (
+    verify_evidence_node,
+    _extract_steps,
+    _build_evidence_index,
+    _structural_check,
+    _parse_critic_response,
+)
+
+_CRITIC_EVIDENCE = [
+    {"id": "KB0010", "text": "Restart the VPN gateway using admin console.", "score": 0.91},
+    {"id": "KB0011", "text": "Verify tunnel status in monitoring dashboard.", "score": 0.83},
+]
+
+_GOOD_RESOLUTION = (
+    "1. Restart the VPN gateway using the admin console. [Source: KB0010]\n"
+    "2. Check tunnel status via dashboard. [Source: KB0011]"
+)
+
+_BAD_RESOLUTION_MISSING_KB = (
+    "1. Restart the VPN gateway. [Source: KB9999]\n"  # KB9999 not in evidence
+    "2. Check tunnel status. [Source: KB0011]"
+)
+
+_RESOLUTION_NO_CITATION = (
+    "1. Restart the VPN gateway.\n"   # no citation
+    "2. Check tunnel status. [Source: KB0011]"
+)
+
+_PASSING_VERDICT_JSON = """{
+  "passed": true,
+  "feedback": "",
+  "invalid_steps": [],
+  "citation_findings": [
+    {"step_num": 1, "citation_id": "KB0010", "found_in_evidence": true, "plausible": true, "reason": "Directly supported."},
+    {"step_num": 2, "citation_id": "KB0011", "found_in_evidence": true, "plausible": true, "reason": "Directly supported."}
+  ]
+}"""
+
+_FAILING_VERDICT_JSON = """{
+  "passed": false,
+  "feedback": "Step 1 citation KB0010 does not plausibly support the claim.",
+  "invalid_steps": [1],
+  "citation_findings": [
+    {"step_num": 1, "citation_id": "KB0010", "found_in_evidence": true, "plausible": false, "reason": "Evidence unrelated."},
+    {"step_num": 2, "citation_id": "KB0011", "found_in_evidence": true, "plausible": true, "reason": "Directly supported."}
+  ]
+}"""
+
+
+# --- Unit tests for helper functions ---
+
+def test_extract_steps_numbered():
+    """Steps must be parsed correctly from a numbered resolution."""
+    steps = _extract_steps(_GOOD_RESOLUTION)
+    assert len(steps) == 2
+    assert steps[0]["step_num"] == 1
+    assert steps[1]["step_num"] == 2
+    assert "KB0010" in steps[0]["citations"]
+    assert "KB0011" in steps[1]["citations"]
+
+
+def test_extract_steps_no_citations():
+    """Steps without [Source:...] must have empty citations list."""
+    steps = _extract_steps("1. Do something.\n2. Do something else.")
+    assert steps[0]["citations"] == []
+    assert steps[1]["citations"] == []
+
+
+def test_build_evidence_index():
+    """Index must map each evidence ID to its text."""
+    idx = _build_evidence_index(_CRITIC_EVIDENCE)
+    assert "KB0010" in idx
+    assert "KB0011" in idx
+    assert "gateway" in idx["KB0010"].lower()
+
+
+def test_structural_check_passes_valid_citations():
+    """All-valid citations must return structural_ok=True."""
+    steps = _extract_steps(_GOOD_RESOLUTION)
+    idx = _build_evidence_index(_CRITIC_EVIDENCE)
+    ok, invalid, findings = _structural_check(steps, idx)
+    assert ok is True
+    assert invalid == []
+
+
+def test_structural_check_fails_missing_kb():
+    """A citation to a KB ID not in evidence must make structural check fail."""
+    steps = _extract_steps(_BAD_RESOLUTION_MISSING_KB)
+    idx = _build_evidence_index(_CRITIC_EVIDENCE)
+    ok, invalid, findings = _structural_check(steps, idx)
+    assert ok is False
+    assert 1 in invalid
+
+
+def test_structural_check_fails_missing_citation():
+    """A step with no citation must make structural check fail."""
+    steps = _extract_steps(_RESOLUTION_NO_CITATION)
+    idx = _build_evidence_index(_CRITIC_EVIDENCE)
+    ok, invalid, findings = _structural_check(steps, idx)
+    assert ok is False
+    assert 1 in invalid
+
+
+def test_parse_critic_response_valid():
+    parsed = _parse_critic_response(_PASSING_VERDICT_JSON)
+    assert parsed["passed"] is True
+    assert parsed["invalid_steps"] == []
+    assert isinstance(parsed["citation_findings"], list)
+
+
+def test_parse_critic_response_fallback():
+    """Non-JSON critic response must return a safe FAIL verdict."""
+    parsed = _parse_critic_response("I cannot verify this.")
+    assert parsed["passed"] is False
+    assert "unparseable" in parsed["feedback"]
+
+
+# --- Node-level tests ---
+
+@patch("src.agent.nodes.verify_evidence.get_llm")
+def test_critic_passes_when_all_citations_valid_and_plausible(mock_get_llm):
+    """Critic must return passed=True when LLM confirms all citations."""
+    mock_get_llm.return_value = _make_llm_mock(_PASSING_VERDICT_JSON)
+    state = {
+        "retrieved_evidence": _CRITIC_EVIDENCE,
+        "outputs": {"resolution": _GOOD_RESOLUTION},
+    }
+    result = verify_evidence_node(state)
+    assert result["critic_verdict"]["passed"] is True
+    assert result["outputs"]["verification_passed"] is True
+
+
+@patch("src.agent.nodes.verify_evidence.get_llm")
+def test_critic_fails_when_citation_missing_from_evidence(mock_get_llm):
+    """Critic must NOT call LLM and must return passed=False for unknown KB IDs."""
+    mock_llm = _make_llm_mock(_PASSING_VERDICT_JSON)
+    mock_get_llm.return_value = mock_llm
+    state = {
+        "retrieved_evidence": _CRITIC_EVIDENCE,
+        "outputs": {"resolution": _BAD_RESOLUTION_MISSING_KB},
+    }
+    result = verify_evidence_node(state)
+    # Structural failure — LLM must NOT be called
+    mock_llm.invoke.assert_not_called()
+    assert result["critic_verdict"]["passed"] is False
+    assert result["outputs"]["verification_passed"] is False
+
+
+@patch("src.agent.nodes.verify_evidence.get_llm")
+def test_critic_returns_structured_verdict(mock_get_llm):
+    """Critic verdict must contain all four required keys."""
+    mock_get_llm.return_value = _make_llm_mock(_PASSING_VERDICT_JSON)
+    state = {
+        "retrieved_evidence": _CRITIC_EVIDENCE,
+        "outputs": {"resolution": _GOOD_RESOLUTION},
+    }
+    result = verify_evidence_node(state)
+    verdict = result["critic_verdict"]
+    assert "passed" in verdict
+    assert "feedback" in verdict
+    assert "invalid_steps" in verdict
+    assert "citation_findings" in verdict
+
+
+@patch("src.agent.nodes.verify_evidence.get_llm")
+def test_critic_fails_no_citation_in_step(mock_get_llm):
+    """A step with no [Source:...] citation must fail without calling the LLM."""
+    mock_llm = _make_llm_mock(_PASSING_VERDICT_JSON)
+    mock_get_llm.return_value = mock_llm
+    state = {
+        "retrieved_evidence": _CRITIC_EVIDENCE,
+        "outputs": {"resolution": _RESOLUTION_NO_CITATION},
+    }
+    result = verify_evidence_node(state)
+    mock_llm.invoke.assert_not_called()
+    assert result["critic_verdict"]["passed"] is False
+
+
+@patch("src.agent.nodes.verify_evidence.get_llm")
+def test_critic_does_not_rewrite_resolution(mock_get_llm):
+    """Critic must not modify outputs['resolution']."""
+    mock_get_llm.return_value = _make_llm_mock(_PASSING_VERDICT_JSON)
+    state = {
+        "retrieved_evidence": _CRITIC_EVIDENCE,
+        "outputs": {"resolution": _GOOD_RESOLUTION},
+    }
+    result = verify_evidence_node(state)
+    assert result["outputs"]["resolution"] == _GOOD_RESOLUTION
+
+
+def test_critic_fails_gracefully_on_empty_resolution():
+    """Empty resolution must return passed=False without crashing."""
+    state = {
+        "retrieved_evidence": _CRITIC_EVIDENCE,
+        "outputs": {"resolution": ""},
+    }
+    result = verify_evidence_node(state)
+    assert result["critic_verdict"]["passed"] is False
+    assert result["outputs"]["verification_passed"] is False

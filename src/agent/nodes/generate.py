@@ -92,7 +92,7 @@ def generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
     is_revision = (
         critic_verdict is not None
         and not critic_verdict.get("passed", True)
-        and revision_count > 0
+        and bool(outputs.get("resolution"))
     )
 
     if is_revision:
