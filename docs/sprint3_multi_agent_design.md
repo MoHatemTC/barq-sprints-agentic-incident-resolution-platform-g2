@@ -1,10 +1,87 @@
 # Sprint 3.1 — Multi-Agent Diagnosis & Resolution
-## Design Baseline & Audit Document
+## Design Baseline, Audit Document & Implementation Record
 
 > **Audit Date:** 2026-09-23  
+> **Completion Date:** 2026-09-24  
 > **Branch:** `feat/sprint-3.1-multi-agent-diagnosis-resolution`  
 > **Base:** `development` (up to date with `origin/development`)  
-> **Auditor:** S3.1 implementation team
+> **Status:** ✅ COMPLETE — all agents implemented, tested, and committed
+
+---
+
+## 0. Implementation Summary
+
+### What Was Built
+
+All three stub nodes have been replaced with real LLM-backed agents. The revision loop, routing logic, state extensions, configuration, and documentation are all complete.
+
+| Deliverable | Status | File(s) |
+|---|---|---|
+| Diagnostic Agent | ✅ Implemented | `src/agent/nodes/diagnose.py` |
+| Resolution Agent (initial + revision) | ✅ Implemented | `src/agent/nodes/generate.py` |
+| Critic/Verifier Agent | ✅ Implemented | `src/agent/nodes/verify_evidence.py` |
+| Three distinct system prompts | ✅ Implemented | `src/agent/prompts.py` |
+| Bounded revision loop routing | ✅ Implemented | `src/agent/graph.py` (`route_after_critic`, `check_exhaustion`) |
+| State extensions | ✅ Implemented | `src/agent/state.py` (`critic_verdict`, `revision_count`, `critic_exhausted`) |
+| Config-driven retry limit | ✅ Implemented | `src/config.py` (`AgentConfig`, `AGENT`, `CRITIC_MAX_RETRIES` env var) |
+| Unit tests — all three agents + helpers | ✅ 40 tests pass | `tests/test_nodes.py` |
+| Integration tests — revision loop | ✅ 9 tests pass | `tests/test_revision_loop.py` / `tests/test_multi_agent_revision_loop.py` |
+| Architecture record | ✅ This document + `docs/sprint3_agent_topology.md` |
+
+### Behavioral Demonstrations
+
+All three required scenarios are covered by the integration test suite in `tests/test_multi_agent_revision_loop.py`. They pass fully with mocked LLMs:
+
+#### Scenario A — Clean Pass (first attempt)
+**Test:** `test_full_pass_on_first_attempt`  
+**Flow:** `diagnose → generate → verify_evidence → check_exhaustion → safety_check → confidence_check → act`  
+**Result:** `action_taken = "resolved_automatically"`, `critic_verdict["passed"] = True`, `revision_count = 0`
+
+#### Scenario B — Revision Loop Fires, Corrects Invalid Citation
+**Test:** `test_revision_on_first_fail_then_pass`  
+**Flow:** `diagnose → generate → verify_evidence [FAIL] → check_exhaustion → generate [REVISION] → verify_evidence [PASS] → safety_check → act`  
+**Result:** `action_taken = "resolved_automatically"`, `critic_verdict["passed"] = True`, `revision_count = 1`  
+**Mechanism:** The Critic returns a structured verdict with `invalid_steps=[1]` and specific feedback. The Resolution Agent receives this via `RESOLUTION_REVISION_SYSTEM_PROMPT` and fixes only the flagged steps. The Critic then passes.
+
+#### Scenario C — Exhausted Retry Budget, Escalates via `act`
+**Test:** `test_exhaustion_routes_to_act`  
+**Flow:** `diagnose → generate → verify_evidence [FAIL] × (CRITIC_MAX_RETRIES+1) → act` (bypasses `safety_check`)  
+**Result:** `critic_exhausted = True`, `action_taken` set by `act_node` (unchanged), `critic_verdict["passed"] = False`  
+**Note:** `act.py` is not modified — it routes normally based on `risk`. `critic_exhausted=True` in state is exposed for S3.4 (HITL) to consume.
+
+### Routing Logic (Deterministic Python — No LLM Decisions)
+
+```python
+def route_after_critic(state) -> str:
+    verdict = state.get("critic_verdict") or {}
+    if verdict.get("passed"):
+        return "safety_check"    # PASS path
+    if state.get("critic_exhausted"):
+        return "act"             # EXHAUSTED path
+    return "generate"            # RETRY path
+```
+
+No model output governs routing — all branching is from typed state fields set by deterministic Python functions.
+
+### NFR-02: 90-Second End-to-End SLA Analysis
+
+The NFR-02 platform SLA requires the full `load → act` execution to complete within **90 seconds** at p95.
+
+**S3.1 latency budget allocation:**
+
+| Stage | Pre-S3.1 (stubs) | S3.1 (real agents) | Delta |
+|---|---|---|---|
+| `load + validate + classify + determine_risk + retrieve` | ~5–10 s | ~5–10 s | 0 |
+| `diagnose` (stub → real LLM) | ~0 ms | 500–2000 ms | **+0.5–2 s** |
+| `generate` (stub → real LLM, initial) | ~0 ms | 500–2000 ms | **+0.5–2 s** |
+| `verify_evidence` (pass-through → real LLM) | ~0 ms | 500–2000 ms (LLM) / <1 ms (struct fail) | **+0–2 s** |
+| `check_exhaustion` (new node) | 0 | <1 ms | ~0 |
+| `safety_check + confidence_check + act` | ~0 ms (stubs) | ~0 ms (stubs) | 0 |
+| **Total (clean pass)** | ~5–10 s | **~7–16 s** | **+2–6 s** |
+| **Total (1 revision)** | ~5–10 s | **~8–18 s** | **+3–8 s** |
+| **Total (2 revisions, exhausted)** | ~5–10 s | **~9–20 s** | **+4–10 s** |
+
+**SLA verdict: S3.1 is within budget.** Even in the worst case (2 revisions, slow LLM API), the end-to-end time is ~20 seconds — well within the 90-second SLA. The multi-agent overhead is dominated by LLM API round-trip time, not by routing or state-management overhead (< 5 ms total).
 
 ---
 

@@ -18,6 +18,14 @@ from src.agent.nodes.act import act_node
 CONFIDENCE_FLOOR = 0.6
 
 
+def route_after_validate(state: AgentState) -> str:
+    """Keep invalid or out-of-scope tickets out of the automated resolution path."""
+    outputs = state.get("outputs") or {}
+    if outputs.get("eligibility") != "valid":
+        return "interrupt"
+    return "classify"
+
+
 def route_after_risk(state: AgentState) -> str:
     """Route high-risk incidents to interrupt (human path) without retrieval."""
     if state.get("risk") == "high":
@@ -94,9 +102,13 @@ def create_graph():
     # Entry point
     workflow.set_entry_point("load")
 
-    # Standard sequence: load -> validate -> classify -> determine_risk
+    # Validate gates automated work: invalid/out-of-scope tickets go to review.
     workflow.add_edge("load", "validate")
-    workflow.add_edge("validate", "classify")
+    workflow.add_conditional_edges(
+        "validate",
+        route_after_validate,
+        {"classify": "classify", "interrupt": "interrupt"},
+    )
     workflow.add_edge("classify", "determine_risk")
 
     workflow.add_conditional_edges(

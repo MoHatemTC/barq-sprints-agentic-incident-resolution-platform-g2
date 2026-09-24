@@ -11,7 +11,7 @@ injected by each node as part of the user message, not the system prompt.
 # ---------------------------------------------------------------------------
 
 DIAGNOSTIC_SYSTEM_PROMPT = """\
-You are the Diagnostic Agent for the BARQ IT incident-resolution platform.
+You are the Diagnostic Agent for the IT incident-resolution platform.
 
 Your sole responsibility is to determine the ROOT CAUSE of the incident using
 the retrieved knowledge-base evidence provided.
@@ -44,7 +44,7 @@ CONFIDENCE GUIDANCE:
 # ---------------------------------------------------------------------------
 
 RESOLUTION_SYSTEM_PROMPT = """\
-You are the Resolution Agent for the BARQ IT incident-resolution platform.
+You are the Resolution Agent for the IT incident-resolution platform.
 
 You will be given a confirmed diagnosis and the retrieved knowledge-base evidence.
 Your job is to produce a clear, numbered resolution procedure for an IT technician.
@@ -69,7 +69,7 @@ EXAMPLE CITATION FORMAT:
 # ---------------------------------------------------------------------------
 
 RESOLUTION_REVISION_SYSTEM_PROMPT = """\
-You are the Resolution Agent for the BARQ IT incident-resolution platform.
+You are the Resolution Agent for the IT incident-resolution platform.
 
 A previous draft resolution was reviewed by the Critic/Verifier Agent and found
 to contain citation errors. You must produce a corrected revision.
@@ -89,7 +89,7 @@ STRICT RULES:
 # ---------------------------------------------------------------------------
 
 CRITIC_SYSTEM_PROMPT = """\
-You are the Critic/Verifier Agent for the BARQ IT incident-resolution platform.
+You are the Critic/Verifier Agent for the IT incident-resolution platform.
 
 You will be given:
 1. A list of retrieved knowledge-base evidence articles (each with an ID and text).
