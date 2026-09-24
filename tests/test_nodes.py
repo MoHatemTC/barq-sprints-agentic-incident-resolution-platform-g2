@@ -57,3 +57,42 @@ def test_retrieve_node(mock_search):
     assert result["retrieved_evidence"][0]["score"] == 0.99
     assert result["retrieved_evidence"][0]["text"] == "Reboot the router"
 
+from src.agent.nodes.safety_check import safety_check_node
+
+def test_safety_check_node_valid():
+    state = {
+        "outputs": {
+            "resolution_text": "Restart the router.",
+            "proposed_action": "update_incident"
+        },
+        "confidence": 0.95
+    }
+    result = safety_check_node(state)
+    assert result["confidence"] == 0.95
+    assert "action_taken" not in result
+
+def test_safety_check_node_invalid_action():
+    state = {
+        "outputs": {
+            "resolution_text": "Restart the router.",
+            "proposed_action": "delete_incident"
+        },
+        "confidence": 0.95
+    }
+    result = safety_check_node(state)
+    assert result["confidence"] == 0.0
+    assert result["action_taken"] == "blocked_by_guardrail"
+    assert "ACTION_BLOCKED" in result["failure_reason"]
+
+def test_safety_check_node_invalid_content():
+    state = {
+        "outputs": {
+            "resolution_text": "Use password=admin123 to login.",
+            "proposed_action": "update_incident"
+        },
+        "confidence": 0.95
+    }
+    result = safety_check_node(state)
+    assert result["confidence"] == 0.0
+    assert result["action_taken"] == "blocked_by_guardrail"
+    assert "OUTPUT_CONTENT_FLAGGED" in result["failure_reason"]

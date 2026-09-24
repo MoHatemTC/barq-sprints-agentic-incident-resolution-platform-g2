@@ -86,6 +86,102 @@ def _build_points(articles: list[Article]) -> list[PointStruct]:
     return points
 
 
+def load_stressors(base_dir: str = "data/corpus/stressors") -> list[Article]:
+    """Load stressor documents using the available extractors."""
+    import os
+    import glob
+    
+    articles = []
+    
+    # 1. OCR
+    ocr_dir = os.path.join(base_dir, "ocr")
+    if os.path.exists(ocr_dir):
+        try:
+            from .extractors.ocr import extract_ocr
+            for file_path in glob.glob(os.path.join(ocr_dir, "*.*")):
+                if not os.path.isfile(file_path):
+                    continue
+                try:
+                    res = extract_ocr(file_path)
+                    # Embed provenance metadata into the text to preserve the payload schema
+                    # or just keep it simple. Let's append provenance to the body.
+                    prov_str = "\n\n--- OCR PROVENANCE ---\n" + "\n".join(f"{k}: {v}" for k, v in res.provenance.items())
+                    body_with_prov = res.text + prov_str
+                    
+                    articles.append(Article(
+                        sys_id=f"stressor_ocr_{os.path.basename(file_path)}",
+                        number=f"STR-OCR-{os.path.basename(file_path)[:10]}",
+                        article_id=f"STR-OCR-{os.path.basename(file_path)[:10]}",
+                        title=f"OCR Stressor: {os.path.basename(file_path)}",
+                        body=body_with_prov,
+                        category="stressor",
+                        service="infrastructure",
+                        workflow_state="published",
+                        version=1,
+                        security_level="internal"
+                    ))
+                except Exception as e:
+                    print(f"Failed to extract OCR stressor {file_path}: {e}")
+        except ImportError:
+            pass
+
+    # 2. Tables
+    tables_dir = os.path.join(base_dir, "tables")
+    if os.path.exists(tables_dir):
+        try:
+            from .extractors.tables import extract_tables
+            for file_path in glob.glob(os.path.join(tables_dir, "*.*")):
+                if not os.path.isfile(file_path):
+                    continue
+                try:
+                    res = extract_tables(file_path)
+                    articles.append(Article(
+                        sys_id=f"stressor_tbl_{os.path.basename(file_path)}",
+                        number=f"STR-TBL-{os.path.basename(file_path)[:10]}",
+                        article_id=f"STR-TBL-{os.path.basename(file_path)[:10]}",
+                        title=f"Table Stressor: {os.path.basename(file_path)}",
+                        body=res.text,
+                        category="stressor",
+                        service="infrastructure",
+                        workflow_state="published",
+                        version=1,
+                        security_level="internal"
+                    ))
+                except Exception as e:
+                    print(f"Failed to extract table stressor {file_path}: {e}")
+        except ImportError:
+            pass
+
+    # 3. Layouts
+    layouts_dir = os.path.join(base_dir, "layouts")
+    if os.path.exists(layouts_dir):
+        try:
+            from .extractors.layout import extract_layout
+            for file_path in glob.glob(os.path.join(layouts_dir, "*.*")):
+                if not os.path.isfile(file_path):
+                    continue
+                try:
+                    res = extract_layout(file_path)
+                    articles.append(Article(
+                        sys_id=f"stressor_lay_{os.path.basename(file_path)}",
+                        number=f"STR-LAY-{os.path.basename(file_path)[:10]}",
+                        article_id=f"STR-LAY-{os.path.basename(file_path)[:10]}",
+                        title=f"Layout Stressor: {os.path.basename(file_path)}",
+                        body=res.text,
+                        category="stressor",
+                        service="infrastructure",
+                        workflow_state="published",
+                        version=1,
+                        security_level="internal"
+                    ))
+                except Exception as e:
+                    print(f"Failed to extract layout stressor {file_path}: {e}")
+        except ImportError:
+            pass
+            
+    return articles
+
+
 def ingest_articles(source: str = "local", json_path: str = None) -> dict:
     """
     source: "local" (test path, reads json_path or PATHS.corpus_json) or
@@ -98,6 +194,10 @@ def ingest_articles(source: str = "local", json_path: str = None) -> dict:
 
     if source == "local":
         articles = load_articles_from_json(json_path or PATHS.corpus_json)
+        # S2.6 RAG Corpus Hardening: Include stressors during local ingest
+        stressors = load_stressors()
+        articles.extend(stressors)
+        print(f"Loaded {len(articles) - len(stressors)} baseline articles and {len(stressors)} stressors.")
     elif source == "servicenow":
         from .sources.servicenow_source import load_articles_from_servicenow
         articles = load_articles_from_servicenow()
