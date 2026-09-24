@@ -18,6 +18,7 @@ cp .env.example .env
 | `SERVICENOW_OAUTH_CLIENT_SECRET` | Same entry |
 | `SERVICENOW_OAUTH_USERNAME` | Integration user, never an admin account |
 | `SERVICENOW_OAUTH_PASSWORD` | Integration user password |
+| `SERVICENOW_OAUTH_SCOPE` | OAuth scope sent on the token request; defaults to `x_2215689_ai_inc_0` |
 | `INCIDENT_SYS_ID` | Test incident ID from URL, required only for integration tests |
 
 `config.py` raises on startup naming any variable that is missing or blank,
