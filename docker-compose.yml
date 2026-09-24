@@ -97,6 +97,18 @@ services:
     env_file:
       - .env
 
+  ui:
+    image: python:3.12-slim
+    command: python -m http.server 8080
+    working_dir: /app/ui
+    volumes:
+      - ./ui:/app/ui
+    ports:
+      - "8082:8080"
+
 volumes:
   qdrant_data:
   pg_data:
+
+
+
