@@ -549,8 +549,9 @@ def test_graph_routing_normal_risk(mock_search):
 *(Note: Please upload the screenshots to the docs folder and they will appear here)*
 
 **1. Clean Pass (No Revisions):**
-![Clean Pass Trace](clean_pass_trace.png)
+![Clean Pass Trace](langfuse/clean_pass_trace.png)
 
 **2. Active Revision Loop (Critic triggered retry):**
-![Revision Loop Trace](revision_loop_trace.png)
+![Revision Loop Trace](langfuse/revision_loop_trace.png)
+
 
