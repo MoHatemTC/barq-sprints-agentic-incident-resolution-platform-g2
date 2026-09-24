@@ -72,6 +72,7 @@ class ServiceNowConfig:
     oauth_client_secret: str = os.environ.get("SERVICENOW_OAUTH_CLIENT_SECRET", "")
     oauth_username: str = os.environ.get("SERVICENOW_OAUTH_USERNAME", "")
     oauth_password: str = os.environ.get("SERVICENOW_OAUTH_PASSWORD", "")
+    oauth_scope: str = os.environ.get("SERVICENOW_OAUTH_SCOPE", "x_2215689_ai_inc_0")
 
 
 @dataclass(frozen=True)

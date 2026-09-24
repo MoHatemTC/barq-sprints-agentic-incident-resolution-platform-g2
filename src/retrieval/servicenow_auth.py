@@ -37,6 +37,7 @@ class ServiceNowOAuthClient:
                 "client_secret": SERVICENOW.oauth_client_secret,
                 "username": SERVICENOW.oauth_username,
                 "password": SERVICENOW.oauth_password,
+                "scope": SERVICENOW.oauth_scope,
             },
             timeout=15,
         )
