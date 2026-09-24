@@ -21,6 +21,9 @@ PASSWORD = _required("SERVICENOW_OAUTH_PASSWORD")
 TIMEOUT = int(os.getenv("SERVICENOW_TIMEOUT", "30"))
 MAX_RETRIES = int(os.getenv("SERVICENOW_MAX_RETRIES", "1"))
 
+# the AI Incident Orchestrator knowledge base; empty = every KB in the instance
+KB_SYS_ID = os.getenv("SERVICENOW_KB_SYS_ID", "").strip()
+
 TOKEN_URL = f"{INSTANCE_URL}/oauth_token.do"
 TABLE_API = f"{INSTANCE_URL}/api/now/table"
 

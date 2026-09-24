@@ -1,12 +1,22 @@
 """
-Publishes the local knowledge base corpus (data/kb_dataset.json) into
-ServiceNow's kb_knowledge table via the Table API, authenticated with the
-OAuth integration identity from S1.2.
+Publishes the BARQ IT Service Desk Manual (data/BARQ_IT_Service_Desk_Manual_Ed5.1.pdf)
+into ServiceNow's kb_knowledge table via the Table API, authenticated with the
+OAuth integration identity from S1.2. The PDF is parsed by manual_parser.py;
+every section (76: chapters, KB articles, appendices) becomes one kb_knowledge
+record. eval/barq_rag_eval_dataset.json is NOT published -- it is the exam.
 
-Idempotency: kb_knowledge has no custom field for our article_number.
+Only published sections are sent. The retired (6.13 KB0010 v1) and archived
+(6.3) sections are skipped: retrieval must never return them, and the Table API
+cannot set a non-published workflow_state on this instance (the record stays
+draft and verification fails).
+
+Idempotency: kb_knowledge has no custom field for our section id.
 A local mapping file (data/servicenow_kb_mapping.json) tracks
-article_number -> sys_id. Re-runs compare mapped records first and skip exact
-matches, rather than PATCHing them unnecessarily.
+section_label -> sys_id. A new sys_id is saved the moment the record is
+created, so a run that fails part-way never re-creates it next time. Re-runs
+compare mapped records first and skip exact matches, rather than PATCHing them
+unnecessarily. A section that fails verification is reported in
+stats["failed"] and the run continues.
 
 Write verification reuses S1.5's _same() / ServiceNowWriteNotAppliedError
 (src/servicenow/client.py) against a fresh GET after every write, not the
@@ -17,6 +27,7 @@ configured rather than guessed or hard-coded.
 Usage:
     python -m src.retrieval.publish_kb
     python -m src.retrieval.publish_kb --dry-run
+    python -m src.retrieval.publish_kb path/to/manual.pdf
 """
 
 import sys
@@ -28,7 +39,8 @@ from pathlib import Path
 
 from ..config import SERVICENOW, PATHS
 from .servicenow_auth import ServiceNowOAuthClient, ServiceNowAuthError
-from .sources.local_json_source import load_articles_from_json
+from .manual_parser import ManualSection, parse_manual
+from .schema import Article
 from src.servicenow.client import _same
 from src.servicenow.exceptions import ServiceNowWriteNotAppliedError
 
@@ -52,8 +64,37 @@ def _load_category_mapping(path: str = None) -> dict:
 _CATEGORY_MAPPING = _load_category_mapping()
 
 
+def section_to_article(section: ManualSection) -> Article:
+    """One manual section -> the canonical Article the payload is built from."""
+    return Article(
+        sys_id="",
+        number=section.kb_number or section.section_label,
+        article_id=section.section_label,  # unique per section, incl. "6.13 KB0010 v1" / "v2"
+        title=f"{section.section_label} {section.title}".strip(),
+        body=section.text,
+        category=section.category,
+        service=section.service,
+        workflow_state=section.workflow_state,
+        version=section.version,
+        security_level=section.security_level,
+    )
+
+
+def load_manual_articles(pdf_path: str = None) -> list[Article]:
+    return [section_to_article(s) for s in parse_manual(pdf_path)]
+
+
+def _split_publishable(articles: list[Article]) -> tuple[list[Article], list[Article]]:
+    """(published, skipped) -- only published sections go to ServiceNow."""
+    published = [a for a in articles if a.workflow_state == "published"]
+    skipped = [a for a in articles if a.workflow_state != "published"]
+    for article in skipped:
+        print(f"Skipped {article.article_id} ({article.workflow_state}, not published)")
+    return published, skipped
+
+
 def load_mapping(path: str = None) -> dict:
-    """article_number -> sys_id. Empty dict if the file doesn't exist yet."""
+    """section_label -> sys_id. Empty dict if the file doesn't exist yet."""
     path = path or PATHS.servicenow_kb_mapping
     if not Path(path).exists():
         return {}
@@ -70,7 +111,9 @@ def save_mapping(mapping: dict, path: str = None) -> None:
 def _build_payload(article) -> dict:
     payload = {
         "short_description": article.title,
-        "text": article.body,
+        # kb_knowledge.text is HTML: escape so placeholders like "<name>" in the
+        # manual's templates (Appendix B) are kept, not stripped as unknown tags.
+        "text": html.escape(article.body, quote=False),
         "workflow_state": article.workflow_state,
     }
     if SERVICENOW.kb_sys_id:
@@ -116,7 +159,8 @@ def _mismatched_fields(payload: dict, result: dict) -> list[str]:
         if isinstance(got, dict):
             got = got.get("value")
         if field == "text" and isinstance(got, str):
-            got = html.unescape(got)
+            # compare decoded text: ServiceNow may re-encode entities differently
+            got, sent = html.unescape(got), html.unescape(sent)
         if not _same(sent, got):
             mismatched.append(field)
     return mismatched
@@ -183,29 +227,41 @@ def _is_not_found(error: httpx.HTTPStatusError) -> bool:
     return error.response is not None and error.response.status_code == 404
 
 
-def _dry_run(articles, mapping: dict) -> dict:
-    stats = {"would_create": 0, "would_update": 0, "skipped_dry_run": 0, "failed": []}
+def _dry_run(articles, mapping: dict, skipped: int) -> dict:
+    stats = {"would_create": 0, "would_update": 0, "skipped_dry_run": 0,
+             "skipped_not_published": skipped, "failed": []}
     for article in articles:
         payload = _build_payload(article)
         action = "UPDATE" if article.article_id in mapping else "CREATE"
-        print(f"[dry-run] would {action} {article.number}: {payload['short_description']}")
+        print(f"[dry-run] would {action} {article.article_id} [{payload['workflow_state']}]: "
+              f"{payload['short_description']}")
         stats["would_update" if action == "UPDATE" else "would_create"] += 1
         stats["skipped_dry_run"] += 1
     return stats
 
 
-def publish(corpus_path: str = None, dry_run: bool = False) -> dict:
-    articles = load_articles_from_json(corpus_path or PATHS.corpus_json)
+def publish(pdf_path: str = None, dry_run: bool = False) -> dict:
+    articles, skipped = _split_publishable(load_manual_articles(pdf_path))
     mapping = load_mapping()
 
     if dry_run:
-        stats = _dry_run(articles, mapping)
+        stats = _dry_run(articles, mapping, len(skipped))
         print(f"\nPublish complete (dry-run): {stats}")
         return stats
 
     auth = ServiceNowOAuthClient()
-    stats = {"created": 0, "updated": 0, "skipped_unchanged": 0, "failed": []}
+    stats = {"created": 0, "updated": 0, "skipped_unchanged": 0,
+             "skipped_not_published": len(skipped), "failed": []}
 
+    try:
+        _publish_articles(articles, mapping, stats, auth)
+    finally:
+        save_mapping(mapping)
+    print(f"\nPublish complete: {stats}")
+    return stats
+
+
+def _publish_articles(articles, mapping: dict, stats: dict, auth: ServiceNowOAuthClient) -> None:
     with httpx.Client(timeout=15) as client:
         for article in articles:
             payload = _build_payload(article)
@@ -228,7 +284,7 @@ def publish(corpus_path: str = None, dry_run: bool = False) -> dict:
 
                 if known_sys_id and not needs_update:
                     stats["skipped_unchanged"] += 1
-                    print(f"Unchanged {article.number} (sys_id={known_sys_id})")
+                    print(f"Unchanged {article.article_id} (sys_id={known_sys_id})")
                     continue
 
                 if known_sys_id:
@@ -249,37 +305,32 @@ def publish(corpus_path: str = None, dry_run: bool = False) -> dict:
                     resp.raise_for_status()
                     sys_id = resp.json()["result"]["sys_id"]
                     action_label = "Created"
+                    # Record the record now: if verification below fails, the
+                    # next run PATCHes this sys_id instead of creating a duplicate.
+                    mapping[article.article_id] = sys_id
+                    save_mapping(mapping)
 
                 _verify_or_publish(payload, sys_id, client, auth)
 
-                if not known_sys_id:
-                    # Only record the mapping once the write is confirmed to have
-                    # actually persisted -- otherwise a verification failure would
-                    # still leave a bad sys_id in the mapping file (caught by
-                    # test_post_read_back_dropped_non_workflow_field_raises).
-                    mapping[article.article_id] = sys_id
-
                 stats["updated" if known_sys_id else "created"] += 1
-                print(f"{action_label} {article.number} (sys_id={sys_id})")
+                print(f"{action_label} {article.article_id} (sys_id={sys_id})")
 
-            except (httpx.HTTPStatusError, ServiceNowAuthError, KeyError, ValueError) as e:
-                stats["failed"].append({"article_number": article.number, "error": str(e)})
-                print(f"FAILED {article.number}: {e}")
-
-    save_mapping(mapping)
-    print(f"\nPublish complete: {stats}")
-    return stats
+            except (httpx.HTTPStatusError, ServiceNowAuthError, ServiceNowWriteNotAppliedError,
+                    KeyError, ValueError) as e:
+                stats["failed"].append({"section": article.article_id, "error": str(e)})
+                print(f"FAILED {article.article_id}: {e}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("corpus_path", nargs="?", default=None)
+    parser.add_argument("pdf_path", nargs="?", default=None,
+                        help="defaults to MANUAL_PDF_PATH")
     parser.add_argument("--dry-run", action="store_true",
                          help="Print what would be published without calling ServiceNow")
     args = parser.parse_args()
 
     try:
-        publish(args.corpus_path, dry_run=args.dry_run)
+        publish(args.pdf_path, dry_run=args.dry_run)
     except ServiceNowAuthError as e:
         print(f"\nCannot publish: {e}")
         sys.exit(1)
