@@ -12,11 +12,10 @@ from qdrant_client.models import (
     Filter, FieldCondition, MatchValue, FilterSelector
 )
 
-from ..config import QDRANT, PATHS
+from ..config import QDRANT
 from .embedding import embed_dense, embed_sparse, get_model_fingerprint, get_dense_dimension
 from .chunking import chunk_article
 from .schema import Article
-from .sources.local_json_source import load_articles_from_json
 
 
 # Qdrant point IDs must be unsigned integers or UUIDs.
@@ -86,19 +85,16 @@ def _build_points(articles: list[Article]) -> list[PointStruct]:
     return points
 
 
-def ingest_articles(source: str = "local", json_path: str = None) -> dict:
+def ingest_articles(source: str = "servicenow") -> dict:
     """
-    source: "local" (test path, reads json_path or PATHS.corpus_json) or
-    "servicenow" (final path, reads from ServiceNow via S1.5's client --
-    not yet wired up).
+    source: "servicenow" (published kb_knowledge records via S1.5's client).
+    The BARQ manual PDF is indexed separately by ingest_manual.py.
     """
     start = time.time()
     client = QdrantClient(url=QDRANT.url, check_compatibility=False)
     _ensure_collection(client)
 
-    if source == "local":
-        articles = load_articles_from_json(json_path or PATHS.corpus_json)
-    elif source == "servicenow":
+    if source == "servicenow":
         from .sources.servicenow_source import load_articles_from_servicenow
         articles = load_articles_from_servicenow()
         if not articles:
@@ -206,4 +202,4 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "sync":
         sync_kb()
     else:
-        ingest_articles(source="local")
+        ingest_articles(source="servicenow")
