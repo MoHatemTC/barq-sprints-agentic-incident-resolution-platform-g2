@@ -48,7 +48,7 @@ class ServiceNowClient:
             **kwargs,
         )
 
-    def _request(self, method, url, **kwargs):
+    def _response(self, method, url, **kwargs):
         # Send a request, refreshing the token once on 401
         response = self._send(method, url, **kwargs)
 
@@ -57,7 +57,10 @@ class ServiceNowClient:
             response = self._send(method, url, **kwargs)
 
         raise_for_status(response)
-        return response.json().get("result")
+        return response
+
+    def _request(self, method, url, **kwargs):
+        return self._response(method, url, **kwargs).json().get("result")
 
     def get_incident(self, sys_id):
         # Read one incident by sys_id
@@ -75,23 +78,30 @@ class ServiceNowClient:
         return self._request("POST", url, json=payload)
 
     def get_published_kb_articles(self, page_size=100):
-        # Read all published KB articles, page by page
+        # Read all published articles of our KB (SERVICENOW_KB_SYS_ID), page by page.
+        # ServiceNow drops rows hidden by ACLs *after* applying the limit, so a
+        # short page is not the last page: stop on X-Total-Count instead.
         url = f"{config.TABLE_API}/kb_knowledge"
+        query = "workflow_state=published"
+        if config.KB_SYS_ID:
+            query += f"^kb_knowledge_base={config.KB_SYS_ID}"
         articles, offset = [], 0
         while True:
-            batch = self._request(
+            response = self._response(
                 "GET",
                 url,
                 params={
-                    "sysparm_query": "workflow_state=published^ORDERBYsys_id",
+                    "sysparm_query": f"{query}^ORDERBYsys_id",
                     "sysparm_limit": page_size,
                     "sysparm_offset": offset,
                 },
-            ) or []
+            )
+            batch = response.json().get("result") or []
             articles.extend(batch)
-            if len(batch) < page_size:
-                return articles
             offset += page_size
+            total = response.headers.get("X-Total-Count")
+            if (int(total) <= offset) if total is not None else not batch:
+                return articles
 
     def update_incident(self, sys_id, fields):
         # Write AI fields, keys are logical names from config file
