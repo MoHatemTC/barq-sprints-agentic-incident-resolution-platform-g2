@@ -151,7 +151,7 @@ async def create_incident_via_dashboard(payload: NewIncidentRequest):
                 status_code=502,
                 detail=f"Could not create incident in ServiceNow: {exc}",
             ) from exc
-    sys_id, number = created["sys_id"], created["number"]
+        sys_id, number = created["sys_id"], created["number"]
     event_id = f"evt_dashboard_{uuid.uuid4().hex[:12]}"
 
     db = SessionLocal()

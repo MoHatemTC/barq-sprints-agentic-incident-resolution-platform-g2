@@ -40,12 +40,15 @@ services:
     
   api:
     build: .
+    image: barq-g2:latest
     ports:
       - "8000:8000"
     environment:
-      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+      UVICORN_WORKERS: "1"
       POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator
       REDIS_HOST: redis
+      QDRANT_URL: http://qdrant:6333
     depends_on:
       postgres:
         condition: service_healthy
@@ -55,11 +58,13 @@ services:
       - .env
 
   worker:
-    build: .
+    image: barq-g2:latest
     command: python run_worker.py
     environment:
       POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator
       REDIS_HOST: redis
+      QDRANT_URL: http://qdrant:6333
       PG_CONN_STRING: postgresql://app:app@postgres:5432/orchestrator
       CELERY_BROKER_URL: redis://redis:6379/0
       REDIS_URL: redis://redis:6379/0
@@ -72,12 +77,15 @@ services:
       - .env
 
   consumer:
-    build: .
+    image: barq-g2:latest
     command: python run_consumer.py
     environment:
       POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator
       REDIS_HOST: redis
+      QDRANT_URL: http://qdrant:6333
       PG_CONN_STRING: postgresql://app:app@postgres:5432/orchestrator
+      CELERY_BROKER_URL: redis://redis:6379/0
       REDIS_URL: redis://redis:6379/0
     depends_on:
       postgres:
