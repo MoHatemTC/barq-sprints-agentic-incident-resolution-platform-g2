@@ -102,6 +102,31 @@ def test_graph_routes_to_interrupt_when_no_evidence(mock_search):
     assert result["failure_reason"] == "no_evidence"
 
 
+@patch("src.agent.nodes.retrieve.search")
+def test_graph_routes_invalid_incident_to_interrupt_before_retrieval(mock_search):
+    """Unrelated or invalid tickets must never produce an automated resolution."""
+    patches = [
+        patch("src.agent.nodes.validate.get_llm", return_value=_static_llm("invalid")),
+        patch("src.agent.nodes.classify.get_llm", return_value=_static_llm("other")),
+        patch("src.agent.nodes.determine_risk.get_llm", return_value=_static_llm("low")),
+    ]
+    _start_patches(patches)
+    try:
+        graph = create_graph().compile()
+        result = graph.invoke({
+            "execution_id": "test-invalid",
+            "incident_number": "INC_TEST_INVALID",
+            "incident_payload": {"description": "I need help choosing a restaurant."},
+        })
+    finally:
+        _stop_patches(patches)
+
+    mock_search.assert_not_called()
+    assert result["outputs"]["eligibility"] == "invalid"
+    assert result["action_taken"] == "interrupted:invalid_incident"
+    assert result["human_review_required"] is True
+
+
 @patch("src.agent.nodes.retrieve.search", side_effect=RuntimeError("qdrant down"))
 def test_graph_routes_to_interrupt_when_retrieval_fails(mock_search):
     """Retrieval exception -> human review with retrieval_failed reason."""
