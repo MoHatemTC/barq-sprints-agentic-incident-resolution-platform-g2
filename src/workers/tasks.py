@@ -1,8 +1,11 @@
 """S2.3 Celery task orchestration — retry, DLQ, and integration seams."""
 
+import json
+import logging
 import os
 from dataclasses import dataclass
-from typing import Protocol
+from datetime import datetime, timezone
+from typing import Callable, Protocol
 
 from celery import Celery, Task
 from celery.exceptions import SoftTimeLimitExceeded
@@ -25,7 +28,30 @@ from src.workers.runtime_integration import (
     load_s2_2_state_manager,
 )
 
+logger = logging.getLogger(__name__)
+
 RESUME_TASK_NAME = "resume_incident_graph"
+
+# workflow_state.node_name values that tell the audit trail how a run continued
+AUDIT_INTERRUPT = "interrupt"
+AUDIT_RESUME_HUMAN = "resume:human"
+AUDIT_RESUME_CRASH = "resume:crash_recovery"
+
+
+def record_audit(execution_id: str, node_name: str, data: dict) -> None:
+    """Append a workflow_state audit row; never breaks the run if Postgres is down."""
+    try:
+        state_manager, close = load_s2_2_state_manager()
+        try:
+            state_manager.save_checkpoint(execution_id, node_name, json.dumps(data, default=str))
+        finally:
+            close()
+    except Exception as exc:
+        logger.warning(f"Audit row {node_name} not written for {execution_id}: {exc}")
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
 def continue_run(graph, execution_id: str, decision: dict | None = None) -> dict:
@@ -48,7 +74,32 @@ class GraphAgentExecutor:
     Implements the agent execution seam expected by the Celery worker infrastructure.
     Matches the AgentExecutor protocol.
     """
-    
+
+    def __init__(self, audit: Callable[[str, str, dict], None] = record_audit):
+        self._audit = audit
+
+    def _continue(self, graph, execution_id: str, decision: dict | None = None) -> dict:
+        """Continue an existing checkpoint and record how it continued."""
+        snapshot = get_run_state(graph, execution_id)
+        if is_paused(snapshot):
+            if decision is not None:
+                self._audit(execution_id, AUDIT_RESUME_HUMAN, {**decision, "resumed_at": _now()})
+        elif snapshot is not None and snapshot.next:
+            self._audit(execution_id, AUDIT_RESUME_CRASH, {
+                "from_node": list(snapshot.next),
+                "human_decision": snapshot.values.get("human_decision"),
+                "recovered_at": _now(),
+            })
+        return continue_run(graph, execution_id, decision)
+
+    def _audit_pause(self, execution_id: str, result: dict) -> None:
+        if execution_status_for(result) == "awaiting_approval":
+            self._audit(execution_id, AUDIT_INTERRUPT, {
+                "payload": result.get("interrupt_payload"),
+                "brief": result.get("approval_brief"),
+                "paused_at": _now(),
+            })
+
     @trace_execution(name="execute_incident_graph")
     def execute(self, accepted_incident: dict, execution_id: str = None, incident_number: str = None) -> dict:
         """
@@ -69,16 +120,24 @@ class GraphAgentExecutor:
         }
         
         config = {"configurable": {"thread_id": exec_id}}
-        
+
+        # A retry or redelivery (worker killed, task retried) finds the checkpoint: continue from the last completed node instead of starting again 
+        snapshot = get_run_state(graph, exec_id)
+        if snapshot is not None:
+            if is_paused(snapshot):
+                return continue_run(graph, exec_id)
+            return self._continue(graph, exec_id)
+
         # Run the graph
         result = graph.invoke(initial_state, config=config)
+        self._audit_pause(exec_id, result)
         return result
 
     @trace_execution(name="resume_incident_graph")
     def resume(self, execution_id: str = None, decision: dict = None) -> dict:
         """Continue the SAME checkpointed execution after a human decision"""
         graph = compile_graph(checkpointer=get_checkpointer())
-        return continue_run(graph, execution_id, decision)
+        return self._continue(graph, execution_id, decision)
 
 
 class AgentExecutor(Protocol):
