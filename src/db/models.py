@@ -288,19 +288,24 @@ class RetryState(Base):
 # Database Triggers & DDL
 # ==========================================
 
-approval_trigger_ddl = DDL("""
+# One statement per DDL: asyncpg (the API's driver) cannot run several
+# statements in one call ("cannot insert multiple commands into a prepared statement").
+approval_trigger_ddl = [
+    DDL("""
 CREATE OR REPLACE FUNCTION prevent_approval_modification() RETURNS TRIGGER AS $$
 BEGIN
     RAISE EXCEPTION 'approval records are immutable';
 END;
-$$ LANGUAGE plpgsql;
-
-DROP TRIGGER IF EXISTS approval_immutable ON approvals;
-
+$$ LANGUAGE plpgsql
+"""),
+    DDL("DROP TRIGGER IF EXISTS approval_immutable ON approvals"),
+    DDL("""
 CREATE TRIGGER approval_immutable
 BEFORE UPDATE OR DELETE ON approvals
-FOR EACH ROW EXECUTE FUNCTION prevent_approval_modification();
-""")
+FOR EACH ROW EXECUTE FUNCTION prevent_approval_modification()
+"""),
+]
 
-# Tell SQLAlchemy to run this SQL immediately after creating the 'approvals' table
-event.listen(Approval.__table__, 'after_create', approval_trigger_ddl)
+# Tell SQLAlchemy to run this SQL immediately after creating the 'approvals' table (in order)
+for _ddl in approval_trigger_ddl:
+    event.listen(Approval.__table__, 'after_create', _ddl)

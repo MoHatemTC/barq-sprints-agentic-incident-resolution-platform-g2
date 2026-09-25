@@ -1,32 +1,24 @@
 from typing import Dict, Any
+from langgraph.types import interrupt
 from src.observability.tracing import trace_node
+
+
+def normalize_decision(decision: Any) -> Dict[str, Any]:
+    """Coerce the resume value into a decision dict"""
+    if not isinstance(decision, dict):
+        decision = {}
+    return {
+        "decision": "approve" if decision.get("decision") == "approve" else "reject",
+        "reviewer": decision.get("reviewer"),
+        "comment": decision.get("comment"),
+    }
 
 
 @trace_node(name="interrupt")
 def interrupt_node(state: Dict[str, Any]) -> Dict[str, Any]:
-    """Pause execution and present the incident to a human for review.
-
-    The graph checkpoints state here so a human can inspect the incident,
-    the retrieved evidence, the draft, and the guardrail verdicts, then
-    resume once a decision is persisted.
-    """
-    risk = state.get("risk", "normal")
-    confidence = state.get("confidence")
-
-    if risk == "high":
-        reason = "high_risk_incident"
-    elif state.get("retrieval_failed"):
-        reason = "retrieval_failed"
-    elif not state.get("retrieved_evidence"):
-        reason = "no_evidence"
-    elif confidence is not None and confidence < 0.7:
-        reason = "low_confidence"
-    else:
-        reason = "manual_review_requested"
-
+    """Pause the graph until a human decision is persisted"""
+    decision = interrupt(state.get("interrupt_payload") or {})
     return {
-        "action_taken": f"interrupted:{reason}",
-        "human_review_required": True,
-        "failure_reason": reason,
+        "human_decision": normalize_decision(decision),
+        "resume_kind": "human",
     }
-

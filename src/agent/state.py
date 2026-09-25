@@ -13,3 +13,13 @@ class AgentState(TypedDict, total=False):
     action_taken: Optional[str]
     human_review_required: bool
     failure_reason: Optional[str]
+
+    #S3.4 human-in-the-loop
+    # Which gate sent the run to human review
+    gate: Optional[str]
+    # Raw payload shown to the reviewer
+    interrupt_payload: Dict[str, Any]
+    # Reviewer decision passed back through Command
+    human_decision: Optional[Dict[str, Any]]
+    # How the run continued: "human" after an approval decision
+    resume_kind: Optional[str]
