@@ -8,16 +8,17 @@ def validate_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Re-check incident eligibility at execution time using LLM."""
     payload = state.get("incident_payload", {})
     
-    desc = payload.get("description", "")
-    short_desc = payload.get("short_description", "")
-    full_text = f"Title: {short_desc}\nDescription: {desc}".strip()
+    desc = str(payload.get("description") or "").strip()
+    short_desc = str(payload.get("short_description") or "").strip()
     
     outputs = state.get("outputs", {})
 
-    if not full_text:
+    if not desc and not short_desc:
         outputs["eligibility"] = "invalid"
         outputs["validation_reason"] = "Empty description"
         return {"outputs": outputs}
+
+    full_text = f"Title: {short_desc}\nDescription: {desc}".strip()
 
     llm = get_llm()
     prompt = f"""

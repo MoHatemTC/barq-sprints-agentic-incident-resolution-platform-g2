@@ -7,13 +7,14 @@ must work even when an external model is slow, unavailable, or hallucinating.
 from unittest.mock import MagicMock, patch
 
 from src.agent.graph import (
+    create_graph,
     route_after_critic,
     route_after_retrieve,
     route_after_risk,
-    route_after_validate,
 )
 from src.agent.nodes.diagnose import _parse_diagnosis_response
 from src.agent.nodes.retrieve import retrieve_node
+from src.agent.nodes.validate import validate_node
 from src.agent.nodes.verify_evidence import verify_evidence_node
 
 
@@ -32,6 +33,15 @@ def _llm_response(content: str) -> MagicMock:
     response.content = content
     llm.invoke.return_value = response
     return llm
+
+
+def _retrieved_chunk() -> MagicMock:
+    chunk = MagicMock()
+    chunk.number = "KB-VPN-01"
+    chunk.point_id = "KB-VPN-01"
+    chunk.text = EVIDENCE[0]["text"]
+    chunk.score = EVIDENCE[0]["score"]
+    return chunk
 
 
 def test_reliable_cited_resolution_passes_verification():
@@ -79,10 +89,37 @@ def test_unrelated_question_routes_to_human_review_when_no_evidence_exists():
     assert route_after_retrieve({"retrieved_evidence": None}) == "interrupt"
 
 
-def test_invalid_eligibility_routes_to_human_review_before_retrieval():
-    """An unrelated request is blocked before it can match an irrelevant KB."""
-    assert route_after_validate({"outputs": {"eligibility": "invalid"}}) == "interrupt"
-    assert route_after_validate({"outputs": {"eligibility": "valid"}}) == "classify"
+def test_empty_incident_is_invalid_without_calling_llm():
+    """An empty incident is deterministically invalid without proxy access."""
+    with patch("src.agent.nodes.validate.get_llm") as get_llm:
+        result = validate_node({"incident_payload": {}})
+
+    assert result["outputs"]["eligibility"] == "invalid"
+    assert result["outputs"]["validation_reason"] == "Empty description"
+    get_llm.assert_not_called()
+
+
+def test_invalid_eligibility_reaches_interrupt_before_diagnosis():
+    """An invalid ticket with matching evidence cannot enter the agent loop."""
+    invalid_llm = _llm_response("invalid")
+    valid_classification_llm = _llm_response("network")
+    low_risk_llm = _llm_response("low")
+
+    with patch("src.agent.nodes.validate.get_llm", return_value=invalid_llm), \
+         patch("src.agent.nodes.classify.get_llm", return_value=valid_classification_llm), \
+         patch("src.agent.nodes.determine_risk.get_llm", return_value=low_risk_llm), \
+         patch("src.agent.nodes.retrieve.search", return_value=[_retrieved_chunk()]), \
+         patch("src.agent.nodes.diagnose.get_llm") as diagnose_llm:
+        result = create_graph().compile().invoke({
+            "execution_id": "invalid-eligibility",
+            "incident_number": "INC_INVALID",
+            "incident_payload": {"description": "unrelated non-IT request"},
+        })
+
+    assert result["outputs"]["eligibility"] == "invalid"
+    assert result["action_taken"] == "interrupted:invalid_incident"
+    assert result["human_review_required"] is True
+    diagnose_llm.assert_not_called()
 
 
 def test_retrieval_outage_routes_to_human_review():

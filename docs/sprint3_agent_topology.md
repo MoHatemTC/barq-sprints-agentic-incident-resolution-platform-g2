@@ -56,15 +56,14 @@ diagnose
            │
            └──► verify_evidence
                     │
-                    └──► check_exhaustion [_mark_exhausted_if_needed]
+                    └──► route_after_critic
                                │
                     ┌──────────┼──────────────┐
                  PASS       FAIL            FAIL
-                            (revision_count   (revision_count
-                             < max_retries)    >= max_retries)
+                            (retries remain) (critic_exhausted=True)
                     │          │                │
                safety_check  generate         act
-                    │        (revision)   (critic_exhausted=True)
+                    │        (revision)   (degraded path)
                confidence_check
                     │
                    act
@@ -72,9 +71,9 @@ diagnose
 
 ### Exhaustion Calculation
 
-The `check_exhaustion` node (`_mark_exhausted_if_needed`) inspects
-`state["revision_count"]` against `AGENT.critic_max_retries` (from `CRITIC_MAX_RETRIES`
-env var, default `2`):
+`verify_evidence_node` sets `state["critic_exhausted"]` by comparing
+`state["revision_count"]` with `AGENT.critic_max_retries` (from `CRITIC_MAX_RETRIES`,
+default `2`). `route_after_critic` then chooses the deterministic next step:
 
 ```
 Initial call:  revision_count = 0  →  not exhausted
@@ -107,15 +106,11 @@ pattern as all pre-existing nodes (`classify`, `determine_risk`, etc.).
   │     └── [Generation] LLM call
   ├── [Span] verify_evidence       ← Critic Agent
   │     └── [Generation] LLM call (only when structural check passes)
-  ├── [Span] check_exhaustion      ← no LLM, instant
-  │
   │  (On FAIL with retries remaining:)
   ├── [Span] generate              ← Resolution Agent (revision N)
   │     └── [Generation] LLM call
   ├── [Span] verify_evidence
   │     └── [Generation] LLM call
-  ├── [Span] check_exhaustion
-  │
   ├── [Span] safety_check          ← S3.3 stub
   ├── [Span] confidence_check
   └── [Span] act / interrupt
@@ -150,7 +145,6 @@ instantiated as the `AGENT` singleton. This follows the same pattern as
 | `generate` (initial) | < 5 ms | 500–2000 ms (1 LLM call) |
 | `verify_evidence` (structural fail) | < 1 ms | < 1 ms (no LLM) |
 | `verify_evidence` (LLM plausibility) | < 5 ms | 500–2000 ms (1 LLM call) |
-| `check_exhaustion` | < 1 ms | < 1 ms (no LLM) |
 | Full loop (pass on attempt 1) | ~15 ms | 1.5–6 s |
 | Full loop (1 revision, then pass) | ~20 ms | 2–8 s |
 | Full loop (exhausted, 2 revisions) | ~25 ms | 2.5–10 s |
@@ -181,7 +175,7 @@ instantiated as the `AGENT` singleton. This follows the same pattern as
 | `src/agent/nodes/diagnose.py` | [MODIFIED] Full Diagnostic Agent implementation |
 | `src/agent/nodes/generate.py` | [MODIFIED] Full Resolution Agent with revision support |
 | `src/agent/nodes/verify_evidence.py` | [MODIFIED] Full Critic/Verifier Agent |
-| `src/agent/graph.py` | [MODIFIED] Critic routing loop, `check_exhaustion` node |
+| `src/agent/graph.py` | [MODIFIED] Critic routing loop through `route_after_critic` |
 | `src/agent/state.py` | [MODIFIED] Three new fields: `critic_verdict`, `revision_count`, `critic_exhausted` |
 | `src/config.py` | [MODIFIED] `AgentConfig` dataclass with `CRITIC_MAX_RETRIES`, `AGENT` singleton |
 | `tests/test_nodes.py` | [MODIFIED] +36 tests for all three agents and their helpers |
