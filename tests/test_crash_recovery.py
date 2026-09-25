@@ -205,3 +205,185 @@ def test_failed_receipt_is_retried(fake):
 
     assert result["servicenow_write"] == "written"
     assert len(fake.logs) == 1
+
+
+#  the worker executor recovers from the checkpoint tests
+
+from src.agent.nodes import act as act_module
+from src.config import WorkerConfig
+from src.observability.tracing import _is_graph_pause
+from src.workers import tasks
+
+
+class AuditLog:
+    def __init__(self):
+        self.rows = []
+
+    def __call__(self, execution_id, node_name, data):
+        self.rows.append((execution_id, node_name, data))
+
+    def names(self):
+        return [name for _, name, _ in self.rows]
+
+
+@pytest.fixture
+def executor(monkeypatch):
+    """The real worker executor on an in-memory checkpointer."""
+    graph = _graph()
+    monkeypatch.setattr(tasks, "compile_graph", lambda checkpointer=None: graph)
+    monkeypatch.setattr(tasks, "get_checkpointer", lambda: None)
+    audit = AuditLog()
+    return tasks.GraphAgentExecutor(audit=audit), graph, audit
+
+
+def _execute(agent, eid, incident):
+    return agent.execute(incident, execution_id=eid, incident_number="INC0001")
+
+
+def test_redelivered_task_continues_from_checkpoint(executor, fake):
+    agent, graph, audit = executor
+    fake.kill_at = "before_patch"
+
+    with pytest.raises(WorkerKilled):
+        _execute(agent, "redeliver", NORMAL)
+
+    with patch("src.agent.nodes.load.ServiceNowClient") as load_client:
+        result = _execute(agent, "redeliver", NORMAL)  # Celery re-delivers the same task
+        load_client.assert_not_called()                  # did not start again from load
+
+    assert result["servicenow_write"] == "written"
+    assert len(fake.logs) == 1
+    assert audit.names() == [tasks.AUDIT_RESUME_CRASH]
+    assert audit.rows[0][2]["from_node"] == ["act"]
+
+
+def test_killed_after_write_recovers_without_second_write(executor, fake):
+    agent, graph, audit = executor
+    fake.kill_at = "after_log"
+
+    with pytest.raises(WorkerKilled):
+        _execute(agent, "after", NORMAL)
+    result = _execute(agent, "after", NORMAL)
+
+    assert result["servicenow_write"] == "already_done"
+    assert len(fake.logs) == 1
+    assert audit.names() == [tasks.AUDIT_RESUME_CRASH]
+
+
+def test_pause_is_audited_once_even_if_redelivered(executor, fake):
+    agent, graph, audit = executor
+
+    first = _execute(agent, "pause", HIGH_RISK)
+    again = _execute(agent, "pause", HIGH_RISK)
+
+    assert "__interrupt__" in first and "__interrupt__" in again
+    assert audit.names() == [tasks.AUDIT_INTERRUPT]
+    assert audit.rows[0][2]["payload"]["gate"] == "high_risk"
+    assert fake.logs == []
+
+
+def test_human_resume_and_crash_recovery_are_audited_differently(executor, fake):
+    agent, graph, audit = executor
+    _execute(agent, "both", HIGH_RISK)
+    fake.kill_at = "before_patch"
+
+    with pytest.raises(WorkerKilled):
+        agent.resume(execution_id="both", decision={"decision": "approve", "reviewer": "alice"})
+    result = agent.resume(execution_id="both", decision={"decision": "approve", "reviewer": "alice"})
+
+    assert result["action_taken"] == "approved_by_human"
+    assert len(fake.logs) == 1
+    assert audit.names() == [tasks.AUDIT_INTERRUPT, tasks.AUDIT_RESUME_HUMAN, tasks.AUDIT_RESUME_CRASH]
+    assert audit.rows[1][2]["reviewer"] == "alice"
+    # the crash recovery kept the human decision it resumed with
+    assert audit.rows[2][2]["human_decision"]["decision"] == "approve"
+
+
+def test_finished_run_redelivered_does_nothing(executor, fake):
+    agent, graph, audit = executor
+    _execute(agent, "done", NORMAL)
+
+    result = _execute(agent, "done", NORMAL)
+
+    assert result["servicenow_write"] == "written"
+    assert len(fake.logs) == 1
+    assert audit.names() == []
+
+
+# demo crash switch tests
+class ProcessExit(BaseException):
+    pass
+
+
+@pytest.fixture
+def exits(monkeypatch):
+    calls = []
+
+    def fake_exit(code):
+        calls.append(code)
+        raise ProcessExit(code)
+
+    markers = set()
+
+    def first(execution_id, point):
+        key = (execution_id, point)
+        if key in markers:
+            return False
+        markers.add(key)
+        return True
+
+    monkeypatch.setattr(act_module.os, "_exit", fake_exit)
+    monkeypatch.setattr(act_module, "_first_demo_crash", first)
+    return calls
+
+
+def test_demo_crash_is_off_by_default(monkeypatch, exits):
+    monkeypatch.delenv("DEMO_CRASH_AT", raising=False)
+    act_module.demo_crash("before_write", "e1")
+    assert exits == []
+
+
+def test_demo_crash_fires_once_at_its_point(monkeypatch, exits):
+    monkeypatch.setenv("DEMO_CRASH_AT", "after_write")
+
+    act_module.demo_crash("before_write", "e1")          # other point: nothing
+    with pytest.raises(ProcessExit):
+        act_module.demo_crash("after_write", "e1")       # dies
+    act_module.demo_crash("after_write", "e1")           # recovered attempt: survives
+
+    assert exits == [137]
+
+
+def test_demo_crash_without_redis_never_kills(monkeypatch):
+    monkeypatch.setenv("DEMO_CRASH_AT", "before_write")
+    monkeypatch.delenv("REDIS_URL", raising=False)
+    act_module.demo_crash("before_write", "e1")  # no marker store: stays alive
+
+
+#  tracing and celery config tests
+
+def test_graph_pause_is_not_traced_as_error():
+    from langgraph.errors import GraphInterrupt
+    assert _is_graph_pause(GraphInterrupt())
+    assert not _is_graph_pause(ValueError("boom"))
+
+
+def _worker_env(**extra):
+    env = {
+        "CELERY_BROKER_URL": "redis://x:6379/0", "CELERY_MAIN_QUEUE": "m", "CELERY_DLQ_QUEUE": "d",
+        "CELERY_WORKER_CONCURRENCY": "1", "CELERY_WORKER_PREFETCH_MULTIPLIER": "1",
+        "CELERY_TASK_SOFT_TIME_LIMIT_SECONDS": "30", "CELERY_TASK_TIME_LIMIT_SECONDS": "60",
+        "CELERY_TASK_MAX_RETRIES": "3", "CELERY_RETRY_BASE_DELAY_SECONDS": "5",
+        "CELERY_RETRY_MAX_DELAY_SECONDS": "60", "CELERY_TASK_ACKS_LATE": "true",
+        "CELERY_TASK_REJECT_ON_WORKER_LOST": "true", "CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS": "10",
+    }
+    env.update(extra)
+    return env
+
+
+def test_visibility_timeout_default_and_override():
+    from src.workers.celery_app import create_celery_app
+
+    assert WorkerConfig.from_environment(_worker_env()).visibility_timeout_seconds == 120
+    config = WorkerConfig.from_environment(_worker_env(CELERY_VISIBILITY_TIMEOUT_SECONDS="45"))
+    assert create_celery_app(config).conf.broker_transport_options == {"visibility_timeout": 45}
