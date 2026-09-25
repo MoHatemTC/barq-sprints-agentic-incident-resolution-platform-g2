@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     DateTime,
@@ -11,6 +12,7 @@ from sqlalchemy import (
     UniqueConstraint,
     DDL,
     event,
+    false,
 )
 
 from src.db.database import Base
@@ -214,6 +216,13 @@ class Approval(Base):
         nullable=False
     )
 
+    consumed = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=false(),
+    )
+
 
 class Failure(Base):
     __tablename__ = "failures"
@@ -291,6 +300,15 @@ class RetryState(Base):
 approval_trigger_ddl = DDL("""
 CREATE OR REPLACE FUNCTION prevent_approval_modification() RETURNS TRIGGER AS $$
 BEGIN
+    IF NEW.consumed = true AND OLD.consumed = false AND
+       NEW.execution_reference IS NOT DISTINCT FROM OLD.execution_reference AND
+       NEW.evidence_presented IS NOT DISTINCT FROM OLD.evidence_presented AND
+       NEW.reviewer_decision IS NOT DISTINCT FROM OLD.reviewer_decision AND
+       NEW.decision_timestamp IS NOT DISTINCT FROM OLD.decision_timestamp AND
+       NEW.reviewer_identity IS NOT DISTINCT FROM OLD.reviewer_identity
+    THEN
+        RETURN NEW;
+    END IF;
     RAISE EXCEPTION 'approval records are immutable';
 END;
 $$ LANGUAGE plpgsql;

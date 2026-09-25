@@ -48,13 +48,6 @@ config.set_main_option(
 target_metadata = Base.metadata
 
 
-# Temporary debug to verify Alembic sees all tables
-print(
-    "ALEMBIC TABLES:",
-    target_metadata.tables.keys()
-)
-
-
 def run_migrations_offline():
 
     url = config.get_main_option(

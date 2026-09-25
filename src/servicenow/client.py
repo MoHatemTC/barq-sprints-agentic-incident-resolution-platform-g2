@@ -175,3 +175,43 @@ class ServiceNowClient:
                 "Execution log write failed for %s: %s", execution_id, type(exc).__name__
             )
             return None
+
+
+class IncidentGateway:
+    """Server-side tool boundary for the agent's ServiceNow actions.
+
+    Each method maps one registered tool to the underlying ServiceNowClient
+    Table API operations. Handlers are only ever invoked through the
+    ToolRegistry (registry.py) after the registration and permission checks
+    pass; direct call sites outside the registry are rejected by the
+    import-boundary test.
+    """
+
+    def __init__(self, client=None):
+        self._client = client if client is not None else ServiceNowClient()
+
+    def read_incident(self, sys_id):
+        return self._client.get_incident(sys_id)
+
+    def write_execution_log(self, incident_sys_id, execution_id, action, status,
+                            agent=None, result=None, error=None):
+        return self._client.write_execution_log(
+            incident_sys_id,
+            execution_id,
+            action,
+            status,
+            agent=agent,
+            result=result,
+            error=error,
+        )
+
+    def write_ai_fields(self, sys_id, fields):
+        return self._client.update_incident(sys_id, fields)
+
+    def write_work_note(self, sys_id, note):
+        return self._client.add_work_note(sys_id, note)
+
+    def kb_write_back(self, corpus_path=None, dry_run=False):
+        from src.retrieval.publish_kb import publish
+
+        return publish(corpus_path, dry_run=dry_run)
