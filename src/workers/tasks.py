@@ -7,8 +7,10 @@ from typing import Protocol
 from celery import Celery, Task
 from celery.exceptions import SoftTimeLimitExceeded
 
+from langgraph.types import Command
+
 from src.agent.graph import compile_graph
-from src.agent.checkpointer import get_checkpointer
+from src.agent.checkpointer import get_checkpointer, get_run_state, is_paused, thread_config
 from src.observability.tracing import trace_execution
 
 from src.workers.celery_app import create_celery_app
@@ -19,7 +21,26 @@ from src.workers.runtime_integration import (
     ExecutionContext,
     StateManagerTaskRecorder,
     context_from_task_headers,
+    execution_status_for,
+    load_s2_2_state_manager,
 )
+
+RESUME_TASK_NAME = "resume_incident_graph"
+
+
+def continue_run(graph, execution_id: str, decision: dict | None = None) -> dict:
+    """Continue a checkpointed run: resume a paused one with the human decision, or finish one a crash stopped mid-way. Safe to call again on retry."""
+    snapshot = get_run_state(graph, execution_id)
+    if snapshot is None:
+        raise ValueError(f"no checkpoint for execution {execution_id}")
+    config = thread_config(execution_id)
+    if is_paused(snapshot):
+        if decision is None:
+            return {**snapshot.values, "__interrupt__": snapshot.interrupts}
+        return graph.invoke(Command(resume=decision), config=config)
+    if snapshot.next:
+        return graph.invoke(None, config=config)
+    return snapshot.values
 
 
 class GraphAgentExecutor:
@@ -52,6 +73,12 @@ class GraphAgentExecutor:
         # Run the graph
         result = graph.invoke(initial_state, config=config)
         return result
+
+    @trace_execution(name="resume_incident_graph")
+    def resume(self, execution_id: str = None, decision: dict = None) -> dict:
+        """Continue the SAME checkpointed execution after a human decision"""
+        graph = compile_graph(checkpointer=get_checkpointer())
+        return continue_run(graph, execution_id, decision)
 
 
 class AgentExecutor(Protocol):
@@ -234,6 +261,56 @@ def register_process_accepted_incident_task(
             raise
 
     return process_accepted_incident
+
+
+def _set_execution_status(state_manager_factory, execution_id: str, status: str,
+                          error: BaseException | None = None, retries: int = 0) -> None:
+    state_manager, close = state_manager_factory()
+    try:
+        if error is not None:
+            state_manager.record_failure(
+                execution_reference=execution_id,
+                failing_node="resume",
+                error_class=type(error).__name__,
+                message=str(error),
+                retry_count=retries,
+            )
+        state_manager.update_execution_status(execution_id, status)
+    finally:
+        close()
+
+
+def register_resume_incident_task(
+    retry_policy: RetryPolicy,
+    app: Celery,
+    agent: object | None = None,
+    state_manager_factory=load_s2_2_state_manager,
+) -> Task:
+    """S3.4 REQ resume a paused execution with the reviewer's decision."""
+
+    @app.task(bind=True, name=RESUME_TASK_NAME, shared=False)
+    def resume_incident_graph(task: Task, execution_id: str, decision: dict) -> dict:
+        executor = agent or GraphAgentExecutor()
+        retries = task.request.retries
+        try:
+            result = executor.resume(execution_id=execution_id, decision=decision)
+        except Exception as error:
+            if retry_policy.decide(error, retries) is RetryDecision.RETRY:
+                raise task.retry(
+                    exc=error,
+                    countdown=retry_policy.delay_for_retry(retries + 1),
+                    max_retries=retry_policy.max_retries,
+                )
+            _set_execution_status(state_manager_factory, execution_id, "failed", error, retries)
+            raise
+        _set_execution_status(state_manager_factory, execution_id, execution_status_for(result))
+        return {
+            "execution_id": execution_id,
+            "action_taken": result.get("action_taken"),
+            "servicenow_write": result.get("servicenow_write"),
+        }
+
+    return resume_incident_graph
 
 
 # ---------------------------------------------------------------------------

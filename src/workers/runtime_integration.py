@@ -14,6 +14,13 @@ from importlib import import_module
 from typing import Protocol
 
 
+def execution_status_for(result: object) -> str:
+    """S3.4: a graph that paused at interrupt() is awaiting approval, not finished."""
+    if isinstance(result, Mapping) and result.get("__interrupt__"):
+        return "awaiting_approval"
+    return "succeeded"
+
+
 @dataclass(frozen=True)
 class ExecutionContext:
     """S2.2-generated identifiers carried internally in Celery headers."""
@@ -126,12 +133,12 @@ class StateManagerTaskRecorder:
             close()
 
     def record_success(self, accepted_incident: object, result: object) -> None:
-        del accepted_incident, result
+        del accepted_incident
         state_manager, close = self.state_manager_factory()
         try:
             state_manager.update_execution_status(
                 self.context.execution_identifier,
-                "succeeded",
+                execution_status_for(result),
             )
         finally:
             close()
