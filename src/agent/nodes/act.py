@@ -1,5 +1,9 @@
+import logging
+import os
 from typing import Dict, Any
 from src.observability.tracing import trace_node
+
+logger = logging.getLogger(__name__)
 
 AGENT_NAME = "barq-agent"
 
@@ -8,6 +12,31 @@ class ExecutionLogNotWritten(Exception):
     """The receipt row did not land; retry act so it gets written."""
 
     retryable = True
+
+
+def _first_demo_crash(execution_id: str, point: str) -> bool:
+    # Redis marker so the recovered attempt does not die again; no Redis = no crash
+    try:
+        import redis
+        client = redis.Redis.from_url(os.environ["REDIS_URL"])
+        return bool(client.set(f"demo_crash:{point}:{execution_id}", 1, nx=True, ex=86400))
+    except Exception:
+        return False
+
+
+def demo_crash(point: str, execution_id: str) -> None:
+    """DEMO ONLY (S3.4 crash-recovery proof): kill the worker process at an exact point.
+
+    Off unless DEMO_CRASH_AT=before_write|after_write. os._exit is a real process
+    death (like kill -9), not an exception; it fires once per execution.
+    """
+    if os.environ.get("DEMO_CRASH_AT") != point:
+        return
+    if not _first_demo_crash(execution_id, point):
+        return
+    logger.warning(f"DEMO_CRASH_AT={point}: killing worker for execution {execution_id}")
+    logging.shutdown()
+    os._exit(137)
 
 
 def get_servicenow_client():
@@ -75,6 +104,7 @@ def act_node(state: Dict[str, Any]) -> Dict[str, Any]:
     if client.find_execution_log(execution_id, plan["action"]):
         return {**outcome, "servicenow_write": "already_done"}
 
+    demo_crash("before_write", execution_id)
     client.update_incident(sys_id, plan["fields"])
     receipt = client.write_execution_log(
         sys_id,
@@ -86,5 +116,6 @@ def act_node(state: Dict[str, Any]) -> Dict[str, Any]:
     )
     if receipt is None:
         raise ExecutionLogNotWritten(f"execution log not written for {execution_id}")
+    demo_crash("after_write", execution_id)
 
     return {**outcome, "servicenow_write": "written"}
