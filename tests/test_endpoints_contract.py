@@ -6,6 +6,9 @@ from src.api.app import create_app
 from src.api.dependencies import get_settings, get_redis, get_db_session
 from src.api.auth import require_operator_role
 from src.api.schemas import Settings
+from src.api.routers import approvals
+from langgraph.checkpoint.memory import MemorySaver
+from src.agent.graph import create_graph
 
 TEST_TOKEN = "test-token-123"
 
@@ -27,6 +30,12 @@ def client():
         yield AsyncMock()
     app.dependency_overrides[get_db_session] = override_db
     app.dependency_overrides[require_operator_role] = lambda: {"role": "operator"}
+    # from S3.4 approvals: no paused executions, in-memory checkpoints
+    empty_store = MagicMock()
+    empty_store.awaiting_execution_ids.return_value = []
+    app.dependency_overrides[approvals.get_approval_store] = lambda: empty_store
+    app.dependency_overrides[approvals.get_approval_graph] = lambda: create_graph().compile(checkpointer=MemorySaver())
+    app.dependency_overrides[approvals.get_resume_dispatcher] = lambda: MagicMock()
 
     with TestClient(app) as c:
         yield c
@@ -90,13 +99,13 @@ def test_decide_approval_rejects_invalid_action(client):
     assert response.status_code == 422
 
 
-def test_decide_approval_accepts_valid_action(client):
+def test_decide_approval_unknown_execution_returns_404(client):
+    # a valid action on an execution that was never paused
     response = client.post(
         "/api/v1/approvals/appr-123/decide",
         json={"action": "approve", "reviewer": "sarah"},
     )
-    assert response.status_code == 200
-    assert response.json()["status"] == "approved"
+    assert response.status_code == 404
 
 
 def test_list_dlq_returns_expected_shape(client):
