@@ -21,9 +21,11 @@ def _build_static_llm(content):
     return mock_llm
 
 
+@patch("src.agent.nodes.validate.get_llm")
 @patch("src.agent.nodes.retrieve.search", return_value=[_fake_chunk()])
-def test_graph_routing_normal_risk(mock_search):
+def test_graph_routing_normal_risk(mock_search, mock_validate_llm):
     """Normal risk incident should go through the full automated path to act."""
+    mock_validate_llm.return_value = _build_static_llm("valid")
     graph = create_graph().compile()
     initial_state = {
         "execution_id": "test_1",
@@ -220,10 +222,14 @@ def test_revised_draft_resolves_critic_flagged_issue(
             p.stop()
 
     final_resolution = result["outputs"]["resolution"]
-    assert "restart the service" in final_resolution.lower(), ( "Revised draft must correct the action flagged by the Critic (restart service, not router)." )`n    assert "[Source: KB0001]" in final_resolution, (
+    assert "restart the service" in final_resolution.lower(), ( "Revised draft must correct the action flagged by the Critic (restart service, not router)." )
+    assert "[Source: KB0001]" in final_resolution, (
         "Revised draft must include [Source: KB0001] â€” the citation missing in the first draft."
     )
     assert result.get("revision_count", 0) == 1
     assert result["critic_verdict"]["passed"] is True
     assert result["action_taken"] == "resolved_automatically"
+
+
+
 

@@ -16,6 +16,12 @@ from src.agent.nodes.act import act_node
 
 CONFIDENCE_FLOOR = 0.6
 
+def route_after_validate(state: AgentState) -> str:
+    """Keep invalid or out-of-scope tickets out of the automated resolution path."""
+    outputs = state.get("outputs") or {}
+    if outputs.get("eligibility") == "invalid":
+        return "interrupt"
+    return "classify"
 
 def route_after_risk(state: AgentState) -> str:
     """Route high-risk incidents to interrupt (human path) without retrieval."""
@@ -55,7 +61,6 @@ def route_after_critic(state: AgentState) -> str:
 def create_graph():
     workflow = StateGraph(AgentState)
 
-    # Add all 11 nodes + interrupt
     workflow.add_node("load", load_node)
     workflow.add_node("validate", validate_node)
     workflow.add_node("classify", classify_node)
@@ -71,11 +76,14 @@ def create_graph():
 
     workflow.set_entry_point("load")
 
-    # Standard sequence: load -> validate -> classify -> determine_risk
-    # These are direct edges matching the development baseline.
-    # External routing is NOT modified by S3.1.
     workflow.add_edge("load", "validate")
-    workflow.add_edge("validate", "classify")
+    
+    workflow.add_conditional_edges(
+        "validate",
+        route_after_validate,
+        {"classify": "classify", "interrupt": "interrupt"},
+    )
+    
     workflow.add_edge("classify", "determine_risk")
 
     workflow.add_conditional_edges(
@@ -90,9 +98,6 @@ def create_graph():
         {"diagnose": "diagnose", "interrupt": "interrupt"},
     )
 
-    # S3.1: internal multi-agent boundary
-    # diagnose -> generate -> verify_evidence (Critic)
-    # Critic routes internally: PASS -> safety_check, FAIL -> generate, exhausted -> act
     workflow.add_edge("diagnose", "generate")
     workflow.add_edge("generate", "verify_evidence")
 
