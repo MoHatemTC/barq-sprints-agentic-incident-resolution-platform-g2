@@ -66,7 +66,9 @@ services:
   worker:
     image: barq-g2:latest
     command: python run_worker.py
+    restart: unless-stopped
     environment:
+      DEMO_CRASH_AT: ${DEMO_CRASH_AT:-}
       DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator   # .env's localhost is the container itself
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
