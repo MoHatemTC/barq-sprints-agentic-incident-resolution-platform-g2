@@ -7,6 +7,7 @@ from src.workers.celery_app import create_celery_app
 from src.workers.dlq import create_dead_letter_entry, serialize_dead_letter_entry
 from src.workers.redis_consumer import consume_next_incident_for_celery
 from src.workers.retry_policy import RetryPolicy
+from src.workers import runtime_integration
 from src.workers.runtime_integration import (
     ExecutionContext,
     GraphAgentExecutor,
@@ -33,10 +34,15 @@ class _StateManager:
     retry_updates: list[object] = field(default_factory=list)
     failures: list[object] = field(default_factory=list)
     statuses: list[object] = field(default_factory=list)
+    checkpoints: list[object] = field(default_factory=list)
 
-    def create_execution(self, *, incident_reference):
+    def create_execution(self, *, incident_reference, agent_version=None, model_name=None):
         self.create_execution_calls.append(incident_reference)
-        return SimpleNamespace(execution_identifier="s2-2-execution-id")
+        return SimpleNamespace(
+            execution_identifier="s2-2-execution-id",
+            agent_version=agent_version,
+            model_name=model_name,
+        )
 
     def create_retry_state(self, *, execution_reference, attempt_count):
         self.create_retry_calls.append((execution_reference, attempt_count))
@@ -50,6 +56,9 @@ class _StateManager:
 
     def update_execution_status(self, execution_identifier, status):
         self.statuses.append((execution_identifier, status))
+
+    def save_checkpoint(self, **kwargs):
+        self.checkpoints.append(kwargs)
 
 
 def test_establish_execution_context_uses_s2_2_generated_identifiers_only():
@@ -80,7 +89,16 @@ def test_s2_2_recorder_reuses_context_for_retry_failure_and_success():
     error = RuntimeError("temporary")
     recorder.record_retry(PAYLOAD, 0, error)
     recorder.record_failure(PAYLOAD, 1, error)
-    recorder.record_success(PAYLOAD, {"result": "ok"})
+    with patch.object(runtime_integration, "_sync_servicenow_completion") as sync:
+        recorder.record_success(
+            PAYLOAD,
+            {
+                "classification": "software",
+                "risk": "low",
+                "action_taken": "interrupted:no_evidence",
+                "incident_payload": {"large": "raw servicenow payload"},
+            },
+        )
 
     assert manager.retry_updates == [
         {
@@ -96,6 +114,58 @@ def test_s2_2_recorder_reuses_context_for_retry_failure_and_success():
         ("s2-2-execution-id", "failed"),
         ("s2-2-execution-id", "succeeded"),
     ]
+    assert manager.checkpoints == [
+        {
+            "execution_reference": "s2-2-execution-id",
+            "node_name": "interrupted:no_evidence",
+            "checkpoint": (
+                '{"classification": "software", "risk": "low", '
+                '"action_taken": "interrupted:no_evidence"}'
+            ),
+        }
+    ]
+    sync.assert_called_once()
+
+
+def test_servicenow_completion_fields_contain_actionable_graph_result():
+    fields = runtime_integration._servicenow_completion_fields(
+        {
+            "classification": "access",
+            "risk": "low",
+            "confidence": 0.85,
+            "action_taken": "resolved_automatically",
+            "critic_verdict": {"passed": True},
+            "outputs": {
+                "diagnosis": "A cached credential was used.",
+                "resolution": "1. Clear the cached credential. [Source: KB0001]",
+            },
+        },
+        {
+            "processing_start": "2026-09-24 10:00:00",
+            "processing_end": "2026-09-24 10:01:00",
+            "retry_count": 1,
+            "max_retries": 3,
+            "agent_version": "sprint-3.1",
+            "model_name": "gemini-3.6-flash",
+        },
+    )
+
+    assert fields == {
+        "processing_state": "complete",
+        "processing_start": "2026-09-24 10:00:00",
+        "processing_end": "2026-09-24 10:01:00",
+        "max_retries": 3,
+        "retry_count": 1,
+        "retry_time_out": None,
+        "agent_version": "sprint-3.1",
+        "model_name": "gemini-3.6-flash",
+        "classification": "access",
+        "confidence": 0.85,
+        "suggestion": "A cached credential was used.",
+        "resolution": "1. Clear the cached credential. [Source: KB0001]",
+        "human_review": False,
+        "failure_reason": None,
+    }
 
 
 def test_graph_executor_uses_s2_5_graph_inputs_and_execution_id():

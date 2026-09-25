@@ -46,69 +46,78 @@ services:
     ports:
       - "8000:8000"
     environment:
-      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+      UVICORN_WORKERS: "1"
       POSTGRES_HOST: postgres
-      REDIS_HOST: redis
       DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator
+      REDIS_HOST: redis
+      QDRANT_URL: http://qdrant:6333
+      # S3.4: the approvals API reads checkpoints and queues resume tasks
       PG_CONN_STRING: postgresql://app:app@postgres:5432/orchestrator
       CELERY_BROKER_URL: redis://redis:6379/0
-      QDRANT_URL: http://qdrant:6333   # .env's localhost is the container itself
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      qdrant:              
-        condition: service_healthy  
-    volumes:
-      - ./.env:/app/.env:ro
+    env_file:
+      - .env
 
   worker:
     image: barq-g2:latest
     command: python run_worker.py
+    # S3.4: come back after a crash so Celery re-delivers the unfinished task
     restart: unless-stopped
     environment:
+      # DEMO ONLY: before_write | after_write kills the worker once per run (empty = off)
       DEMO_CRASH_AT: ${DEMO_CRASH_AT:-}
-      DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator   # .env's localhost is the container itself
       POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator
       REDIS_HOST: redis
+      QDRANT_URL: http://qdrant:6333
       PG_CONN_STRING: postgresql://app:app@postgres:5432/orchestrator
       CELERY_BROKER_URL: redis://redis:6379/0
       REDIS_URL: redis://redis:6379/0
-      QDRANT_URL: http://qdrant:6333   # .env's localhost is the container itself
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      qdrant:              
-        condition: service_healthy  
-    volumes:
-      - ./.env:/app/.env:ro
+    env_file:
+      - .env
 
   consumer:
     image: barq-g2:latest
     command: python run_consumer.py
     environment:
-      DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator   # .env's localhost is the container itself
-      CELERY_BROKER_URL: redis://redis:6379/0
       POSTGRES_HOST: postgres
+      DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator
       REDIS_HOST: redis
+      QDRANT_URL: http://qdrant:6333
       PG_CONN_STRING: postgresql://app:app@postgres:5432/orchestrator
+      CELERY_BROKER_URL: redis://redis:6379/0
       REDIS_URL: redis://redis:6379/0
-      QDRANT_URL: http://qdrant:6333   # .env's localhost is the container itself
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
-      qdrant:              
-        condition: service_healthy  
       worker:
         condition: service_started
+    env_file:
+      - .env
+
+  ui:
+    image: python:3.12-slim
+    command: python -m http.server 8080
+    working_dir: /app/ui
     volumes:
-      - ./.env:/app/.env:ro
+      - ./ui:/app/ui
+    ports:
+      - "8082:8080"
 
 volumes:
   qdrant_data:
   pg_data:
+
+
+

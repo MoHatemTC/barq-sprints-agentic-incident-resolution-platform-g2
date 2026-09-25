@@ -346,3 +346,27 @@ SERVICENOW = ServiceNowConfig()
 PATHS = PathsConfig()
 CHUNKING = ChunkingConfig()
 RETRIEVAL = RetrievalConfig()
+
+
+# ---------------------------------------------------------------------------
+# S3.1 Agent configuration
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class AgentConfig:
+    """Configuration for the multi-agent diagnosis & resolution loop (S3.1)."""
+
+    # Maximum number of Resolution Agent revision cycles allowed after an initial
+    # generation. With the default of 2:
+    #   initial generation → revision 1 → revision 2 → exhausted → act
+    critic_max_retries: int = int(os.environ.get("CRITIC_MAX_RETRIES", "2"))
+
+    def __post_init__(self):
+        if self.critic_max_retries < 0:
+            raise ValueError(
+                f"CRITIC_MAX_RETRIES must be a non-negative integer, "
+                f"got {self.critic_max_retries}"
+            )
+
+
+AGENT = AgentConfig()

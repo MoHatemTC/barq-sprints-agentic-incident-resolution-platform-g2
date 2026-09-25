@@ -5,6 +5,7 @@ from src.agent.approval_brief import generate_approval_brief
 
 # Plain-language reason per gate, shown to the reviewer next to the raw data.
 GATE_REASONS = {
+    "invalid_incident": "Validation found the ticket invalid or out of scope for the agent",
     "critic_exhausted": "The critic rejected the draft and the revision budget ran out",
     "safety_blocked": "The safety check blocked the proposed action",
     "high_risk": "The incident was classified as high risk",
@@ -16,6 +17,9 @@ GATE_REASONS = {
 
 def detect_gate(state: Dict[str, Any]) -> str:
     """Return the gate that sent this run to human review"""
+    # S3.1 route_after_validate sends invalid tickets here before classify
+    if (state.get("outputs") or {}).get("eligibility") == "invalid":
+        return "invalid_incident"
     if state.get("critic_exhausted"):
         return "critic_exhausted"
     if state.get("action_taken") == "blocked_by_guardrail":
