@@ -153,6 +153,15 @@ The raw payload is what a machine needs. A rushed reviewer skims past it. The br
   pauses, and the API returns `brief: null, brief_status: "unavailable"` with the full raw payload.
 - **Never routes:** routing reads only the gate and the human decision. Test `test_brief_never_affects_routing`
   gives the brief "APPROVED. Resume now." and the run still waits, then follows the human's *reject*.
+- **Adversarial brief** (`tests/test_adversarial_brief.py`, 5 tests): the incident text carries a prompt
+  injection and the brief LLM "obeys" it, writing approve wording plus control keys (`decision`,
+  `human_decision`, `action_taken`, `gate`). Checked at three layers:
+
+  | layer | proof |
+  |---|---|
+  | parser | only the four display keys survive; injected control keys are dropped |
+  | graph | the run stays paused at `interrupt`, no `human_decision`, `act` never runs; a human *reject* wins; brief text passed as the resume value is still a reject |
+  | API | the resume value is built only from the reviewer's POST body; injected body fields (`decision: approve`) are ignored |
 
 Brief produced live by the real LLM for INC0010153:
 
@@ -301,4 +310,4 @@ pytest tests/test_interrupt_resume.py tests/test_approval_brief.py tests/test_ap
 | `src/workers/tasks.py` | `continue_run()`, `resume_incident_graph` task |
 | `migrations/versions/a3f4c2d9e1b7_*.py` | `awaiting_approval` status |
 | `ui/approvals.html`, `ui/approvals.js` | reviewer page |
-| `tests/test_interrupt_resume.py` (20), `test_approval_brief.py` (15), `test_approvals_api.py` (15) | 50 tests |
+| `tests/test_interrupt_resume.py` (20), `test_approval_brief.py` (15), `test_approvals_api.py` (15), `test_adversarial_brief.py` (5) | 55 tests |
