@@ -70,6 +70,10 @@ The most specific verdict wins: a guardrail block on a high-risk incident is rep
 because that is what the reviewer has to judge. `route_after_confidence` also sends `critic_exhausted` and
 `blocked_by_guardrail` to review, so S3.1 and S3.3 plug in without new edges.
 
+**Paths that never interrupt.** Eligible automated runs go straight to `act`. Human-locked incidents
+(`human_lock = true`) and incidents with `ai_enabled = false` never reach the graph: the S1.3 eligibility
+business rule in ServiceNow does not send them, so they cannot pause or be written by the agent.
+
 ### 2.1 ESCALATED_NO_EVIDENCE: interrupt, not terminate
 
 `no_evidence` and `retrieval_failed` **interrupt**. They do not end the run. Why:
