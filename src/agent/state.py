@@ -19,6 +19,8 @@ class AgentState(TypedDict, total=False):
     gate: Optional[str]
     # Raw payload shown to the reviewer
     interrupt_payload: Dict[str, Any]
+    # Reviewer-facing summary of the payload; None when generation failed
+    approval_brief: Optional[Dict[str, str]]
     # Reviewer decision passed back through Command
     human_decision: Optional[Dict[str, Any]]
     # How the run continued: "human" after an approval decision

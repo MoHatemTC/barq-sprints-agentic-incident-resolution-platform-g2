@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Dict, Any
 from src.observability.tracing import trace_node
+from src.agent.approval_brief import generate_approval_brief
 
 # Plain-language reason per gate, shown to the reviewer next to the raw data.
 GATE_REASONS = {
@@ -54,9 +55,13 @@ def prepare_review_node(state: Dict[str, Any]) -> Dict[str, Any]:
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
+    # Built here, not in interrupt, so the LLM runs once; stored apart from the raw payload
+    brief = generate_approval_brief(payload)
+
     return {
         "gate": gate,
         "interrupt_payload": payload,
+        "approval_brief": brief,
         "human_review_required": True,
         "failure_reason": gate,
     }
