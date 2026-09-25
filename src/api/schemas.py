@@ -67,11 +67,29 @@ class PaginatedExecutionsResponse(BaseModel):
     page_size: int
     total: int
 
+class ApprovalBrief(BaseModel):
+    """as in S3.4 reviewer summary presentation only, never used for routing"""
+    what_happened: str
+    why_stopped: str
+    proposed_action: str
+    reviewer_question: str
+
 class ApprovalResponse(BaseModel):
+    """One execution paused at interrupt(), approval_id is its execution_id"""
     approval_id: str
-    incident_sys_id: str
-    status: str  # pending | approved | rejected
-    created_at: datetime
+    execution_id: str
+    incident_number: Optional[str] = None
+    incident_sys_id: Optional[str] = None
+    status: str  # pending
+    gate: Optional[str] = None
+    reason_text: Optional[str] = None
+    brief_status: str  # generated | unavailable
+    created_at: Optional[datetime] = None
+
+class ApprovalDetail(ApprovalResponse):
+    brief: Optional[ApprovalBrief] = None
+    # Raw interrupt payload: the audit source of truth (NFR-07)
+    payload: dict
 
 class ApprovalDecision(BaseModel):
     action: str  # "approve" or "reject"
@@ -83,6 +101,7 @@ class ApprovalDecisionResponse(BaseModel):
     status: str
     reviewer: str
     decided_at: datetime
+    resumed: bool = False
 
 class ApprovalListResponse(BaseModel):
     items: list[ApprovalResponse]

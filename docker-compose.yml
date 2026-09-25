@@ -50,6 +50,8 @@ services:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
       DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator
+      PG_CONN_STRING: postgresql://app:app@postgres:5432/orchestrator
+      CELERY_BROKER_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333   # .env's localhost is the container itself
     depends_on:
       postgres:
