@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 from unittest.mock import patch, MagicMock
 
 from src.agent.graph import create_graph
@@ -161,7 +161,7 @@ def test_revised_draft_resolves_critic_flagged_issue(
     mock_diag_llm.return_value.invoke.return_value = diag_resp
 
     # Both drafts have [Source: KB0001] so structural check passes for both.
-    # The Critic LLM is called for both — it fails the first (implausible action)
+    # The Critic LLM is called for both â€” it fails the first (implausible action)
     # and passes the second (correct action, matching evidence).
     # This ensures the test exercises the LLM-driven revision path, not the
     # structural pre-check shortcut.
@@ -220,9 +220,10 @@ def test_revised_draft_resolves_critic_flagged_issue(
             p.stop()
 
     final_resolution = result["outputs"]["resolution"]
-    assert "[Source: KB0001]" in final_resolution, (
-        "Revised draft must include [Source: KB0001] — the citation missing in the first draft."
+    assert "restart the service" in final_resolution.lower(), ( "Revised draft must correct the action flagged by the Critic (restart service, not router)." )`n    assert "[Source: KB0001]" in final_resolution, (
+        "Revised draft must include [Source: KB0001] â€” the citation missing in the first draft."
     )
     assert result.get("revision_count", 0) == 1
     assert result["critic_verdict"]["passed"] is True
     assert result["action_taken"] == "resolved_automatically"
+
