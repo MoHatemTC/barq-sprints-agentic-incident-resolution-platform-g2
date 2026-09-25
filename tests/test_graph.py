@@ -1,7 +1,16 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
+from langgraph.checkpoint.memory import MemorySaver
+
 from src.agent.graph import create_graph
+
+
+def _paused(graph, thread_id):
+    """State of a run that paused at interrupt() for human review."""
+    snapshot = graph.get_state({"configurable": {"thread_id": thread_id}})
+    assert snapshot.next == ("interrupt",)
+    return snapshot.values
 
 
 def _fake_chunk():
@@ -32,14 +41,15 @@ def test_graph_routing_normal_risk(mock_search):
 @patch("src.agent.nodes.retrieve.search", return_value=[])
 def test_graph_routes_to_interrupt_when_no_evidence(mock_search):
     """Empty retrieval result -> human review, not diagnose."""
-    graph = create_graph().compile()
-    result = graph.invoke({
+    graph = create_graph().compile(checkpointer=MemorySaver())
+    graph.invoke({
         "execution_id": "test_2",
         "incident_number": "INC_TEST_02",
         "incident_payload": {"description": "something unrelated"},
-    })
+    }, config={"configurable": {"thread_id": "test_2"}})
 
-    assert result["action_taken"] == "interrupted:no_evidence"
+    result = _paused(graph, "test_2")
+    assert result["gate"] == "no_evidence"
     assert result["human_review_required"] is True
     assert result["failure_reason"] == "no_evidence"
 
@@ -47,21 +57,22 @@ def test_graph_routes_to_interrupt_when_no_evidence(mock_search):
 @patch("src.agent.nodes.retrieve.search", side_effect=RuntimeError("qdrant down"))
 def test_graph_routes_to_interrupt_when_retrieval_fails(mock_search):
     """Retrieval exception -> human review with retrieval_failed reason."""
-    graph = create_graph().compile()
-    result = graph.invoke({
+    graph = create_graph().compile(checkpointer=MemorySaver())
+    graph.invoke({
         "execution_id": "test_3",
         "incident_number": "INC_TEST_03",
         "incident_payload": {"description": "vpn issue"},
-    })
+    }, config={"configurable": {"thread_id": "test_3"}})
 
-    assert result["action_taken"] == "interrupted:retrieval_failed"
+    result = _paused(graph, "test_3")
+    assert result["gate"] == "retrieval_failed"
     assert result["human_review_required"] is True
     assert result["failure_reason"] == "retrieval_failed"
 
 
 def test_graph_routing_high_risk():
     """High-risk incident should skip retrieval and go to interrupt."""
-    graph = create_graph().compile()
+    graph = create_graph().compile(checkpointer=MemorySaver())
 
     initial_state = {
         "execution_id": "test_4",  # Updated to 4 to avoid conflict with test_2 above
@@ -69,10 +80,12 @@ def test_graph_routing_high_risk():
         "incident_payload": {"description": "this is a high-risk task"}, # Standardized to "description"
     }
 
-    result = graph.invoke(initial_state)
+    graph.invoke(initial_state, config={"configurable": {"thread_id": "test_4"}})
 
-    # High risk routes to interrupt, NOT act
-    assert result["action_taken"] == "interrupted:high_risk_incident"
+    # High risk pauses for human review, NOT act
+    result = _paused(graph, "test_4")
+    assert result["gate"] == "high_risk"
+    assert result.get("action_taken") is None
     assert result["risk"] == "high"
     # Should NOT have retrieved evidence (skipped retrieval entirely)
     assert result.get("retrieved_evidence") is None
