@@ -214,7 +214,7 @@ def screen_output_content(text: str) -> OutputScreeningResult:
 
 # Keys that MUST be present in ``state["outputs"]`` before writing back.
 REQUIRED_OUTPUT_KEYS: Set[str] = frozenset({
-    "resolution_text",
+    "resolution",
 })
 
 # Keys that are optional but recommended.
@@ -295,8 +295,8 @@ def validate_agent_output(state: Dict[str, Any]) -> OutputValidationResult:
 
     # --- 2. Output content screening -------------------------------------------
     outputs = state.get("outputs", {})
-    resolution_text = outputs.get("resolution_text", "")
-    screening_result = screen_output_content(resolution_text)
+    resolution = outputs.get("resolution", "")
+    screening_result = screen_output_content(resolution)
     if not screening_result.is_clean:
         block_reasons.append(
             f"OUTPUT_CONTENT_FLAGGED: {', '.join(screening_result.flagged_labels)}"

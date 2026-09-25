@@ -62,7 +62,7 @@ from src.agent.nodes.safety_check import safety_check_node
 def test_safety_check_node_valid():
     state = {
         "outputs": {
-            "resolution_text": "Restart the router.",
+            "resolution": "Restart the router.",
             "proposed_action": "update_incident"
         },
         "confidence": 0.95
@@ -74,7 +74,7 @@ def test_safety_check_node_valid():
 def test_safety_check_node_invalid_action():
     state = {
         "outputs": {
-            "resolution_text": "Restart the router.",
+            "resolution": "Restart the router.",
             "proposed_action": "delete_incident"
         },
         "confidence": 0.95
@@ -87,7 +87,7 @@ def test_safety_check_node_invalid_action():
 def test_safety_check_node_invalid_content():
     state = {
         "outputs": {
-            "resolution_text": "Use password=admin123 to login.",
+            "resolution": "Use password=admin123 to login.",
             "proposed_action": "update_incident"
         },
         "confidence": 0.95

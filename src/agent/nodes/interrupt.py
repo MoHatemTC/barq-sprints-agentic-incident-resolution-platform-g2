@@ -13,6 +13,13 @@ def interrupt_node(state: Dict[str, Any]) -> Dict[str, Any]:
     risk = state.get("risk", "normal")
     confidence = state.get("confidence")
 
+    if state.get("action_taken") == "blocked_by_guardrail":
+        return {
+            "action_taken": state.get("action_taken"),
+            "human_review_required": True,
+            "failure_reason": state.get("failure_reason"),
+        }
+
     if risk == "high":
         reason = "high_risk_incident"
     elif state.get("retrieval_failed"):

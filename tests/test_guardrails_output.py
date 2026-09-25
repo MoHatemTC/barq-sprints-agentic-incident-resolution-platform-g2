@@ -86,7 +86,7 @@ class TestActionValidation:
 
 class TestOutputContentScreening:
 
-    def test_clean_resolution_text(self):
+    def test_clean_resolution(self):
         text = "Please restart the VPN client and reconnect using your new credentials."
         result = screen_output_content(text)
         assert result.is_clean is True
@@ -166,7 +166,7 @@ class TestOutputContentScreening:
 class TestSchemaValidation:
 
     def test_valid_outputs(self):
-        outputs = {"resolution_text": "Restart the service."}
+        outputs = {"resolution": "Restart the service."}
         result = validate_output_schema(outputs)
         assert result.is_valid is True
         assert result.missing_keys == []
@@ -174,19 +174,19 @@ class TestSchemaValidation:
     def test_none_outputs_invalid(self):
         result = validate_output_schema(None)
         assert result.is_valid is False
-        assert "resolution_text" in result.missing_keys
+        assert "resolution" in result.missing_keys
 
     def test_empty_dict_invalid(self):
         result = validate_output_schema({})
         assert result.is_valid is False
-        assert "resolution_text" in result.missing_keys
+        assert "resolution" in result.missing_keys
 
-    def test_empty_resolution_text_invalid(self):
-        result = validate_output_schema({"resolution_text": ""})
+    def test_empty_resolution_invalid(self):
+        result = validate_output_schema({"resolution": ""})
         assert result.is_valid is False
 
     def test_recommended_keys_logged(self):
-        outputs = {"resolution_text": "Fixed the issue."}
+        outputs = {"resolution": "Fixed the issue."}
         result = validate_output_schema(outputs)
         assert result.is_valid is True
         # Missing recommended keys should be listed but not block
@@ -194,7 +194,7 @@ class TestSchemaValidation:
 
     def test_full_outputs_with_recommended(self):
         outputs = {
-            "resolution_text": "Restart VPN.",
+            "resolution": "Restart VPN.",
             "root_cause": "Expired certificate",
             "confidence_score": 0.92,
             "evidence_refs": ["KB0001"],
@@ -211,7 +211,7 @@ class TestValidateAgentOutput:
     def test_valid_state(self):
         state = {
             "outputs": {
-                "resolution_text": "Please restart the VPN client.",
+                "resolution": "Please restart the VPN client.",
                 "proposed_action": "update_incident",
             },
         }
@@ -222,7 +222,7 @@ class TestValidateAgentOutput:
     def test_blocked_action(self):
         state = {
             "outputs": {
-                "resolution_text": "Deleting the incident.",
+                "resolution": "Deleting the incident.",
                 "proposed_action": "delete_incident",
             },
         }
@@ -233,7 +233,7 @@ class TestValidateAgentOutput:
     def test_flagged_content(self):
         state = {
             "outputs": {
-                "resolution_text": "Use password=admin123 to login.",
+                "resolution": "Use password=admin123 to login.",
             },
         }
         result = validate_agent_output(state)
