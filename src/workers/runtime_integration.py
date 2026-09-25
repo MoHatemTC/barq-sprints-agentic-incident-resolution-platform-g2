@@ -8,10 +8,17 @@ copy persistence services or graph nodes.
 
 from __future__ import annotations
 
+import json
+import logging
+import os
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from importlib import import_module
 from typing import Protocol
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -59,7 +66,11 @@ def establish_execution_context(
 
     state_manager, close = state_manager_factory()
     try:
-        execution = state_manager.create_execution(incident_reference=incident_number)
+        execution = state_manager.create_execution(
+            incident_reference=incident_number,
+            agent_version=os.environ.get("BARQ_AGENT_VERSION", "sprint-3.1"),
+            model_name=os.environ.get("LLM_MODEL", "gemini-3.6-flash"),
+        )
         execution_identifier = getattr(execution, "execution_identifier", None)
         if not isinstance(execution_identifier, str) or not execution_identifier:
             raise RuntimeError("S2.2 create_execution returned no execution_identifier")
@@ -126,15 +137,39 @@ class StateManagerTaskRecorder:
             close()
 
     def record_success(self, accepted_incident: object, result: object) -> None:
-        del accepted_incident, result
         state_manager, close = self.state_manager_factory()
         try:
-            state_manager.update_execution_status(
+            checkpoint = _dashboard_checkpoint(result)
+            state_manager.save_checkpoint(
+                execution_reference=self.context.execution_identifier,
+                node_name=_terminal_node_name(checkpoint),
+                checkpoint=json.dumps(checkpoint, default=str),
+            )
+            _update_node_reached(
+                state_manager,
+                self.context.execution_identifier,
+                _terminal_node_name(checkpoint),
+            )
+            execution = state_manager.update_execution_status(
                 self.context.execution_identifier,
                 "succeeded",
             )
+            get_retry_state = getattr(state_manager, "get_retry_state", None)
+            retry_state = (
+                get_retry_state(self.context.execution_identifier)
+                if callable(get_retry_state)
+                else None
+            )
+            execution_metadata = _execution_metadata(execution, retry_state)
         finally:
             close()
+
+        _sync_servicenow_completion(
+            accepted_incident,
+            checkpoint,
+            self.context.execution_identifier,
+            execution_metadata,
+        )
 
 
 class GraphAgentExecutor:
@@ -200,3 +235,145 @@ def context_from_task_headers(headers: object) -> ExecutionContext | None:
     if isinstance(retry_state_id, bool) or not isinstance(retry_state_id, int):
         return None
     return ExecutionContext(execution_identifier, retry_state_id)
+
+
+def _dashboard_checkpoint(result: object) -> dict[str, object]:
+    if not isinstance(result, Mapping):
+        return {"result": result}
+
+    checkpoint = dict(result)
+    checkpoint.pop("incident_payload", None)
+    return checkpoint
+
+
+def _terminal_node_name(checkpoint: Mapping[str, object]) -> str:
+    action = checkpoint.get("action_taken")
+    if isinstance(action, str) and action:
+        return action[:255]
+
+    if checkpoint.get("human_review_required") is True:
+        return "human_review_required"
+
+    if checkpoint.get("outputs"):
+        return "resolved"
+
+    return "graph_completed"
+
+
+def _sync_servicenow_completion(
+    accepted_incident: object,
+    checkpoint: Mapping[str, object],
+    execution_identifier: str,
+    execution_metadata: Mapping[str, object],
+) -> None:
+    """Reflect a completed BARQ run in its ServiceNow AI fields.
+
+    A ServiceNow outage must not turn an otherwise completed diagnosis into a
+    failed worker task. The durable BARQ checkpoint remains the source for
+    retrying or auditing the result.
+    """
+    if not isinstance(accepted_incident, Mapping):
+        return
+    incident_sys_id = accepted_incident.get("sys_id")
+    if not isinstance(incident_sys_id, str) or not incident_sys_id:
+        return
+
+    try:
+        client_module = import_module("src.servicenow.client")
+        client_module.ServiceNowClient().update_incident(
+            incident_sys_id,
+            _servicenow_completion_fields(checkpoint, execution_metadata),
+        )
+    except Exception:
+        logger.warning(
+            "BARQ completed execution %s, but could not update its ServiceNow AI fields",
+            execution_identifier,
+            exc_info=True,
+        )
+
+
+def _execution_metadata(execution: object, retry_state: object) -> dict[str, object]:
+    return {
+        "processing_start": _servicenow_timestamp(getattr(execution, "started_at", None)),
+        "processing_end": _servicenow_timestamp(
+            getattr(execution, "ended_at", None) or datetime.now(timezone.utc)
+        ),
+        "retry_count": getattr(retry_state, "attempt_count", 0),
+        "max_retries": _environment_non_negative_int("CELERY_TASK_MAX_RETRIES", 3),
+        "agent_version": getattr(execution, "agent_version", None)
+        or os.environ.get("BARQ_AGENT_VERSION", "sprint-3.1"),
+        "model_name": getattr(execution, "model_name", None)
+        or os.environ.get("LLM_MODEL", "gemini-3.6-flash"),
+    }
+
+
+def _servicenow_completion_fields(
+    checkpoint: Mapping[str, object], execution_metadata: Mapping[str, object] | None = None
+) -> dict[str, object]:
+    execution_metadata = execution_metadata or {}
+    outputs = checkpoint.get("outputs")
+    outputs = outputs if isinstance(outputs, Mapping) else {}
+    fields: dict[str, object] = {
+        "processing_state": "complete",
+        "processing_start": execution_metadata.get("processing_start"),
+        "processing_end": execution_metadata.get("processing_end"),
+        "max_retries": execution_metadata.get("max_retries", 3),
+        "retry_count": execution_metadata.get("retry_count", 0),
+        "retry_time_out": None,
+        "agent_version": execution_metadata.get("agent_version", "sprint-3.1"),
+        "model_name": execution_metadata.get("model_name", "gemini-3.6-flash"),
+        "classification": _field_text(checkpoint.get("classification"), 255),
+        "confidence": checkpoint.get("confidence") or 0,
+        "suggestion": _field_text(outputs.get("diagnosis"), 4_000),
+        "resolution": _field_text(outputs.get("resolution"), 4_000),
+        "human_review": checkpoint.get("human_review_required") is True,
+        "failure_reason": None,
+    }
+    failure_reason = _field_text(checkpoint.get("failure_reason"), 1_000)
+    if failure_reason:
+        fields["failure_reason"] = failure_reason
+    return fields
+
+
+def _field_text(value: object, max_length: int) -> str:
+    text = value.strip() if isinstance(value, str) else str(value) if value is not None else ""
+    return text[:max_length]
+
+
+def _servicenow_timestamp(value: object) -> str | None:
+    if not isinstance(value, datetime):
+        return None
+    return value.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _environment_non_negative_int(name: str, default: int) -> int:
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except ValueError:
+        return default
+    return max(value, 0)
+
+
+def _update_node_reached(
+    state_manager: object,
+    execution_identifier: str,
+    node_name: str,
+) -> None:
+    db = getattr(state_manager, "db", None)
+    if db is None:
+        return
+
+    try:
+        models = import_module("src.db.models")
+        execution = (
+            db.query(models.Execution)
+            .filter(models.Execution.execution_identifier == execution_identifier)
+            .first()
+        )
+        if execution is None:
+            return
+        execution.node_reached = node_name
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise

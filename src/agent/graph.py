@@ -1,4 +1,4 @@
-from langgraph.graph import StateGraph, END
+﻿from langgraph.graph import StateGraph, END
 from src.agent.state import AgentState
 
 from src.agent.nodes.load import load_node
@@ -16,7 +16,6 @@ from src.agent.nodes.act import act_node
 
 CONFIDENCE_FLOOR = 0.6
 
-
 def route_after_risk(state: AgentState) -> str:
     """Route high-risk incidents to interrupt (human path) without retrieval."""
     if state.get("risk") == "high":
@@ -24,7 +23,10 @@ def route_after_risk(state: AgentState) -> str:
     return "retrieve"
 
 def route_after_retrieve(state: AgentState) -> str:
-    """No evidence (empty or retrieval failed) -> human path, else continue."""
+    """Block invalid tickets and missing evidence before diagnosis begins."""
+    outputs = state.get("outputs") or {}
+    if outputs.get("eligibility") == "invalid":
+        return "interrupt"
     if not state.get("retrieved_evidence"):
         return "interrupt"
     return "diagnose"
@@ -36,12 +38,24 @@ def route_after_confidence(state: AgentState) -> str:
         return "interrupt"
     return "act"
 
+def route_after_critic(state: AgentState) -> str:
+    """
+    S3.1 deterministic routing after Critic/Verifier Agent.
+    - PASS  -> safety_check
+    - FAIL + retries remain -> generate
+    - FAIL + retries exhausted -> act
+    Routing is purely Python — no LLM involved.
+    """
+    verdict = state.get("critic_verdict") or {}
+    if verdict.get("passed"):
+        return "safety_check"
+    if state.get("critic_exhausted"):
+        return "act"
+    return "generate"
+
 
 def create_graph():
     workflow = StateGraph(AgentState)
-
-
-    # Add all 11 nodes + interrupt
 
     workflow.add_node("load", load_node)
     workflow.add_node("validate", validate_node)
@@ -56,10 +70,8 @@ def create_graph():
     workflow.add_node("interrupt", interrupt_node)
     workflow.add_node("act", act_node)
 
-    # Entry point
     workflow.set_entry_point("load")
 
-    # Standard sequence: load -> validate -> classify -> determine_risk
     workflow.add_edge("load", "validate")
     workflow.add_edge("validate", "classify")
     workflow.add_edge("classify", "determine_risk")
@@ -76,13 +88,21 @@ def create_graph():
         {"diagnose": "diagnose", "interrupt": "interrupt"},
     )
 
-
     workflow.add_edge("diagnose", "generate")
     workflow.add_edge("generate", "verify_evidence")
-    workflow.add_edge("verify_evidence", "safety_check")
+
+    workflow.add_conditional_edges(
+        "verify_evidence",
+        route_after_critic,
+        {
+            "generate": "generate",
+            "safety_check": "safety_check",
+            "act": "act",
+        },
+    )
+
     workflow.add_edge("safety_check", "confidence_check")
 
-    # Conditional edge after confidence: below floor -> interrupt, above -> act
     workflow.add_conditional_edges(
         "confidence_check",
         route_after_confidence,
@@ -102,6 +122,4 @@ def compile_graph(checkpointer=None):
     workflow = create_graph()
     if checkpointer:
         return workflow.compile(checkpointer=checkpointer)
-
     return workflow.compile()
-
