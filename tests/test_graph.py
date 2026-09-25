@@ -1,4 +1,6 @@
 ﻿import pytest
+import json
+from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
 
 from src.agent.graph import create_graph
@@ -21,35 +23,76 @@ def _build_static_llm(content):
     return mock_llm
 
 
-@patch("src.agent.nodes.validate.get_llm")
-@patch("src.agent.nodes.retrieve.search", return_value=[_fake_chunk()])
-def test_graph_routing_normal_risk(mock_search, mock_validate_llm):
-    """Normal risk incident should go through the full automated path to act."""
-    mock_validate_llm.return_value = _build_static_llm("valid")
-    graph = create_graph().compile()
-    initial_state = {
-        "execution_id": "test_1",
-        "incident_number": "INC_TEST_01",
-        "incident_payload": {"description": "normal issue"},
-    }
+@contextmanager
+def _mock_routing_agents(risk="low", include_resolution_agents=False):
+    """Keep graph-routing tests independent from the external LLM proxy."""
+    patches = [
+        patch("src.agent.nodes.validate.get_llm", return_value=_build_static_llm("valid")),
+        patch("src.agent.nodes.classify.get_llm", return_value=_build_static_llm("network")),
+        patch("src.agent.nodes.determine_risk.get_llm", return_value=_build_static_llm(risk)),
+    ]
+    if include_resolution_agents:
+        patches.extend([
+            patch(
+                "src.agent.nodes.diagnose.get_llm",
+                return_value=_build_static_llm(json.dumps({
+                    "root_cause": "Cached VPN credentials are stale.",
+                    "reasoning": "KB0001 describes the same failure.",
+                    "supporting_evidence": ["KB0001"],
+                    "confidence": 0.9,
+                })),
+            ),
+            patch(
+                "src.agent.nodes.generate.get_llm",
+                return_value=_build_static_llm(
+                    "1. Reset the VPN credentials. [Source: KB0001]"
+                ),
+            ),
+            patch(
+                "src.agent.nodes.verify_evidence.get_llm",
+                return_value=_build_static_llm(json.dumps({
+                    "passed": True,
+                    "feedback": "",
+                    "invalid_steps": [],
+                    "citation_findings": [],
+                })),
+            ),
+        ])
 
-    result = graph.invoke(initial_state)
+    for active_patch in patches:
+        active_patch.start()
+    try:
+        yield
+    finally:
+        for active_patch in reversed(patches):
+            active_patch.stop()
+
+
+@patch("src.agent.nodes.retrieve.search", return_value=[_fake_chunk()])
+def test_graph_routing_normal_risk(mock_search):
+    """Normal risk incident should go through the full automated path to act."""
+    with _mock_routing_agents(include_resolution_agents=True):
+        graph = create_graph().compile()
+        result = graph.invoke({
+            "execution_id": "test_1",
+            "incident_number": "INC_TEST_01",
+            "incident_payload": {"description": "normal issue"},
+        })
 
     assert result["action_taken"] == "resolved_automatically"
     assert result["risk"] == "low"  # Kept from incoming branch
 
 
-@patch("src.agent.nodes.validate.get_llm")
 @patch("src.agent.nodes.retrieve.search", return_value=[])
-def test_graph_routes_to_interrupt_when_no_evidence(mock_search, mock_validate_llm):
+def test_graph_routes_to_interrupt_when_no_evidence(mock_search):
     """Empty retrieval result -> human review, not diagnose."""
-    mock_validate_llm.return_value = _build_static_llm("valid")
-    graph = create_graph().compile()
-    result = graph.invoke({
-        "execution_id": "test_2",
-        "incident_number": "INC_TEST_02",
-        "incident_payload": {"description": "something unrelated"},
-    })
+    with _mock_routing_agents():
+        graph = create_graph().compile()
+        result = graph.invoke({
+            "execution_id": "test_2",
+            "incident_number": "INC_TEST_02",
+            "incident_payload": {"description": "something unrelated"},
+        })
 
     assert result["action_taken"] == "interrupted:no_evidence"
     assert result["human_review_required"] is True
@@ -59,31 +102,28 @@ def test_graph_routes_to_interrupt_when_no_evidence(mock_search, mock_validate_l
 @patch("src.agent.nodes.retrieve.search", side_effect=RuntimeError("qdrant down"))
 def test_graph_routes_to_interrupt_when_retrieval_fails(mock_search):
     """Retrieval exception -> human review with retrieval_failed reason."""
-    graph = create_graph().compile()
-    result = graph.invoke({
-        "execution_id": "test_3",
-        "incident_number": "INC_TEST_03",
-        "incident_payload": {"description": "vpn issue"},
-    })
+    with _mock_routing_agents():
+        graph = create_graph().compile()
+        result = graph.invoke({
+            "execution_id": "test_3",
+            "incident_number": "INC_TEST_03",
+            "incident_payload": {"description": "vpn issue"},
+        })
 
     assert result["action_taken"] == "interrupted:retrieval_failed"
     assert result["human_review_required"] is True
     assert result["failure_reason"] == "retrieval_failed"
 
 
-@patch("src.agent.nodes.validate.get_llm")
-def test_graph_routing_high_risk(mock_validate_llm):
+def test_graph_routing_high_risk():
     """High-risk incident should skip retrieval and go to interrupt."""
-    mock_validate_llm.return_value = _build_static_llm("valid")
-    graph = create_graph().compile()
-
-    initial_state = {
-        "execution_id": "test_4",
-        "incident_number": "INC_TEST_04",
-        "incident_payload": {"description": "this is a high-risk task"},
-    }
-
-    result = graph.invoke(initial_state)
+    with _mock_routing_agents(risk="high"):
+        graph = create_graph().compile()
+        result = graph.invoke({
+            "execution_id": "test_4",
+            "incident_number": "INC_TEST_04",
+            "incident_payload": {"description": "this is a high-risk task"},
+        })
 
     # High risk routes to interrupt, NOT act
     assert result["action_taken"] == "interrupted:high_risk_incident"
