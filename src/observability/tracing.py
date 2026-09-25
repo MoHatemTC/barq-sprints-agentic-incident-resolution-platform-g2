@@ -23,16 +23,13 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-try:
-    # interrupt() pauses a graph by raising GraphInterrupt (a GraphBubbleUp)
-    from langgraph.errors import GraphBubbleUp
-except ImportError:
-    GraphBubbleUp = ()
+# interrupt() pauses a graph by raising GraphInterrupt (a GraphBubbleUp)
+from langgraph.errors import GraphBubbleUp
 
 
 def _is_graph_pause(error: BaseException) -> bool:
     """A LangGraph pause for human review is control flow, not a failure."""
-    return bool(GraphBubbleUp) and isinstance(error, GraphBubbleUp)
+    return isinstance(error, GraphBubbleUp)
 
 # ---------------------------------------------------------------------------
 # Context variable to propagate the root trace_id across nodes

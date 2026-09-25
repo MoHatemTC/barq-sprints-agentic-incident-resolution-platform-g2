@@ -36,6 +36,7 @@ RESUME_TASK_NAME = "resume_incident_graph"
 AUDIT_INTERRUPT = "interrupt"
 AUDIT_RESUME_HUMAN = "resume:human"
 AUDIT_RESUME_CRASH = "resume:crash_recovery"
+AUDIT_RESULT = "result"
 
 
 def record_audit(execution_id: str, node_name: str, data: dict) -> None:
@@ -81,24 +82,43 @@ class GraphAgentExecutor:
     def _continue(self, graph, execution_id: str, decision: dict | None = None) -> dict:
         """Continue an existing checkpoint and record how it continued."""
         snapshot = get_run_state(graph, execution_id)
+        ran = False
         if is_paused(snapshot):
             if decision is not None:
+                ran = True
                 self._audit(execution_id, AUDIT_RESUME_HUMAN, {**decision, "resumed_at": _now()})
         elif snapshot is not None and snapshot.next:
+            ran = True
             self._audit(execution_id, AUDIT_RESUME_CRASH, {
                 "from_node": list(snapshot.next),
                 "human_decision": snapshot.values.get("human_decision"),
                 "recovered_at": _now(),
             })
-        return continue_run(graph, execution_id, decision)
+        result = continue_run(graph, execution_id, decision)
+        if ran:
+            self._audit_outcome(execution_id, result)
+        return result
 
-    def _audit_pause(self, execution_id: str, result: dict) -> None:
+    def _audit_outcome(self, execution_id: str, result: dict) -> None:
+        """Paused: the raw payload (NFR-07). Finished: the outcome the dashboard shows."""
         if execution_status_for(result) == "awaiting_approval":
             self._audit(execution_id, AUDIT_INTERRUPT, {
                 "payload": result.get("interrupt_payload"),
                 "brief": result.get("approval_brief"),
                 "paused_at": _now(),
             })
+            return
+        self._audit(execution_id, AUDIT_RESULT, {
+            "classification": result.get("classification"),
+            "risk": result.get("risk"),
+            "confidence": result.get("confidence"),
+            "gate": result.get("gate"),
+            "outputs": result.get("outputs"),
+            "retrieved_evidence": [e.get("id") for e in result.get("retrieved_evidence") or []],
+            "action_taken": result.get("action_taken"),
+            "servicenow_write": result.get("servicenow_write"),
+            "finished_at": _now(),
+        })
 
     @trace_execution(name="execute_incident_graph")
     def execute(self, accepted_incident: dict, execution_id: str = None, incident_number: str = None) -> dict:
@@ -130,7 +150,7 @@ class GraphAgentExecutor:
 
         # Run the graph
         result = graph.invoke(initial_state, config=config)
-        self._audit_pause(exec_id, result)
+        self._audit_outcome(exec_id, result)
         return result
 
     @trace_execution(name="resume_incident_graph")

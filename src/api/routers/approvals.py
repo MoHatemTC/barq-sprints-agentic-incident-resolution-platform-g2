@@ -10,10 +10,16 @@ import os
 from datetime import datetime, timezone
 from functools import lru_cache
 
+from celery import Celery
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import ValidationError
 
 from src.agent.checkpointer import get_run_state, is_paused
+from src.db.approval_service import create_approval
+from src.db.database import SessionLocal
+from src.db.execution_service import update_execution_status
+from src.db.idempotency import check_and_create_idempotency_key
+from src.db.models import Execution
 from src.api.schemas import (
     ApprovalBrief,
     ApprovalDecision,
@@ -34,9 +40,6 @@ class SqlApprovalStore:
     """Postgres side of approvals, on the sync S2.2 services."""
 
     def awaiting_execution_ids(self) -> list[str]:
-        from src.db.database import SessionLocal
-        from src.db.models import Execution
-
         with SessionLocal() as db:
             rows = (
                 db.query(Execution.execution_identifier)
@@ -48,34 +51,24 @@ class SqlApprovalStore:
 
     def claim_decision(self, execution_id: str) -> bool:
         """First decision wins; a second (double click, second reviewer) gets False."""
-        from src.db.database import SessionLocal
-        from src.db.idempotency import check_and_create_idempotency_key
-
         with SessionLocal() as db:
             return check_and_create_idempotency_key(db, f"approval:{execution_id}")
 
     def record_decision(self, execution_id: str, evidence: str, decision: str, reviewer: str) -> None:
-        from src.db.database import SessionLocal
-        from src.db.approval_service import create_approval
-        from src.db.execution_service import update_execution_status
-
         with SessionLocal() as db:
             create_approval(db, execution_id, evidence, decision, reviewer)
             # Resumed and running again until the worker records the final outcome
             update_execution_status(db, execution_id, "started")
 
 
-class CeleryResumeDispatcher:
-    """Hands the resume to the worker, which has retries and crash recovery."""
+@lru_cache
+def _celery() -> Celery:
+    return Celery("barq_api", broker=os.environ["CELERY_BROKER_URL"])
 
-    def __init__(self):
-        self._app = None
 
-    def __call__(self, execution_id: str, decision: dict) -> None:
-        if self._app is None:
-            from celery import Celery
-            self._app = Celery("barq_api", broker=os.environ["CELERY_BROKER_URL"])
-        self._app.send_task(RESUME_TASK_NAME, args=[execution_id, decision])
+def dispatch_resume(execution_id: str, decision: dict) -> None:
+    """Hand the resume to the worker, which has retries and crash recovery."""
+    _celery().send_task(RESUME_TASK_NAME, args=[execution_id, decision])
 
 
 def get_approval_store():
@@ -89,6 +82,13 @@ def _compiled_graph():
     return compile_graph(checkpointer=get_checkpointer())
 
 
+def warm_up() -> None:
+    try:
+        _compiled_graph()
+    except Exception:
+        pass  # requests retry and return 503 while the store is unavailable
+
+
 def get_approval_graph():
     # lru_cache does not cache exceptions, so a later request retries the connection
     try:
@@ -99,9 +99,8 @@ def get_approval_graph():
         ) from exc
 
 
-@lru_cache
 def get_resume_dispatcher():
-    return CeleryResumeDispatcher()
+    return dispatch_resume
 
 
 def _brief(values: dict):

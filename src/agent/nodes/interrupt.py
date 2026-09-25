@@ -18,7 +18,4 @@ def normalize_decision(decision: Any) -> Dict[str, Any]:
 def interrupt_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Pause the graph until a human decision is persisted"""
     decision = interrupt(state.get("interrupt_payload") or {})
-    return {
-        "human_decision": normalize_decision(decision),
-        "resume_kind": "human",
-    }
+    return {"human_decision": normalize_decision(decision)}

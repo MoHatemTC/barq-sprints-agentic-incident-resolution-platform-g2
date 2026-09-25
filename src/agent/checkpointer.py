@@ -41,7 +41,11 @@ def _build_checkpointer() -> Any:
     checkpointer = PostgresSaver(pool)
     # Create checkpoint tables/indexes on first run (requires autocommit
     # because CREATE INDEX CONCURRENTLY cannot run inside a transaction).
-    checkpointer.setup()
+    try:
+        checkpointer.setup()
+    except Exception:
+        pool.close()  # otherwise the failed pool keeps reconnecting in the background
+        raise
     return checkpointer
 
 

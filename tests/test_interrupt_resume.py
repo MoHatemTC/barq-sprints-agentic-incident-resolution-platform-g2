@@ -82,7 +82,6 @@ def test_approve_resumes_same_run_to_act():
 
     assert result["action_taken"] == "approved_by_human"
     assert result["human_decision"] == {"decision": "approve", "reviewer": "alice", "comment": "ok"}
-    assert result["resume_kind"] == "human"
     # same thread: state from before the pause is still there
     assert result["risk"] == "high"
     assert result["gate"] == "high_risk"

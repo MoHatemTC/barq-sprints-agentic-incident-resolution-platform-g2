@@ -253,8 +253,9 @@ def test_redelivered_task_continues_from_checkpoint(executor, fake):
 
     assert result["servicenow_write"] == "written"
     assert len(fake.logs) == 1
-    assert audit.names() == [tasks.AUDIT_RESUME_CRASH]
+    assert audit.names() == [tasks.AUDIT_RESUME_CRASH, tasks.AUDIT_RESULT]
     assert audit.rows[0][2]["from_node"] == ["act"]
+    assert audit.rows[1][2]["action_taken"] == "resolved_automatically"
 
 
 def test_killed_after_write_recovers_without_second_write(executor, fake):
@@ -267,7 +268,7 @@ def test_killed_after_write_recovers_without_second_write(executor, fake):
 
     assert result["servicenow_write"] == "already_done"
     assert len(fake.logs) == 1
-    assert audit.names() == [tasks.AUDIT_RESUME_CRASH]
+    assert audit.names() == [tasks.AUDIT_RESUME_CRASH, tasks.AUDIT_RESULT]
 
 
 def test_pause_is_audited_once_even_if_redelivered(executor, fake):
@@ -293,7 +294,9 @@ def test_human_resume_and_crash_recovery_are_audited_differently(executor, fake)
 
     assert result["action_taken"] == "approved_by_human"
     assert len(fake.logs) == 1
-    assert audit.names() == [tasks.AUDIT_INTERRUPT, tasks.AUDIT_RESUME_HUMAN, tasks.AUDIT_RESUME_CRASH]
+    assert audit.names() == [
+        tasks.AUDIT_INTERRUPT, tasks.AUDIT_RESUME_HUMAN, tasks.AUDIT_RESUME_CRASH, tasks.AUDIT_RESULT,
+    ]
     assert audit.rows[1][2]["reviewer"] == "alice"
     # the crash recovery kept the human decision it resumed with
     assert audit.rows[2][2]["human_decision"]["decision"] == "approve"
@@ -307,7 +310,7 @@ def test_finished_run_redelivered_does_nothing(executor, fake):
 
     assert result["servicenow_write"] == "written"
     assert len(fake.logs) == 1
-    assert audit.names() == []
+    assert audit.names() == [tasks.AUDIT_RESULT]  # only the first run's outcome
 
 
 # demo crash switch tests

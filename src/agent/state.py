@@ -23,7 +23,5 @@ class AgentState(TypedDict, total=False):
     approval_brief: Optional[Dict[str, str]]
     # Reviewer decision passed back through Command
     human_decision: Optional[Dict[str, Any]]
-    # How the run continued: "human" after an approval decision
-    resume_kind: Optional[str]
     # ServiceNow write outcome from act: written | already_done | skipped_no_sys_id
     servicenow_write: Optional[str]
