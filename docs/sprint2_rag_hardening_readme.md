@@ -23,22 +23,27 @@ results below are real, and the second one is a regression this sprint introduce
 | `stressor` | the manual's extracted pages only | **1.000** | **1.000** |
 | `combined` | everything, as a live query sees it | 1.000 | 0.778 |
 
+All figures below are out of the **32 answerable rows** of 37; the 5 unanswerable rows carry no
+`expected_articles` and can neither gain nor lose a hit.
+
 | 37 baseline KB rows, k=5 | hit@5 (KB only) | hit@5 (manual mixed in) | verdict |
 |---|---|---|---|
 | `dense` | 0.281 | 0.281 | held |
 | `hybrid` | 0.312 | 0.281 | **−1 query (INC1027)** |
 | `hybrid_rerank` | 0.312 | 0.250 | **−2 queries (INC1027, INC1011)** |
 
-**This two-query regression is accepted, not fixed.** It is one pattern twice over: a relevant manual or OCR
-point outranks the KB article that answers a query, takes its slot, and cannot itself satisfy an
-`expected_articles` row because a manual section carries no KB number. Manual pages take a top-5 slot on
+**This 2-distinct-query regression is accepted, not fixed** — 3 query-arm pairs, since `INC1027` is lost
+under both fusion modes and `INC1011` under `hybrid_rerank` only, so the two regression rows above sum to 3.
+It is one pattern twice over: a relevant manual or OCR point outranks the KB article that answers a query,
+takes its slot, and cannot itself satisfy an `expected_articles` row because a manual section carries no KB
+number. Manual pages take a top-5 slot on
 13/37 baseline queries under `hybrid` and 26/37 under `hybrid_rerank`, but only 4/37 under `dense` — which is
 why `dense` is untouched. The second loss, `INC1011`, appeared only once OCR text was indexed; the
 displacing point is 7.1's incident form read at 86.01 confidence, which is a *correct* read of a *relevant*
 document, so the extractor is not at fault and raising the confidence gate would only discard good text.
 `k=5` was deliberately left alone: it is a shared retrieval parameter that S2.4 and S2.5 also depend on, and
-changing it this close to the deadline was assessed as more downstream risk than the benefit. **2 queries
-lost against 18 manual-section questions gained**, among them 10.4's approval form, which is now readable as
+changing it this close to the deadline was assessed as more downstream risk than the benefit. **2 distinct
+queries lost against 18 manual-section questions gained**, among them 10.4's approval form, which is now readable as
 text rather than only as a located region. The full reasoning is in
 [`sprint2_rag_hardening_report.md`](sprint2_rag_hardening_report.md) §2.
 
@@ -313,8 +318,8 @@ comparison against `barq_manual`, and is reported separately in the sprint repor
 
   **Accepted as-is, mentor-approved: no k change, no intent filter.** `k=5` is shared with S2.4/S2.5, and
   changing it this close to the deadline was assessed as more downstream risk than the two queries it would
-  recover. The net trade is **2 baseline queries lost against 18 manual-section questions gained**, including
-  10.4's approval form becoming readable as text. See report §2.1–§2.2.
+  recover. The net trade is **2 distinct baseline queries lost** — (3 query-arm pairs: `INC1027` lost under `hybrid` and `hybrid_rerank`; `INC1011` lost under `hybrid_rerank` only) — against **18
+  manual-section questions gained**, including 10.4's approval form becoming readable as text. See report §2.1–§2.2.
 
 - **OCR is wired and measured against real Tesseract 5.3.4** — not projected, not mocked.
   `extractors/ocr.py` came from `origin/feat/Sprint-3-(S3.3)---Input-&-Output-Guardrails-&-Ocr` (S3.3,

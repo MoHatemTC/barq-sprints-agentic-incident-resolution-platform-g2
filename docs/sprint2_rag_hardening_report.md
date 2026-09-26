@@ -13,9 +13,10 @@ Four results. The third is a regression this sprint caused, and it is reported a
    `page_crossing`, 0.000 → 1.000. (§4)
 2. **With the manual's pages in the shared collection, all 18 stressor rows are answerable and the
    `combined` arm still answers all of them.** (§3)
-3. **Adding the manual's pages to the live corpus costs two baseline queries, and that cost is accepted.**
-   `INC1027` drops out of the top 5 under `hybrid` and `hybrid_rerank`; `dense` is unaffected. hit@5 goes
-   0.312 → 0.281. Once OCR text is indexed, `hybrid_rerank` drops `INC1011` too, to 0.250. Both are the
+3. **Adding the manual's pages to the live corpus costs 2 distinct baseline queries, and that cost is
+   accepted** — 3 query-arm pairs, `INC1027` lost under `hybrid` and `hybrid_rerank`, `INC1011` lost under
+   `hybrid_rerank` only. `dense` is unaffected. hit@5 goes 0.312 → 0.281 under `hybrid`, and to 0.250 under
+   `hybrid_rerank` once OCR text is indexed. Both are the
    same pattern — a relevant manual or OCR point outranks the KB article that answers the query and takes
    its slot, and cannot itself satisfy an `expected_articles` row. **Rank displacement from corpus
    competition, not index corruption and not an extractor defect. No k change, no intent filter** — see §2.2
@@ -121,18 +122,37 @@ the index. (`kb_only` is equivalent to physically removing the points: the filte
 before ranking, so it returns the same KB points in the same order a KB-only collection would.
 `python -m src.retrieval.ingest drop-stressors` is the physical equivalent and doubles as the rollback.)
 
-| mode | hit@5 (KB only) | hit@5 (manual mixed in) | Δ | MRR (KB only) | MRR (mixed) | lost | gained | verdict |
+**All figures in this table are out of the 32 answerable baseline rows** (`baseline_rows = 37`,
+`answerable_rows = 32`; the 5 unanswerable rows carry no `expected_articles` and can neither gain nor lose
+a hit). The `lost` column counts **query-arm pairs**, not distinct queries — see the note under the table.
+
+| mode | hit@5 (KB only) | hit@5 (manual mixed in) | Δ | MRR (KB only) | MRR (mixed) | lost (query-arm pairs) | gained | verdict |
 |---|---|---|---|---|---|---|---|---|
 | `dense` | 0.281 | 0.281 | +0.000 | 0.250 | 0.250 | 0 | 0 | held |
 | `hybrid` | 0.312 | 0.281 | **−0.031** | 0.258 | 0.245 | **1** | 0 | **REGRESSION, accepted** |
 | `hybrid_rerank` | 0.312 | 0.250 | **−0.062** | 0.232 | 0.214 | **2** | 0 | **REGRESSION, accepted** |
 
 **Answer to the question asked: baseline hit@5 did not hold steady. It dropped by one query in 32 under
-`hybrid` and by two under `hybrid_rerank`, and held exactly in `dense`.** Both lost queries are named,
-traced and accepted as one pattern in §2.1–§2.2: `INC1027`, and — since OCR text entered the collection —
-`INC1011`. `eval/results/ablation_k5.{json,md}` has been regenerated and now records the *live* corpus
-(unfiltered), so its `hybrid` and `hybrid_rerank` hit@5 read 0.281 and 0.250. That file previously held the
-pre-sprint 0.312 as "no regression" evidence; it no longer claims that.
+`hybrid` and by two under `hybrid_rerank`, and held exactly in `dense`.**
+
+**2 distinct queries lost, 3 query-arm pairs.** The `lost` column sums to 3 because `INC1027` is lost under
+*both* fusion modes: `INC1027` is lost under `hybrid` and `hybrid_rerank`; `INC1011` is lost under
+`hybrid_rerank` only. Both are named, traced and accepted as one pattern in §2.1–§2.2.
+
+Arithmetic, for anyone checking: kb_only resolves 9 / 10 / 10 hits out of 32 and mixed resolves 9 / 9 / 8, so
+the losses are 0, 1 and 2, and `gained` is 0 in every arm — net loss, not redistribution.
+`eval/results/ablation_k5.{json,md}` has been regenerated and now records the *live* corpus (unfiltered), so
+its `hybrid` and `hybrid_rerank` hit@5 read 0.281 and 0.250. That file previously held the pre-sprint 0.312
+as "no regression" evidence; it no longer claims that.
+
+**MRR does not follow from the lost list alone,** and the difference is the same crowding seen from the other
+side. Losing a query that was hit at rank *r* removes `1/r` from the MRR numerator, but queries that keep
+their hit while sliding down the ranking cost MRR too. For `hybrid`, `INC1027` at rank 4 accounts for
+−0.0078 MRR directly, against −0.013 observed; the ~0.167-point residual is spread across the 13 queries
+where a manual point took a slot but the expected article stayed in the top 5. For `hybrid_rerank` the two
+lost queries at ranks 3 and 4 account for −0.0182 against −0.018 observed — fully accounted, within
+rounding. So MRR moves further than the hit count under `hybrid` precisely because rank movement among
+surviving queries is not free.
 
 ### 2.1 The two queries that changed
 
@@ -179,9 +199,15 @@ duplicate article numbers, so the unique rank and the slot number differ.)
 This is **slot-crowding from increased corpus competition.** The same 48 points answer 18 manual-section
 questions that the live corpus could not answer at all before this sprint (§3), and 3 of those are now
 answerable from text that was previously only recorded as a region. The effect is scoped by the slot
-histogram:
+histogram.
 
-| mode | queries where a manual point took 1 top-5 slot | 2 or more |
+**This histogram is out of all 37 baseline rows, not the 32 answerable ones** — the counter increments for
+every row before the hit comparison, including the 5 unanswerable rows (`eval/ablation.py:487`). It is
+deliberately the wider base: the question it answers is "how often does a manual point occupy a slot at
+all", which is meaningful for an unanswerable row too. **Do not compare it to the table above**, which is
+out of 32.
+
+| mode | queries where a manual point took 1 top-5 slot (of 37) | 2 or more |
 |---|---|---|
 | `dense` | 4 / 37 | 0 |
 | `hybrid` | 13 / 37 | 0 |
@@ -189,19 +215,21 @@ histogram:
 
 `hybrid_rerank` is hit hardest because its cross-encoder stage promotes the manual page, and `dense` barely
 moves because it has no fusion step to promote anything. No query gains a hit in either mode, so this is
-net −2, not a redistribution.
+net −2 distinct queries, not a redistribution.
 
 ### 2.2 The decision: accepted, no k change, no intent filter
 
 Reviewed and decided at mentor review, twice — once for `INC1027` and again after OCR was measured against
 real Tesseract and `INC1011` appeared. Both stand as measured.
 
-**Accepted trade:** two baseline queries out of 32, in two of three retrieval modes, against 18
-manual-section questions that move from unreachable in the live corpus to answered — the `stressor` arm at
-precision@5 0.519, recall@5 1.000, hit@5 1.000 (§3). Ten of the eighteen are gained by extraction work
-alone; the approval form on 10.4 is now readable as text rather than only as a located region, which is a
-capability that did not exist before this sprint. The corpus is strictly more informative and two retrieval
-slots on two queries is less informative.
+**Accepted trade: 2 distinct baseline queries out of 32** — 3 query-arm pairs, since `INC1027` is lost under
+`hybrid` and `hybrid_rerank` and `INC1011` is lost under `hybrid_rerank` only — against 18 manual-section
+questions that move from unreachable in the live corpus to answered, the `stressor` arm at precision@5 0.519,
+recall@5 1.000, hit@5 1.000 (§3). **Five of the eighteen are gained by extraction work alone** (0.722 → 1.000
+on 18 rows is 13 answered by the line reading against 18, so five change hands and none change back, §4);
+the approval form on 10.4 is now readable as text rather than only as a located region, which is a capability
+that did not exist before this sprint. The corpus is strictly more informative and two retrieval slots on two
+queries is less informative.
 
 `INC1011` is accepted on the same reasoning as `INC1027`, and for the same reason it is not a quality defect:
 the point that displaces the article is a *correct* read of a *relevant* document. Trading one query's rank
@@ -397,7 +425,7 @@ layer.
 
 **Decision: accepted, mentor-approved, on the same grounds as `INC1027`.** Both losses are instances of one
 pattern — mixed-corpus retrieval trading a small number of specific, understood rank displacements for
-genuine coverage gains. The net: **2 baseline queries lost** (`INC1027`, `INC1011`) against **18
+genuine coverage gains. The net: **2 distinct baseline queries lost** — (3 query-arm pairs: `INC1027` lost under `hybrid` and `hybrid_rerank`; `INC1011` lost under `hybrid_rerank` only) — against **18
 manual-section questions gained**, among them an approval form that was not readable as text before this
 sprint. `k=5` stays, no intent filter is introduced, and the reasoning is set out in full in §2.2.
 
