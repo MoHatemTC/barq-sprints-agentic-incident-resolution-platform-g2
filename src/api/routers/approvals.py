@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import ValidationError
 
 from src.agent.checkpointer import get_run_state, is_paused
-from src.db.approval_service import create_approval
+from src.db.approval_service import create_approval, get_approvals
 from src.db.database import SessionLocal
 from src.db.execution_service import update_execution_status
 from src.db.idempotency import check_and_create_idempotency_key
@@ -59,6 +59,24 @@ class SqlApprovalStore:
             create_approval(db, execution_id, evidence, decision, reviewer)
             # Resumed and running again until the worker records the final outcome
             update_execution_status(db, execution_id, "started")
+
+    def recorded_decision(self, execution_id: str) -> dict | None:
+        """The decision already stored for this execution, used to re-send a lost resume."""
+        with SessionLocal() as db:
+            rows = get_approvals(db, execution_id)
+            if not rows:
+                return None
+            row = rows[-1]
+            try:
+                rationale = json.loads(row.evidence_presented).get("rationale")
+            except (TypeError, ValueError, AttributeError):
+                rationale = None
+            return {
+                "status": row.reviewer_decision,
+                "reviewer": row.reviewer_identity,
+                "rationale": rationale,
+                "decided_at": row.decision_timestamp,
+            }
 
 
 @lru_cache
@@ -168,6 +186,16 @@ def get_approval(approval_id: str, graph=Depends(get_approval_graph)):
     )
 
 
+def _send_resume(dispatch, execution_id: str, action: str, reviewer: str, comment) -> None:
+    try:
+        dispatch(execution_id, {"decision": action, "reviewer": reviewer, "comment": comment})
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Decision recorded but the resume could not be queued, retry the same request: {exc}",
+        ) from exc
+
+
 @router.post("/api/v1/approvals/{approval_id}/decide", response_model=ApprovalDecisionResponse)
 def decide_approval(
     approval_id: str,
@@ -180,11 +208,23 @@ def decide_approval(
         raise HTTPException(status_code=422, detail="action must be 'approve' or 'reject'")
 
     values = _paused_values(graph, approval_id)
+    status = "approved" if decision.action == "approve" else "rejected"
 
     if not store.claim_decision(approval_id):
-        raise HTTPException(status_code=409, detail="A decision was already recorded for this execution")
-
-    status = "approved" if decision.action == "approve" else "rejected"
+        # Still paused with a decision stored: the first resume never reached the worker
+        # (broker down -> 503). The same reviewer retrying the same decision re-sends
+        # the STORED decision; anything else is a second decision and is refused.
+        recorded = store.recorded_decision(approval_id)
+        if not recorded or (recorded["status"], recorded["reviewer"]) != (status, decision.reviewer):
+            raise HTTPException(status_code=409, detail="A decision was already recorded for this execution")
+        _send_resume(dispatch, approval_id, decision.action, recorded["reviewer"], recorded["rationale"])
+        return ApprovalDecisionResponse(
+            approval_id=approval_id,
+            status=recorded["status"],
+            reviewer=recorded["reviewer"],
+            decided_at=recorded["decided_at"],
+            resumed=True,
+        )
     # What the reviewer saw, persisted before the resume (NFR-07 audit)
     evidence = json.dumps(
         {
@@ -195,21 +235,7 @@ def decide_approval(
         default=str,
     )
     store.record_decision(approval_id, evidence, status, decision.reviewer)
-
-    try:
-        dispatch(
-            approval_id,
-            {
-                "decision": decision.action,
-                "reviewer": decision.reviewer,
-                "comment": decision.rationale,
-            },
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=503,
-            detail=f"Decision recorded but the resume could not be queued: {exc}",
-        ) from exc
+    _send_resume(dispatch, approval_id, decision.action, decision.reviewer, decision.rationale)
 
     return ApprovalDecisionResponse(
         approval_id=approval_id,

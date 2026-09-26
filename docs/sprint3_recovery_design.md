@@ -203,6 +203,14 @@ no duplicate after the retries.
   Docker was misconfigured: INC0010150 stays `started`). This belongs to S2.3's consumer, not the graph.
 - **PATCH can be repeated** (window ②). It writes identical values, so the incident ends the same, but
   ServiceNow's history shows two updates.
+- **A lost resume is recovered by retrying the same `POST /decide`, not automatically.** If the broker is
+  down when the API queues the resume, the decision is stored and the API returns 503. The run stays paused
+  at `interrupt` (nothing is written) until the reviewer sends the same decision again, which re-sends the
+  stored one (`sprint3_hitl_design.md` §5). Nothing retries it by itself, and because the execution status
+  is already `started`, the run no longer shows in `GET /api/v1/approvals` for other reviewers. Manual replay
+  if the reviewer never retries: find paused runs with an Approval row
+  (`executions.status = 'started'`, checkpoint `next = ('interrupt',)`) and send
+  `resume_incident_graph(execution_id, {"decision", "reviewer", "comment"})` from that row.
 - **One worker, `--pool=solo`.** Checkpoints are per thread, so more workers would be safe, but that was not
   measured.
 - **`DEMO_CRASH_AT` is in production code.** It is inert unless the variable is set and Redis is reachable.

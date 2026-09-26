@@ -1,6 +1,7 @@
 """tests for S3.4 approvals API list/show paused executions and resume the Same checkpointed execution through Command(resume=...)."""
 
 import json
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
 import pytest
@@ -78,6 +79,17 @@ class FakeStore:
 
     def record_decision(self, execution_id, evidence, decision, reviewer):
         self.records.append((execution_id, json.loads(evidence), decision, reviewer))
+
+    def recorded_decision(self, execution_id):
+        for eid, evidence, decision, reviewer in reversed(self.records):
+            if eid == execution_id:
+                return {
+                    "status": decision,
+                    "reviewer": reviewer,
+                    "rationale": evidence["rationale"],
+                    "decided_at": datetime(2026, 9, 26, 10, 0, tzinfo=timezone.utc),
+                }
+        return None
 
 
 class SyncDispatcher:
@@ -249,6 +261,54 @@ def test_dispatch_failure_is_503_but_decision_is_kept(setup, graph):
 
     assert response.status_code == 503
     assert store.records[0][0] == "down"
+
+
+def test_retry_after_dispatch_failure_resends_and_resumes(setup, graph):
+    """Mentor note: broker down after the decision was stored used to leave the run
+    paused for good (retry got 409). The same retry now re-sends the stored decision."""
+    client, store, dispatcher = setup
+    _pause(graph, "down-2")
+    dispatcher.error = ConnectionError("redis down")
+    body = {"action": "approve", "reviewer": "sarah", "rationale": "safe"}
+
+    assert client.post("/api/v1/approvals/down-2/decide", json=body).status_code == 503
+
+    dispatcher.error = None  # broker back
+    retry = client.post("/api/v1/approvals/down-2/decide", json=body)
+
+    assert retry.status_code == 200
+    assert retry.json()["status"] == "approved" and retry.json()["resumed"] is True
+    assert len(store.records) == 1  # the decision is not recorded twice
+    assert dispatcher.calls[-1] == ("down-2", {"decision": "approve", "reviewer": "sarah", "comment": "safe"})
+    assert graph.get_state(thread_config("down-2")).values["action_taken"] == "approved_by_human"
+
+
+def test_retry_with_other_decision_is_still_refused(setup, graph):
+    """The retry path re-sends the stored decision only; it cannot flip it."""
+    client, _, dispatcher = setup
+    _pause(graph, "down-3")
+    dispatcher.error = ConnectionError("redis down")
+    client.post("/api/v1/approvals/down-3/decide", json={"action": "approve", "reviewer": "sarah"})
+    dispatcher.error = None
+
+    other_action = client.post("/api/v1/approvals/down-3/decide", json={"action": "reject", "reviewer": "sarah"})
+    other_reviewer = client.post("/api/v1/approvals/down-3/decide", json={"action": "approve", "reviewer": "bob"})
+
+    assert other_action.status_code == 409
+    assert other_reviewer.status_code == 409
+    assert len(dispatcher.calls) == 1  # only the failed first attempt
+    assert is_paused(graph.get_state(thread_config("down-3")))
+
+
+def test_retry_while_broker_still_down_is_503_again(setup, graph):
+    client, store, dispatcher = setup
+    _pause(graph, "down-4")
+    dispatcher.error = ConnectionError("redis down")
+    body = {"action": "reject", "reviewer": "bob"}
+
+    assert client.post("/api/v1/approvals/down-4/decide", json=body).status_code == 503
+    assert client.post("/api/v1/approvals/down-4/decide", json=body).status_code == 503
+    assert len(store.records) == 1
 
 
 #  worker side tests

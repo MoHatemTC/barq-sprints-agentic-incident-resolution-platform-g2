@@ -212,10 +212,24 @@ What `POST /decide` does:
 ```
 ① action is approve / reject?            ── no ──▶ 422
 ② checkpoint exists? paused at interrupt? ── no ──▶ 404 / 409
-③ claim once: idempotency key "approval:{id}"  ── taken ──▶ 409   (double click, second reviewer)
+③ claim once: idempotency key "approval:{id}"  ── taken ──▶ retry of a lost resume? (see below) else 409
 ④ persist Approval row (decision, reviewer, what was shown)       ← before any resume
 ⑤ queue Celery task resume_incident_graph(id, decision)  ── broker down ──▶ 503 (decision kept)
 ```
+
+**Retry after a 503.** If the broker is down at ⑤, the decision is already stored and the key from ③ is
+used. Before this fix, the retry got 409 and the run stayed paused until someone replayed it by hand. Now,
+when step ② still finds the run paused (so no worker resumed it) and the request has the **same action and
+reviewer** as the stored Approval row, the API re-sends the **stored** decision (with the stored rationale)
+and returns 200. It does not write a second Approval row. A different action or reviewer still gets 409, so
+the retry path can never flip or take over a decision. If the broker is still down, the retry returns 503
+again.
+
+Re-sending is safe even if the first message did reach the queue: a second resume on a finished run returns
+its state without running anything (`continue_run`), and on a half-finished run it is ordinary crash recovery,
+where `act` looks before it writes (see `sprint3_recovery_design.md` §3). Tests:
+`test_retry_after_dispatch_failure_resends_and_resumes`, `test_retry_with_other_decision_is_still_refused`,
+`test_retry_while_broker_still_down_is_503_again` (`tests/test_approvals_api.py`).
 
 The resume runs in the **worker**, not the API: `act` talks to ServiceNow, and the worker already has
 retries, `acks_late` and checkpoint recovery. The execution goes back to `started`, and the worker sets the
