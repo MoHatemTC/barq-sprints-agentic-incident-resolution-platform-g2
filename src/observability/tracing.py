@@ -1,9 +1,8 @@
-import os
 import time
 import logging
 import contextvars
 from functools import wraps
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 # Ensure .env is loaded before Langfuse reads LANGFUSE_PUBLIC_KEY etc.
 try:

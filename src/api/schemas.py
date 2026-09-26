@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field, computed_field
 from pydantic_settings import BaseSettings
 from typing import Optional
 from datetime import datetime
-from enum import Enum
 
 #settings pydantic model to validate the environment variables
 class Settings(BaseSettings):

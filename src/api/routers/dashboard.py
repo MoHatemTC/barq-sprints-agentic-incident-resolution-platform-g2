@@ -11,7 +11,6 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel

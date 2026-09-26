@@ -1,8 +1,5 @@
 """S3.4 approvals: list paused executions, show brief + raw payload, and resume
-the SAME checkpointed execution with the reviewer's decision.
-
-Endpoints are sync (run in FastAPI's threadpool): checkpoint and DB reads block.
-The approval id is the execution_id, which is also the LangGraph thread_id.
+the SAME checkpointed execution with the reviewer's decision
 """
 
 import json
@@ -211,9 +208,6 @@ def decide_approval(
     status = "approved" if decision.action == "approve" else "rejected"
 
     if not store.claim_decision(approval_id):
-        # Still paused with a decision stored: the first resume never reached the worker
-        # (broker down -> 503). The same reviewer retrying the same decision re-sends
-        # the STORED decision; anything else is a second decision and is refused.
         recorded = store.recorded_decision(approval_id)
         if not recorded or (recorded["status"], recorded["reviewer"]) != (status, decision.reviewer):
             raise HTTPException(status_code=409, detail="A decision was already recorded for this execution")

@@ -1,5 +1,3 @@
-import sys
-import pytest
 from src.workers.celery_app import create_celery_app
 from src.config import WorkerConfig
 

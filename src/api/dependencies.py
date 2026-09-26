@@ -1,4 +1,4 @@
-from fastapi import Request, Header, HTTPException, Depends
+from fastapi import Request, Depends
 from src.api.schemas import Settings
 from functools import lru_cache
 

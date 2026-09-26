@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch, MagicMock
 from src.agent.llm import get_llm, get_embeddings
 from src.agent.checkpointer import get_checkpointer
