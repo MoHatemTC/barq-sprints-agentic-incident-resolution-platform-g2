@@ -289,12 +289,26 @@ def _sync_servicenow_completion(
     if not isinstance(incident_sys_id, str) or not incident_sys_id:
         return
 
+    fields = _servicenow_completion_fields(checkpoint, execution_metadata)
     try:
-        client_module = import_module("src.servicenow.client")
-        client_module.ServiceNowClient().update_incident(
-            incident_sys_id,
-            _servicenow_completion_fields(checkpoint, execution_metadata),
+        # Through the registry, like every other agent-side ServiceNow write:
+        # this is the same incident the act node writes, so it takes the same
+        # permission path rather than reaching for a client of its own.
+        registry_module = import_module("src.agent.tools.registry")
+        result = registry_module.DEFAULT_TOOL_REGISTRY.dispatch(
+            "write_ai_fields", execution_identifier, sys_id=incident_sys_id, fields=fields
         )
+        if isinstance(result, registry_module.ToolRefusal):
+            # Not an outage: the tool is unregistered or unapproved, and
+            # retrying the same execution will not change that. Logged at error
+            # so it cannot pass for a transient ServiceNow failure, and still
+            # not raised, because a completed diagnosis must not be undone by a
+            # bookkeeping write.
+            logger.error(
+                "BARQ execution %s completed but the registry refused "
+                "write_ai_fields (%s): %s",
+                execution_identifier, result.reason, result.message,
+            )
     except Exception:
         logger.warning(
             "BARQ completed execution %s, but could not update its ServiceNow AI fields",

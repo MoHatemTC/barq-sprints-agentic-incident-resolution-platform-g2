@@ -10,7 +10,7 @@
     "kb_only": "is_stressor=False",
     "mixed": "no filter (live)"
   },
-  "baseline_rows": 37,
+  "baseline_rows": 40,
   "answerable_rows": 32,
   "evaluation_set_version": "1.2",
   "summary": {
@@ -20,8 +20,8 @@
       "hit_rate": 0.281,
       "mrr": 0.25,
       "planted_hits": 0,
-      "p50_ms": 879.7,
-      "p95_ms": 1273.2
+      "p50_ms": 830.1,
+      "p95_ms": 960.2
     },
     "kb_only|hybrid": {
       "precision": 0.099,
@@ -29,8 +29,8 @@
       "hit_rate": 0.312,
       "mrr": 0.258,
       "planted_hits": 0,
-      "p50_ms": 841.5,
-      "p95_ms": 1243.3
+      "p50_ms": 885.3,
+      "p95_ms": 1106.1
     },
     "kb_only|hybrid_rerank": {
       "precision": 0.084,
@@ -38,8 +38,8 @@
       "hit_rate": 0.312,
       "mrr": 0.232,
       "planted_hits": 0,
-      "p50_ms": 1754.6,
-      "p95_ms": 2109.4
+      "p50_ms": 1720.8,
+      "p95_ms": 2228.9
     },
     "mixed|dense": {
       "precision": 0.091,
@@ -47,8 +47,8 @@
       "hit_rate": 0.281,
       "mrr": 0.25,
       "planted_hits": 0,
-      "p50_ms": 830.4,
-      "p95_ms": 1177.8
+      "p50_ms": 823.8,
+      "p95_ms": 1053.6
     },
     "mixed|hybrid": {
       "precision": 0.081,
@@ -56,8 +56,8 @@
       "hit_rate": 0.281,
       "mrr": 0.245,
       "planted_hits": 0,
-      "p50_ms": 875.9,
-      "p95_ms": 1515.2
+      "p50_ms": 816.9,
+      "p95_ms": 869.2
     },
     "mixed|hybrid_rerank": {
       "precision": 0.062,
@@ -65,8 +65,8 @@
       "hit_rate": 0.25,
       "mrr": 0.214,
       "planted_hits": 0,
-      "p50_ms": 3528.5,
-      "p95_ms": 4681.9
+      "p50_ms": 3723.9,
+      "p95_ms": 4654.8
     }
   },
   "verdict": {
@@ -79,7 +79,7 @@
       "hits_gained": 0,
       "regression": false,
       "queries_where_a_stressor_took_a_slot": {
-        "1": 4
+        "1": 5
       },
       "lost": [],
       "gained": []
@@ -93,7 +93,7 @@
       "hits_gained": 0,
       "regression": true,
       "queries_where_a_stressor_took_a_slot": {
-        "1": 13
+        "1": 14
       },
       "lost": [
         {
@@ -112,8 +112,8 @@
           "kb_only_first_rank": 4,
           "mixed_returned": [
             "7.4",
-            "6.2",
             "KB0003",
+            "6.2",
             ""
           ]
         }
@@ -129,7 +129,7 @@
       "hits_gained": 0,
       "regression": true,
       "queries_where_a_stressor_took_a_slot": {
-        "1": 26
+        "1": 28
       },
       "lost": [
         {

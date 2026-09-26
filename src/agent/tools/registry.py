@@ -81,6 +81,10 @@ def build_default_registry() -> ToolRegistry:
 
     registry = ToolRegistry()
     registry.register("read_incident", PermissionClass.READ, gateway.read_incident)
+    # Idempotency probe, not a write: act_node must be able to ask "has this
+    # execution already written its receipt?" without an approval, or a
+    # retried execution would duplicate the write S3.4 works to prevent.
+    registry.register("find_execution_log", PermissionClass.READ, gateway.find_execution_log)
     registry.register("write_execution_log", PermissionClass.LOW_RISK_WRITE, gateway.write_execution_log)
     registry.register("write_ai_fields", PermissionClass.LOW_RISK_WRITE, gateway.write_ai_fields)
     registry.register("write_work_note", PermissionClass.LOW_RISK_WRITE, gateway.write_work_note)

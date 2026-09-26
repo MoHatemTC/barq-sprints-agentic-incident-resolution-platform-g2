@@ -82,3 +82,92 @@ Combined with the import-boundary test forbidding any code path from invoking
 IncidentGateway methods outside the registry, this makes the registry dispatch
 the sole enforcement point — attacking it directly is a meaningful test of the
 whole system's integrity, not just the happy path.
+
+## Registry Extension Contract
+
+Adding a tool is not just a handler and a `register()` line. The registry is
+the system's only permission boundary, so a tool added without every step below
+either silently escapes enforcement or fails at runtime in production. Follow
+the steps in order.
+
+### 1. Classify the permission, then justify the classification
+
+Pick the narrowest class the tool's actual effect allows, and record why in
+`sprint3_tool_registry.md` alongside the tool. The question is not *what the
+tool is for* but *what it can change*:
+
+| Class | Use for | Approval |
+|---|---|---|
+| `READ` | Cannot change remote state. Reads, existence probes, no-op paths. | Never |
+| `LOW_RISK_WRITE` | Writes bounded, reversible fields; no destructive or outward-facing effect. | Not required |
+| `HIGH_RISK_WRITE` | Destructive, unbounded, or outward-facing: deletes, bulk changes, anything a human or customer sees. | Required and consumed exactly once |
+
+A new tool defaults to `HIGH_RISK_WRITE` until proven otherwise. Downgrading
+needs a reason, not just the absence of objection — a read that can fail
+partway and leave state changed is a write.
+
+### 2. Implement the handler on IncidentGateway
+
+Handlers live on `IncidentGateway` in `src/servicenow/client.py`, receive
+`execution_id` as the first argument, and take only keyword arguments after
+it. `dispatch()` always supplies `execution_id`, so a handler that does not
+accept it raises `TypeError` at the first call. Verified by
+`test_every_registered_tool_dispatches_without_typeerror`.
+
+Never construct a `ServiceNowClient` outside `IncidentGateway`. It is the
+innermost client, holds auth, and is deliberately not injectable from nodes.
+
+### 3. Register it
+
+In `DEFAULT_TOOL_REGISTRY` in `src/agent/tools/registry.py`:
+
+```python
+registry.register("write_ai_fields", PermissionClass.LOW_RISK_WRITE, gateway.write_ai_fields)
+```
+
+Names are the wire contract between the LLM's tool call and the handler; keep
+them stable once shipped.
+
+### 4. Dispatch it — the step that is easy to skip
+
+Call `registry.dispatch(name, execution_id, **kwargs)`, never the handler
+directly. Skipping this was a real defect: `act_node` and `load_node` were both
+calling `ServiceNowClient` directly, so the registry was correct, fully tested,
+and completely bypassed by the code that actually wrote to ServiceNow. The
+boundary tests could not see it because they dispatched in isolation rather
+than driving the real nodes. **Routing the call is the point of the tool.**
+
+### 5. Handle ToolRefusal, never just return it
+
+`dispatch()` signals refusal by *returning* a `ToolRefusal` — it does not
+raise. A caller that ignores the return value falls through and reports a
+success it did not have. Check the result:
+
+- `act_node` raises `ToolRefused` (`retryable = False`): a refused write is a
+  terminal failure, not a retry. Retrying cannot register a missing tool or
+  conjure an unconsumed approval.
+- `load_node` warns and continues: a missing incident is genuinely tolerable
+  there, and refusing to run would be a worse failure than reading nothing.
+
+### 6. Prove it
+
+- Refusal coverage: unregistered *and* unapproved, driving the real call site,
+  asserting the write did not reach the client.
+  See `tests/test_act_node_registry_integration.py`.
+- Import-boundary coverage: `tests/test_registry_enforcement.py` fails if any
+  new module outside `ALLOWED_DIRECT_CLIENT` constructs a client.
+
+### Current exceptions to the boundary
+
+`ALLOWED_DIRECT_CLIENT` in `tests/test_registry_enforcement.py` enumerates
+reviewed non-agent paths. New entries need a justification in that list:
+
+- `src/api/routers/dashboard.py` — human-triggered incident creation. No
+  execution id exists to dispatch with, and it is not an agent action.
+- `src/retrieval/sources/servicenow_source.py` — read-only KB synchronization.
+- `src/api/dependencies.py` — a dead DI placeholder that shares the class name
+  and raises `NotImplementedError`. Name collision only; renaming it is the
+  real fix and is out of scope here.
+
+Agent code has no exceptions. If a node, the worker, or an orchestrator path
+needs a ServiceNow call, it goes through `dispatch()` like any other tool.

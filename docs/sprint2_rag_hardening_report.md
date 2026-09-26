@@ -116,7 +116,7 @@ failure mode that silently splits a corpus in two. `tests/test_ingest_stressors.
 `python eval/ablation.py --regression` →
 [`eval/results/regression_k5.md`](results/regression_k5.md), [`eval/results/regression_k5.json`](results/regression_k5.json)
 
-The 37 baseline rows, k=5, scored twice in one pass against one collection. The `is_stressor` filter is the
+The 40 baseline rows, k=5, scored twice in one pass against one collection. The `is_stressor` filter is the
 only difference between the two columns, so the comparison cannot be confounded by drift in the corpus or
 the index. (`kb_only` is equivalent to physically removing the points: the filter is applied inside Qdrant
 before ranking, so it returns the same KB points in the same order a KB-only collection would.
@@ -201,17 +201,17 @@ questions that the live corpus could not answer at all before this sprint (§3),
 answerable from text that was previously only recorded as a region. The effect is scoped by the slot
 histogram.
 
-**This histogram is out of all 37 baseline rows, not the 32 answerable ones** — the counter increments for
-every row before the hit comparison, including the 5 unanswerable rows (`eval/ablation.py:487`). It is
+**This histogram is out of all 40 baseline rows, not the 32 answerable ones** — the counter increments for
+every row before the hit comparison, including the 8 unanswerable rows (`eval/ablation.py:487`). It is
 deliberately the wider base: the question it answers is "how often does a manual point occupy a slot at
 all", which is meaningful for an unanswerable row too. **Do not compare it to the table above**, which is
 out of 32.
 
-| mode | queries where a manual point took 1 top-5 slot (of 37) | 2 or more |
+| mode | queries where a manual point took 1 top-5 slot (of 40) | 2 or more |
 |---|---|---|
-| `dense` | 4 / 37 | 0 |
-| `hybrid` | 13 / 37 | 0 |
-| `hybrid_rerank` | 26 / 37 | 0 |
+| `dense` | 5 / 40 | 0 |
+| `hybrid` | 14 / 40 | 0 |
+| `hybrid_rerank` | 28 / 40 | 0 |
 
 `hybrid_rerank` is hit hardest because its cross-encoder stage promotes the manual page, and `dense` barely
 moves because it has no fusion step to promote anything. No query gains a hit in either mode, so this is

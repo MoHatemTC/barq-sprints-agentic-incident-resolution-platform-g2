@@ -23,10 +23,10 @@ results below are real, and the second one is a regression this sprint introduce
 | `stressor` | the manual's extracted pages only | **1.000** | **1.000** |
 | `combined` | everything, as a live query sees it | 1.000 | 0.778 |
 
-All figures below are out of the **32 answerable rows** of 37; the 5 unanswerable rows carry no
+All figures below are out of the **32 answerable rows** of 40; the 8 unanswerable rows carry no
 `expected_articles` and can neither gain nor lose a hit.
 
-| 37 baseline KB rows, k=5 | hit@5 (KB only) | hit@5 (manual mixed in) | verdict |
+| 40 baseline KB rows, k=5 | hit@5 (KB only) | hit@5 (manual mixed in) | verdict |
 |---|---|---|---|
 | `dense` | 0.281 | 0.281 | held |
 | `hybrid` | 0.312 | 0.281 | **−1 query (INC1027)** |
@@ -37,7 +37,7 @@ under both fusion modes and `INC1011` under `hybrid_rerank` only, so the two reg
 It is one pattern twice over: a relevant manual or OCR point outranks the KB article that answers a query,
 takes its slot, and cannot itself satisfy an `expected_articles` row because a manual section carries no KB
 number. Manual pages take a top-5 slot on
-13/37 baseline queries under `hybrid` and 26/37 under `hybrid_rerank`, but only 4/37 under `dense` — which is
+14/40 baseline queries under `hybrid` and 28/40 under `hybrid_rerank`, but only 5/40 under `dense` — which is
 why `dense` is untouched. The second loss, `INC1011`, appeared only once OCR text was indexed; the
 displacing point is 7.1's incident form read at 86.01 confidence, which is a *correct* read of a *relevant*
 document, so the extractor is not at fault and raising the confidence gate would only discard good text.
@@ -278,7 +278,7 @@ v1.1 fingerprint rather than against itself.
 
 `python eval/ablation.py` without flags runs the KB half against the live corpus and skips the stressor
 rows with a printed note. `--stressors` runs the manual half across the three arms. `--regression` scores
-the 37 baseline rows twice — once with `is_stressor` filtered out, once unfiltered — in a single pass, so
+the 40 baseline rows twice — once with `is_stressor` filtered out, once unfiltered — in a single pass, so
 the only variable is whether the manual's pages are eligible. `grade()` and `sparse_wins()` are untouched,
 so `tests/test_ablation.py` still pins them.
 

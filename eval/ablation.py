@@ -23,7 +23,7 @@ articles, and an arm is a filter over that one collection:
 The three arms have to share a search space.  With the manual's points in a
 collection of their own, a KB query could not see them, "no regression" and "the
 extractors help" both came out automatic, and neither was ever measured.
-``--regression`` is the other half of this: the 37 baseline rows scored with and
+``--regression`` is the other half of this: the 40 baseline rows scored with and
 without the manual's pages eligible, which is where adding them does cost
 something.
 
@@ -437,7 +437,7 @@ def quality_fingerprint(summaries: dict[str, dict]) -> dict:
 #
 # The real question is narrower and answerable: the manual's 48 extracted pages
 # now sit in QDRANT.collection_name, so they take slots in the same top-k as the
-# KB articles. Do the 37 baseline rows still find what they found?
+# KB articles. Do the 40 baseline rows still find what they found?
 #
 # Both conditions are measured here in one pass, against one collection, with one
 # piece of code. The only difference is the is_stressor filter, so the comparison

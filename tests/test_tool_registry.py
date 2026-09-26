@@ -94,12 +94,15 @@ def test_dispatch_logs_attempt_before_execution(caplog):
     assert handler_called == [True]
 
 
-def test_default_registry_registers_five_tools_with_expected_classes():
+def test_default_registry_registers_six_tools_with_expected_classes():
     from src.servicenow.client import IncidentGateway
 
     registry = build_default_registry()
     expected = {
         "read_incident": PermissionClass.READ,
+        # S3.4's exactly-once probe. READ, not a write: it only reports whether
+        # a receipt already exists, and it gates a write rather than doing one.
+        "find_execution_log": PermissionClass.READ,
         "write_execution_log": PermissionClass.LOW_RISK_WRITE,
         "write_ai_fields": PermissionClass.LOW_RISK_WRITE,
         "write_work_note": PermissionClass.LOW_RISK_WRITE,

@@ -1,6 +1,22 @@
+import pytest
 from unittest.mock import patch, MagicMock
 from src.agent.llm import get_llm, get_embeddings
 from src.agent.checkpointer import get_checkpointer
+import src.agent.checkpointer as checkpointer_module
+
+
+@pytest.fixture(autouse=True)
+def _reset_checkpointer_cache():
+    """Clear the module-level _checkpointer singleton around every test here.
+
+    get_checkpointer() memoises into a module global, so whichever test touches
+    it first wins for the whole session. Without this, an earlier test that
+    built a real checkpointer leaves the global set and this file's assertion
+    that setup() ran fails depending on test order alone.
+    """
+    checkpointer_module._checkpointer = None
+    yield
+    checkpointer_module._checkpointer = None
 
 def test_llm_singletons():
     llm1 = get_llm()

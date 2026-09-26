@@ -4,6 +4,7 @@ from unittest.mock import patch, MagicMock
 from src.agent.nodes.load import load_node
 from src.agent.nodes.determine_risk import determine_risk_node
 from src.agent.nodes.retrieve import retrieve_node
+from tests.agent_registry_helpers import FakeServiceNowClient, build_registry, install_registry
 
 
 def _mock_llm_response(content: str) -> MagicMock:
@@ -14,16 +15,16 @@ def _mock_llm_response(content: str) -> MagicMock:
     return mock_llm
 
 
-@patch("src.agent.nodes.load.ServiceNowClient")
-def test_load_node(mock_sn_client_class):
-    mock_instance = mock_sn_client_class.return_value
-    # 1. Setup the mock to return the enriched data from ServiceNow
-    mock_instance.get_incident.return_value = {
-        "sys_id": "abc123",  
+def test_load_node(monkeypatch):
+    # 1. load_node reads through the registry, so inject a registry whose
+    #    gateway returns the enriched ServiceNow data.
+    client = FakeServiceNowClient(get_incident_result={
+        "sys_id": "abc123",
         "short_description": "Network down",
-        "priority": "1" # Adding an extra field to prove the merge worked
-    }
-    
+        "priority": "1",  # extra field to prove the merge worked
+    })
+    install_registry(monkeypatch, "src.agent.nodes.load", build_registry(client))
+
     # 2. Add the sys_id to the incoming state payload
     state = {
         "incident_number": "INC0001",
@@ -31,7 +32,7 @@ def test_load_node(mock_sn_client_class):
             "sys_id": "abc123"
         }
     }
-        
+
     result = load_node(state)
     
     # 3. Assertions
