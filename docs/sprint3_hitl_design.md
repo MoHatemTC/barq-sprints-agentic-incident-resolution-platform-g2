@@ -55,20 +55,31 @@ load → validate → classify → determine_risk ──high──────�
 
 ## 2. Where the graph stops (gates)
 
-`detect_gate()` in `nodes/prepare_review.py` returns the first matching gate:
+`detect_gate()` in `nodes/prepare_review.py` returns the first matching gate. The checks run in the
+same order the routers fire in `graph.py`, so the first match is always the edge that actually sent
+the run to review:
 
-| order | gate | condition in state | set by |
-|---|---|---|---|
-| 1 | `critic_exhausted` | `critic_exhausted == True` | S3.1 critic |
-| 2 | `safety_blocked` | `action_taken == "blocked_by_guardrail"` | S3.3 safety_check |
-| 3 | `high_risk` | `risk == "high"` | determine_risk |
-| 4 | `retrieval_failed` | `retrieval_failed == True` | retrieve |
-| 5 | `no_evidence` | `retrieved_evidence` empty | retrieve |
-| 6 | `low_confidence` | `confidence < 0.6` | confidence_check |
+| order | router | gate | condition in state | set by |
+|---|---|---|---|---|
+| 1 | `route_after_risk` | `high_risk` | `risk == "high"` | determine_risk |
+| 2 | `route_after_retrieve` | `invalid_incident` | `outputs.eligibility == "invalid"` | validate |
+| 3 | `route_after_retrieve` | `retrieval_failed` | `retrieved_evidence` empty and `retrieval_failed == True` | retrieve |
+| 4 | `route_after_retrieve` | `no_evidence` | `retrieved_evidence` empty | retrieve |
+| 5 | `route_after_critic` | `critic_exhausted` | `critic_exhausted == True` | S3.1 critic |
+| 6 | `route_after_confidence` | `safety_blocked` | `action_taken == "blocked_by_guardrail"` | S3.3 safety_check |
+| 7 | `route_after_confidence` | `low_confidence` | `confidence < 0.6` | confidence_check |
 
-The most specific verdict wins: a guardrail block on a high-risk incident is reported as `safety_blocked`,
-because that is what the reviewer has to judge. `route_after_confidence` also sends `critic_exhausted` and
-`blocked_by_guardrail` to review, so S3.1 and S3.3 plug in without new edges.
+**Why graph order, not "most specific first".** `validate` runs on every incident and always sets
+`eligibility`, but it is only used for routing in `route_after_retrieve`. A high-risk incident is sent
+to review by `route_after_risk` before that. If `detect_gate()` checked eligibility first, a high-risk
+ticket the validator also called invalid would be labelled `invalid_incident`, giving the reviewer a
+reason that did not stop the run (NFR-07). Checking in router order means every gate is one that
+actually fired. The other verdicts (risk, confidence, critic, guardrail) are still in the payload's
+`verdicts` block. Regression tests: `test_high_risk_gate_wins_over_invalid_eligibility`,
+`test_high_risk_invalid_ticket_reports_high_risk_gate`.
+
+`route_after_confidence` also sends `critic_exhausted` and `blocked_by_guardrail` to review, so S3.1
+and S3.3 plug in without new edges.
 
 **Paths that never interrupt.** Eligible automated runs go straight to `act`. Human-locked incidents
 (`human_lock = true`) and incidents with `ai_enabled = false` never reach the graph: the S1.3 eligibility

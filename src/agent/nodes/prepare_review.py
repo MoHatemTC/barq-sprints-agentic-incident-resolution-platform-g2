@@ -16,20 +16,21 @@ GATE_REASONS = {
 
 
 def detect_gate(state: Dict[str, Any]) -> str:
-    """Return the gate that sent this run to human review"""
-    # S3.1 route_after_validate sends invalid tickets here before classify
+    # route_after_validate: invalid ticket goes to review before classify runs
     if (state.get("outputs") or {}).get("eligibility") == "invalid":
         return "invalid_incident"
-    if state.get("critic_exhausted"):
-        return "critic_exhausted"
-    if state.get("action_taken") == "blocked_by_guardrail":
-        return "safety_blocked"
+    # route_after_risk: high risk goes to review before retrieve runs
     if state.get("risk") == "high":
         return "high_risk"
-    if state.get("retrieval_failed"):
-        return "retrieval_failed"
+    # route_after_retrieve: missing evidence
     if not state.get("retrieved_evidence"):
-        return "no_evidence"
+        return "retrieval_failed" if state.get("retrieval_failed") else "no_evidence"
+    # route_after_critic: revision budget ran out
+    if state.get("critic_exhausted"):
+        return "critic_exhausted"
+    # route_after_confidence: guardrail block, else low confidence
+    if state.get("action_taken") == "blocked_by_guardrail":
+        return "safety_blocked"
     return "low_confidence"
 
 
