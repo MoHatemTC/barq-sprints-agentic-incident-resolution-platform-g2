@@ -143,6 +143,21 @@ class ServiceNowClient:
             raise ServiceNowWriteNotAppliedError(200, "Work note not applied")
         return result
 
+    def find_execution_log(self, execution_id, action):
+        # Existing log row for this execution + action, or None.
+        # act writes its log row last, so this row doubles as the "write done" receipt.
+        url = f"{config.TABLE_API}/{config.EXECUTION_LOG_TABLE}"
+        rows = self._request(
+            "GET",
+            url,
+            params={
+                "sysparm_query": f"{config.LOG_FIELDS['execution_id']}={execution_id}"
+                                 f"^{config.LOG_FIELDS['action']}={action}",
+                "sysparm_limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
     # audit logs one record per attempt, including failures
     def write_execution_log(self, incident_sys_id, execution_id, action,
                             status, agent=None, result=None, error=None):

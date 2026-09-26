@@ -18,7 +18,11 @@ from src.workers.redis_consumer import (
 )
 from src.workers.retry_policy import RetryPolicy
 from src.workers.runtime_integration import establish_execution_context
-from src.workers.tasks import ProductionIntegrationSeams, register_process_accepted_incident_task
+from src.workers.tasks import (
+    ProductionIntegrationSeams,
+    register_process_accepted_incident_task,
+    register_resume_incident_task,
+)
 
 
 class RedisWorkerClient(RedisListClient, RedisListPublisher, Protocol):
@@ -69,4 +73,6 @@ def create_integrated_worker(
         ),
         app=celery_app,
     )
+    # S3.4 resumes paused executions after an approval decision
+    register_resume_incident_task(retry_policy, celery_app)
     return IntegratedWorker(redis_client, process_task)

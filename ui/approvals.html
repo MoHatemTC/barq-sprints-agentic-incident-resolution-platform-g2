@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Approvals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<script src="common.js"></script>
+</head>
+<body>
+<header id="chrome"></header>
+
+<main class="page">
+  <div class="page-head">
+    <div>
+      <h1>Approvals</h1>
+      <p class="lede">Runs paused for a human decision. Approving or rejecting resumes the same run.</p>
+    </div>
+    <div class="actions">
+      <span class="updated" id="updated"></span>
+      <button class="btn btn-sm" id="refreshBtn" type="button">Refresh</button>
+    </div>
+  </div>
+
+  <div class="approvals">
+    <section class="panel" aria-label="Waiting for a decision">
+      <div id="list"></div>
+      <div class="empty" id="empty" hidden></div>
+    </section>
+
+    <section class="panel review" id="review" aria-live="polite">
+      <div class="empty"><strong>Nothing selected</strong>Pick a paused run on the left.</div>
+    </section>
+  </div>
+</main>
+
+<script src="approvals.js"></script>
+</body>
+</html>

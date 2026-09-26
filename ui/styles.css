@@ -310,6 +310,24 @@ h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.
 .skel-row:first-child { border-top: 0; }
 .skel { height: 12px; border-radius: 6px; background: var(--surface-3); animation: pulse 1.4s ease-in-out infinite; }
 
+/* ---------- approvals (S3.4) ---------- */
+.badge { display: inline-block; min-width: 18px; margin-left: 4px; padding: 0 6px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; background: var(--violet); color: #fff; }
+.approvals { display: grid; grid-template-columns: minmax(240px, 1fr) 2.2fr; gap: 16px; align-items: start; }
+.approvals .row-head { grid-template-columns: minmax(0, 1fr); grid-template-areas: "main"; border-top: 1px solid var(--line); }
+.approvals .row-head:first-child { border-top: 0; }
+.approvals .row-head.selected { background: var(--accent-soft); }
+.review-pad { padding: 20px; }
+.review-h { margin: 18px 0 8px; font-size: 14px; font-weight: 600; }
+.review-h small { font-weight: 400; color: var(--ink-3); }
+.brief { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--violet-soft); }
+.notice { padding: 10px 14px; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn-ink); font-size: 13px; }
+.raw { margin-top: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.raw summary { padding: 9px 12px; cursor: pointer; font-weight: 500; color: var(--ink-2); }
+.raw-body { padding: 0 12px 12px; }
+.raw pre.result { max-height: 320px; overflow: auto; }
+.decide { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+@media (max-width: 900px) { .approvals { grid-template-columns: 1fr; } }
+
 /* ---------- overlay / dialog ---------- */
 .overlay {
   position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px;
