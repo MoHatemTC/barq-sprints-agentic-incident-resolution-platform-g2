@@ -58,6 +58,15 @@ OCR = "ocr"
 # about 94% of the page height, so a table crossing the break lands inside the
 # bottom eighth of one page and the top eighth of the next.
 BOTTOM_MARGIN_FRACTION = 0.92
+
+# How an image region is turned into words.  Rendered with PyMuPDF rather than
+# pdf2image: the page and the region are already in hand, so there is nothing for
+# pdf2image to convert, and this path needs no Poppler.
+OCR_RENDER_DPI = 200
+
+# Tesseract's own confidence in what it read, out of 100.  Below this the region
+# is still recorded, but the text is not indexed.
+MIN_OCR_CONFIDENCE = 55.0
 TOP_MARGIN_FRACTION = 0.12
 
 # How far the two halves of a split table may differ in column count.  See
@@ -180,6 +189,9 @@ def build_stressor_points(sections: list | None = None) -> tuple[list[models.Poi
 
     points: list[models.PointStruct] = []
     added = {"table": 0, "layout": 0, "form": 0, "ocr_region": 0}
+    # Kept out of ``by_kind`` on purpose: that counts what was indexed, these
+    # count what OCR did, which is a different question.
+    ocr_outcomes = {"applied": 0, "indexed": 0, "skipped": 0}
     for route in routes:
         logger.info("p%-3d %-12s %s", route.page_number, route.section_id,
                     ", ".join(e for e in route.extractors if e != TEXT) or "text only")
@@ -244,31 +256,94 @@ def build_stressor_points(sections: list | None = None) -> tuple[list[models.Poi
             added["form"] += 1
 
         for region in result.ocr_regions:
-            # The region's own words are not in the text layer, so what can be
-            # indexed is the fact of it and where it is.  Saying so is better
-            # than a page summary that reads as though the screenshot were read.
-            note = (f"{section.section_label} {section.title}\n"
-                    f"Screenshot on page {result.page_number} with no text layer of its own; "
-                    f"it needs OCR and is not indexed as text. Region in points: "
-                    f"{tuple(round(v) for v in region['bbox'])}.")
+            bbox = region["bbox"]
+            ocr_text, ocr_extras = _ocr_region(result.page_number, bbox)
+            ocr_extras["region_px"] = region["px"]
+            if ocr_text:
+                ocr_outcomes["indexed"] += 1
+                record = (f"{section.section_label} {section.title}\n"
+                          f"OCR of a screenshot on page {result.page_number}, which has no text "
+                          f"layer of its own:\n{ocr_text}")
+            else:
+                ocr_outcomes["skipped"] += 1
+                # The region's own words are not in the text layer, so what can be
+                # indexed is the fact of it and where it is.  Saying so is better
+                # than a page summary that reads as though the screenshot were read.
+                record = (f"{section.section_label} {section.title}\n"
+                          f"Screenshot on page {result.page_number} with no text layer of its own; "
+                          f"it needs OCR and is not indexed as text. Region in points: "
+                          f"{tuple(round(v) for v in bbox)}.")
+            if ocr_extras.get("ocr_applied"):
+                ocr_outcomes["applied"] += 1
             points.append(models.PointStruct(
                 id=deterministic_point_id(
-                    f"stressor:{section.section_id}:ocr:{result.page_number}:{region['bbox'][0]:.0f}",
+                    f"stressor:{section.section_id}:ocr:{result.page_number}:{bbox[0]:.0f}",
                     section.version, 0),
-                vector={"dense": embed_dense(note), "sparse": models.SparseVector(**embed_sparse(note))},
-                payload=_payload(section, note, "stressor", "ocr", "ocr", [result.page_number],
-                                 {"region_bbox": [round(v, 1) for v in region["bbox"]],
-                                  "region_px": region["px"],
-                                  "ocr_applied": False,
-                                  "reason": "no ocr.py on this branch; region recorded, not read"}),
+                vector={"dense": embed_dense(record), "sparse": models.SparseVector(**embed_sparse(record))},
+                payload=_payload(section, record, "stressor", "ocr", "ocr", [result.page_number],
+                                 ocr_extras),
             ))
             added["ocr_region"] += 1
 
     stats = {"points": len(points), "pages": len(pages), "by_kind": added,
+             "ocr": ocr_outcomes,
              "tables": tables.provenance.get("table_count", 0),
              "nested_tables": tables.provenance.get("nested_table_count", 0),
              "page_crossing": tables.provenance.get("page_crossing_tables", [])}
     return points, stats
+
+
+def _ocr_region(page_number: int, bbox: list[float]) -> tuple[str, dict]:
+    """OCR one image region of a page. Returns (text, provenance_extras).
+
+    ``text`` is "" whenever the region could not usefully be read, and the second
+    element always says why -- no silent skips, because the difference between
+    "not available" and "available and found nothing" is the whole question.
+    The region is indexed either way: a machine with no tesseract records the
+    same region it always did, minus the words.
+
+    Two gates, both deliberate. OCR must actually be *available* (pytesseract
+    importable and a tesseract binary on PATH -- the binding imports fine
+    without the engine). And it must have been reasonably sure: a screenshot read
+    badly is worse than one left unread, because a wrong string competes for the
+    same five slots as a real KB article.
+    """
+    from .extractors.ocr import extract_ocr_from_image, ocr_available
+
+    extras: dict[str, Any] = {"region_bbox": [round(v, 1) for v in bbox]}
+
+    ok, reason = ocr_available()
+    if not ok:
+        extras.update({"ocr_applied": False, "reason": reason})
+        return "", extras
+
+    try:
+        from PIL import Image
+
+        with pymupdf.open(RETRIEVAL.manual_pdf_path) as doc:
+            page = doc[page_number - 1]
+            # clip is in page points, the same space layout.py reports bboxes in.
+            pix = page.get_pixmap(clip=pymupdf.Rect(*bbox), dpi=OCR_RENDER_DPI)
+            img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+        result = extract_ocr_from_image(img, source=f"page {page_number} region", dpi=OCR_RENDER_DPI)
+    except Exception as e:                       # one unreadable region must not stop ingestion
+        logger.warning("OCR failed on page %s region %s: %s", page_number, bbox, e)
+        extras.update({"ocr_applied": False, "reason": f"ocr raised {type(e).__name__}: {e}"})
+        return "", extras
+
+    extras.update({
+        "ocr_applied": True,
+        "ocr_confidence": result.confidence_score,
+        "ocr_text_chars": len(result.text),
+        "tesseract_cmd_version": result.provenance.get("tesseract_cmd_version"),
+    })
+    if not result.text.strip():
+        extras["reason"] = "ocr ran and returned no text for this region"
+    elif result.confidence_score < MIN_OCR_CONFIDENCE:
+        extras["reason"] = (f"ocr confidence {result.confidence_score} below {MIN_OCR_CONFIDENCE}; "
+                            f"text read but not indexed")
+        return "", extras
+    return result.text, extras
 
 
 def _layout_results(pages: list[int]) -> list:
