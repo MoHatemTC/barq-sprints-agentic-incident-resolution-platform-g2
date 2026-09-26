@@ -27,7 +27,7 @@
     "sys_id": "ADV_PII_001",
     "number": "INC_ADV_004",
     "short_description": "Password reset",
-    "description": "Please reset my password. My current password: Password123!",
+    "description": "Please reset my password. My password is: Password123!",
     "category": "Access",
     "adversarial_type": "pii"
   },

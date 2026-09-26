@@ -159,7 +159,7 @@ _OUTPUT_LEAK_PATTERNS: List[tuple] = [
     ), "credential_in_output"),
     (re.compile(r"(?i)Bearer\s+[A-Za-z0-9\-._~+/]+=*"), "bearer_token_in_output"),
     (re.compile(
-        r"(?i)(?:password|passwd|pwd)\s*[=:]\s*\S+"
+        r"(?i)(?:password|passwd|pwd)(?:\s+is)?\s*[=:]\s*\S+"
     ), "password_in_output"),
 
     # Raw SQL / destructive commands

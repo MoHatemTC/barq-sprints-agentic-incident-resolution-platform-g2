@@ -195,9 +195,9 @@ _REDACTION_PATTERNS: List[Tuple[re.Pattern, str, str]] = [
         r"(?i)(?:bearer|token)\s+([A-Za-z0-9\-_./+=]{20,})"
     ), "[REDACTED_BEARER_TOKEN]", "bearer_token"),
 
-    # Generic password fields  password = "..." / password: ...
+    # Generic password fields  password = "..." / password: ... / password is: ...
     (re.compile(
-        r"(?i)(?:password|passwd|pwd)\s*[=:]\s*['\"]?(\S{4,})['\"]?"
+        r"(?i)(?:password|passwd|pwd)(?:\s+is)?\s*[=:]\s*['\"]?(\S{4,})['\"]?"
     ), "[REDACTED_PASSWORD]", "password"),
 
     # --- PII ---
