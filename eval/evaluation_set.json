@@ -1,16 +1,18 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "source": "data/coverage_matrix.csv",
-  "built": "2026-09-18",
+  "built": "2026-09-25",
   "counts": {
-    "total": 40,
-    "answerable": 32,
-    "unanswerable": 8,
+    "total": 60,
+    "answerable": 50,
+    "unanswerable": 10,
     "multi_doc": 8,
     "by_source": {
       "coverage_matrix": 30,
-      "identifier_probe": 10
-    }
+      "identifier_probe": 10,
+      "manual_stressor": 20
+    },
+    "stressor_answerable": 18
   },
   "items": [
     {
@@ -277,6 +279,282 @@
       "answerable": true,
       "requires_multi_doc": false,
       "source": "coverage_matrix"
+    },
+    {
+      "query_id": "STR-01",
+      "query": "how many analysts cover Dubai out of hours and what are the hours",
+      "expected_articles": [],
+      "expected_sections": [
+        "2.1"
+      ],
+      "capability_class": "merged_header",
+      "expected_page": "8",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-02",
+      "query": "what time does the Cairo desk start on a Saturday and how many analysts are on",
+      "expected_articles": [],
+      "expected_sections": [
+        "2.1"
+      ],
+      "capability_class": "merged_header",
+      "expected_page": "8",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-03",
+      "query": "which priority states pause the SLA clock and who may set them",
+      "expected_articles": [],
+      "expected_sections": [
+        "3.3"
+      ],
+      "capability_class": "table",
+      "expected_page": "10",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-04",
+      "query": "who owns the sap-erp service and in which window is it maintained",
+      "expected_articles": [],
+      "expected_sections": [
+        "5.2"
+      ],
+      "capability_class": "nested_table",
+      "expected_page": "15",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-05",
+      "query": "what is the maintenance window for the identity service and who is its owner",
+      "expected_articles": [],
+      "expected_sections": [
+        "5.2"
+      ],
+      "capability_class": "nested_table",
+      "expected_page": "15",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-06",
+      "query": "what was the last entry in the INC0010023 journal and what time was it",
+      "expected_articles": [],
+      "expected_sections": [
+        "7.1"
+      ],
+      "capability_class": "page_crossing",
+      "expected_page": "26",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-07",
+      "query": "which work note closed the VPN incident and how long did the whole thing take",
+      "expected_articles": [],
+      "expected_sections": [
+        "7.1"
+      ],
+      "capability_class": "page_crossing",
+      "expected_page": "26",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-08",
+      "query": "what assignment group and assignee are recorded on incident INC0010023",
+      "expected_articles": [],
+      "expected_sections": [
+        "7.1"
+      ],
+      "capability_class": "form_parsing",
+      "expected_page": "25",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-09",
+      "query": "what impact and urgency did the caller record on INC0010023",
+      "expected_articles": [],
+      "expected_sections": [
+        "7.1"
+      ],
+      "capability_class": "key_value",
+      "expected_page": "25",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-10",
+      "query": "was there an SLA breach on INC0010023 and against what target",
+      "expected_articles": [],
+      "expected_sections": [
+        "7.1"
+      ],
+      "capability_class": "key_value",
+      "expected_page": "25",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-11",
+      "query": "what is the difference between a problem and a known error in this manual",
+      "expected_articles": [],
+      "expected_sections": [
+        "8.3"
+      ],
+      "capability_class": "table",
+      "expected_page": "29",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-12",
+      "query": "which known error covers the SAP GUI RFC timeout and what is its permanent fix",
+      "expected_articles": [],
+      "expected_sections": [
+        "8.3"
+      ],
+      "capability_class": "table",
+      "expected_page": "30",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-13",
+      "query": "what approval record covers CHG0030455 against the incident",
+      "expected_articles": [],
+      "expected_sections": [
+        "10.4"
+      ],
+      "capability_class": "ocr",
+      "expected_page": "35",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-14",
+      "query": "which agent stages screen the incident text for embedded instructions",
+      "expected_articles": [],
+      "expected_sections": [
+        "11.7"
+      ],
+      "capability_class": "layout",
+      "expected_page": "41",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-15",
+      "query": "what is the contractual SLA attainment measure and what is it used for",
+      "expected_articles": [],
+      "expected_sections": [
+        "12.2"
+      ],
+      "capability_class": "table",
+      "expected_page": "44",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-16",
+      "query": "what counts as impact 2 and what counts as urgency 2",
+      "expected_articles": [],
+      "expected_sections": [
+        "Appendix C"
+      ],
+      "capability_class": "merged_header",
+      "expected_page": "49",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-17",
+      "query": "should impact be counted by how many people are blocked or by how many are inconvenienced",
+      "expected_articles": [],
+      "expected_sections": [
+        "Appendix C"
+      ],
+      "capability_class": "layout",
+      "expected_page": "49",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-18",
+      "query": "how do I read the run log for the integration failure in the appendix",
+      "expected_articles": [],
+      "expected_sections": [
+        "11.8"
+      ],
+      "capability_class": "ocr",
+      "expected_page": "42",
+      "requires_extractor": true,
+      "answerable": true,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-19",
+      "query": "is there a documented resolution target for the temperature sensor fleet",
+      "expected_articles": [],
+      "expected_sections": [],
+      "capability_class": "unanswerable",
+      "expected_page": "",
+      "requires_extractor": false,
+      "answerable": false,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
+    },
+    {
+      "query_id": "STR-20",
+      "query": "what is the retention period for closed incident records after closure",
+      "expected_articles": [],
+      "expected_sections": [],
+      "capability_class": "unanswerable",
+      "expected_page": "",
+      "requires_extractor": false,
+      "answerable": false,
+      "requires_multi_doc": false,
+      "source": "manual_stressor"
     },
     {
       "query_id": "PROBE-01",

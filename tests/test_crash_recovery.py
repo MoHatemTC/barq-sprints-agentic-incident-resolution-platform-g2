@@ -8,6 +8,11 @@ from langgraph.types import Command
 
 from src.agent.graph import create_graph
 from src.agent.nodes.act import ExecutionLogNotWritten
+from tests.agent_registry_helpers import (
+    FakeServiceNowClient,
+    build_registry,
+    install_registry,
+)
 
 pytestmark = pytest.mark.usefixtures("hermetic_llm")
 
@@ -64,18 +69,20 @@ def _chunk():
 
 
 @pytest.fixture(autouse=True)
-def _no_real_servicenow():
-    # load_node reads the incident when a sys_id is present
-    with patch("src.agent.nodes.load.ServiceNowClient") as load_client, \
-         patch("src.agent.nodes.retrieve.search", return_value=[_chunk()]):
-        load_client.return_value.get_incident.return_value = {}
+def _no_real_servicenow(monkeypatch):
+    # load_node reads the incident when a sys_id is present, through the
+    # registry rather than a directly constructed client.
+    install_registry(monkeypatch, "src.agent.nodes.load", build_registry())
+    with patch("src.agent.nodes.retrieve.search", return_value=[_chunk()]):
         yield
 
 
 @pytest.fixture
 def fake(monkeypatch):
     client = FakeServiceNow()
-    monkeypatch.setattr("src.agent.nodes.act.get_servicenow_client", lambda: client)
+    # The S3.4 double already speaks the client's Table API surface, so it can
+    # sit behind a real IncidentGateway unchanged.
+    install_registry(monkeypatch, "src.agent.nodes.act", build_registry(client))
     return client
 
 
@@ -242,16 +249,21 @@ def _execute(agent, eid, incident):
     return agent.execute(incident, execution_id=eid, incident_number="INC0001")
 
 
-def test_redelivered_task_continues_from_checkpoint(executor, fake):
+def test_redelivered_task_continues_from_checkpoint(executor, fake, monkeypatch):
     agent, graph, audit = executor
     fake.kill_at = "before_patch"
 
     with pytest.raises(WorkerKilled):
         _execute(agent, "redeliver", NORMAL)
 
-    with patch("src.agent.nodes.load.ServiceNowClient") as load_client:
-        result = _execute(agent, "redeliver", NORMAL)  # Celery re-delivers the same task
-        load_client.assert_not_called()                  # did not start again from load
+    # did not start again from load: give load its own instrumented registry and
+    # assert the resume never dispatched a read_incident.
+    load_spy_client = FakeServiceNowClient()
+    install_registry(
+        monkeypatch, "src.agent.nodes.load", build_registry(load_spy_client)
+    )
+    result = _execute(agent, "redeliver", NORMAL)  # Celery re-delivers the same task
+    assert load_spy_client.calls == []
 
     assert result["servicenow_write"] == "written"
     assert len(fake.logs) == 1

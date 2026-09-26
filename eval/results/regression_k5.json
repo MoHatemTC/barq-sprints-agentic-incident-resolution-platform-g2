@@ -1,0 +1,180 @@
+{
+  "k": 5,
+  "modes": [
+    "dense",
+    "hybrid",
+    "hybrid_rerank"
+  ],
+  "collection": "barq_knowledge_base",
+  "conditions": {
+    "kb_only": "is_stressor=False",
+    "mixed": "no filter (live)"
+  },
+  "baseline_rows": 40,
+  "answerable_rows": 32,
+  "evaluation_set_version": "1.2",
+  "summary": {
+    "kb_only|dense": {
+      "precision": 0.091,
+      "recall": 0.234,
+      "hit_rate": 0.281,
+      "mrr": 0.25,
+      "planted_hits": 0,
+      "p50_ms": 830.1,
+      "p95_ms": 960.2
+    },
+    "kb_only|hybrid": {
+      "precision": 0.099,
+      "recall": 0.25,
+      "hit_rate": 0.312,
+      "mrr": 0.258,
+      "planted_hits": 0,
+      "p50_ms": 885.3,
+      "p95_ms": 1106.1
+    },
+    "kb_only|hybrid_rerank": {
+      "precision": 0.084,
+      "recall": 0.266,
+      "hit_rate": 0.312,
+      "mrr": 0.232,
+      "planted_hits": 0,
+      "p50_ms": 1720.8,
+      "p95_ms": 2228.9
+    },
+    "mixed|dense": {
+      "precision": 0.091,
+      "recall": 0.234,
+      "hit_rate": 0.281,
+      "mrr": 0.25,
+      "planted_hits": 0,
+      "p50_ms": 823.8,
+      "p95_ms": 1053.6
+    },
+    "mixed|hybrid": {
+      "precision": 0.081,
+      "recall": 0.234,
+      "hit_rate": 0.281,
+      "mrr": 0.245,
+      "planted_hits": 0,
+      "p50_ms": 816.9,
+      "p95_ms": 869.2
+    },
+    "mixed|hybrid_rerank": {
+      "precision": 0.062,
+      "recall": 0.234,
+      "hit_rate": 0.25,
+      "mrr": 0.214,
+      "planted_hits": 0,
+      "p50_ms": 3723.9,
+      "p95_ms": 4654.8
+    }
+  },
+  "verdict": {
+    "dense": {
+      "hit_rate_kb_only": 0.281,
+      "hit_rate_mixed": 0.281,
+      "mrr_kb_only": 0.25,
+      "mrr_mixed": 0.25,
+      "hits_lost": 0,
+      "hits_gained": 0,
+      "regression": false,
+      "queries_where_a_stressor_took_a_slot": {
+        "1": 5
+      },
+      "lost": [],
+      "gained": []
+    },
+    "hybrid": {
+      "hit_rate_kb_only": 0.312,
+      "hit_rate_mixed": 0.281,
+      "mrr_kb_only": 0.258,
+      "mrr_mixed": 0.245,
+      "hits_lost": 1,
+      "hits_gained": 0,
+      "regression": true,
+      "queries_where_a_stressor_took_a_slot": {
+        "1": 14
+      },
+      "lost": [
+        {
+          "query_id": "INC1027",
+          "query": "New starter locked out on day one and also cannot see the finance shared folder",
+          "expected": [
+            "KB0005",
+            "KB0020"
+          ],
+          "kb_only_returned": [
+            "7.4",
+            "KB0003",
+            "6.2",
+            "KB0005"
+          ],
+          "kb_only_first_rank": 4,
+          "mixed_returned": [
+            "7.4",
+            "KB0003",
+            "6.2",
+            ""
+          ]
+        }
+      ],
+      "gained": []
+    },
+    "hybrid_rerank": {
+      "hit_rate_kb_only": 0.312,
+      "hit_rate_mixed": 0.25,
+      "mrr_kb_only": 0.232,
+      "mrr_mixed": 0.214,
+      "hits_lost": 2,
+      "hits_gained": 0,
+      "regression": true,
+      "queries_where_a_stressor_took_a_slot": {
+        "1": 28
+      },
+      "lost": [
+        {
+          "query_id": "INC1011",
+          "query": "User locked out and also cannot connect VPN after password change this morning",
+          "expected": [
+            "KB0005",
+            "KB0001"
+          ],
+          "kb_only_returned": [
+            "3.2",
+            "7.2",
+            "KB0005",
+            "7.4"
+          ],
+          "kb_only_first_rank": 3,
+          "mixed_returned": [
+            "",
+            "3.2",
+            "7.2"
+          ]
+        },
+        {
+          "query_id": "INC1027",
+          "query": "New starter locked out on day one and also cannot see the finance shared folder",
+          "expected": [
+            "KB0005",
+            "KB0020"
+          ],
+          "kb_only_returned": [
+            "3.2",
+            "7.4",
+            "6.2",
+            "KB0005"
+          ],
+          "kb_only_first_rank": 4,
+          "mixed_returned": [
+            "",
+            "3.2",
+            "7.4",
+            "6.2"
+          ]
+        }
+      ],
+      "gained": []
+    }
+  }
+}
