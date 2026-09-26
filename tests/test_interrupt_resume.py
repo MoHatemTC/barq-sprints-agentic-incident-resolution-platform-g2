@@ -118,8 +118,8 @@ EVIDENCE = [{"id": "KB1"}]
 @pytest.mark.parametrize(
     "state, gate",
     [
-        ({"risk": "high"}, "high_risk"),
-        ({"risk": "low", "outputs": {"eligibility": "invalid"}, "retrieved_evidence": EVIDENCE}, "invalid_incident"),
+        ({"outputs": {"eligibility": "invalid"}}, "invalid_incident"),
+        ({"outputs": {"eligibility": "valid"}, "risk": "high"}, "high_risk"),
         ({"risk": "low", "retrieval_failed": True, "retrieved_evidence": []}, "retrieval_failed"),
         ({"risk": "low", "retrieved_evidence": []}, "no_evidence"),
         ({"risk": "low", "retrieved_evidence": EVIDENCE, "critic_exhausted": True}, "critic_exhausted"),
@@ -131,23 +131,29 @@ def test_detect_gate(state, gate):
     assert detect_gate(state) == gate
 
 
-def test_high_risk_gate_wins_over_invalid_eligibility():
-    """validate always sets eligibility; when route_after_risk did"""
-    state = {"risk": "high", "outputs": {"eligibility": "invalid"}}
+def test_valid_high_risk_ticket_reports_high_risk_gate():
+    """validate always sets eligibility; a valid ticket stopped by route_after_risk
+    must be reported as high_risk (mentor bug 1)."""
+    state = {"outputs": {"eligibility": "valid"}, "risk": "high"}
     assert detect_gate(state) == "high_risk"
 
 
+@patch("src.agent.nodes.determine_risk.get_llm")
+@patch("src.agent.nodes.classify.get_llm")
 @patch("src.agent.nodes.validate.get_llm")
-def test_high_risk_invalid_ticket_reports_high_risk_gate(mock_llm):
-    """End to end: a high-risk incident the validator also calls invalid."""
-    mock_llm.return_value.invoke.return_value = MagicMock(content="invalid")
+def test_invalid_ticket_stops_before_classify(mock_validate_llm, mock_classify_llm, mock_risk_llm):
+    """route_after_validate (mentor bug 2): an invalid ticket, even a high-risk one,
+    goes to review before classify/determine_risk spend LLM calls, and the gate
+    names the edge that actually routed it."""
+    mock_validate_llm.return_value.invoke.return_value = MagicMock(content="invalid")
     graph = _graph()
-    result = _start(graph, "t-hr-invalid", HIGH_RISK)
+    result = _start(graph, "t-invalid", HIGH_RISK)
 
     payload = result["__interrupt__"][0].value
-    assert graph.get_state(_cfg("t-hr-invalid")).values["outputs"]["eligibility"] == "invalid"
-    assert payload["gate"] == "high_risk"
-    assert payload["reason_text"] == "The incident was classified as high risk"
+    assert payload["gate"] == "invalid_incident"
+    assert payload["verdicts"]["risk"] is None
+    mock_classify_llm.assert_not_called()
+    mock_risk_llm.assert_not_called()
 
 
 @pytest.mark.parametrize(

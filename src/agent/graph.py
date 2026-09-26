@@ -17,6 +17,13 @@ from src.agent.nodes.act import act_node
 
 CONFIDENCE_FLOOR = 0.6
 
+def route_after_validate(state: AgentState) -> str:
+    """Invalid or out-of-scope tickets go to human review before classify/determine_risk spend LLM calls."""
+    outputs = state.get("outputs") or {}
+    if outputs.get("eligibility") == "invalid":
+        return "prepare_review"
+    return "classify"
+
 def route_after_risk(state: AgentState) -> str:
     """Route high-risk incidents to human review without retrieval."""
     if state.get("risk") == "high":
@@ -24,10 +31,7 @@ def route_after_risk(state: AgentState) -> str:
     return "retrieve"
 
 def route_after_retrieve(state: AgentState) -> str:
-    """Block invalid tickets and missing evidence before diagnosis begins (human review)."""
-    outputs = state.get("outputs") or {}
-    if outputs.get("eligibility") == "invalid":
-        return "prepare_review"
+    """Missing evidence (empty or retrieval failed) -> human review before diagnosis begins."""
     if not state.get("retrieved_evidence"):
         return "prepare_review"
     return "diagnose"
@@ -78,7 +82,11 @@ def create_graph():
     workflow.set_entry_point("load")
 
     workflow.add_edge("load", "validate")
-    workflow.add_edge("validate", "classify")
+    workflow.add_conditional_edges(
+        "validate",
+        route_after_validate,
+        {"classify": "classify", "prepare_review": "prepare_review"},
+    )
     workflow.add_edge("classify", "determine_risk")
 
     workflow.add_conditional_edges(

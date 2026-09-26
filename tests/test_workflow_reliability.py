@@ -6,11 +6,14 @@ must work even when an external model is slow, unavailable, or hallucinating.
 
 from unittest.mock import MagicMock, patch
 
+from langgraph.checkpoint.memory import MemorySaver
+
 from src.agent.graph import (
     create_graph,
     route_after_critic,
     route_after_retrieve,
     route_after_risk,
+    route_after_validate,
 )
 from src.agent.nodes.diagnose import _parse_diagnosis_response
 from src.agent.nodes.retrieve import retrieve_node
@@ -85,8 +88,8 @@ def test_hallucinated_citation_is_rejected_without_calling_llm():
 
 def test_unrelated_question_routes_to_human_review_when_no_evidence_exists():
     """No retrieved KB evidence must not produce an automatic resolution."""
-    assert route_after_retrieve({"retrieved_evidence": []}) == "interrupt"
-    assert route_after_retrieve({"retrieved_evidence": None}) == "interrupt"
+    assert route_after_retrieve({"retrieved_evidence": []}) == "prepare_review"
+    assert route_after_retrieve({"retrieved_evidence": None}) == "prepare_review"
 
 
 def test_empty_incident_is_invalid_without_calling_llm():
@@ -99,27 +102,34 @@ def test_empty_incident_is_invalid_without_calling_llm():
     get_llm.assert_not_called()
 
 
-def test_invalid_eligibility_reaches_interrupt_before_diagnosis():
+def test_invalid_eligibility_routes_to_human_review_before_classify():
+    """An unrelated request is blocked before it spends classify/determine_risk calls."""
+    assert route_after_validate({"outputs": {"eligibility": "invalid"}}) == "prepare_review"
+    assert route_after_validate({"outputs": {"eligibility": "valid"}}) == "classify"
+
+
+def test_invalid_eligibility_pauses_before_classify():
     """An invalid ticket with matching evidence cannot enter the agent loop."""
     invalid_llm = _llm_response("invalid")
-    valid_classification_llm = _llm_response("network")
-    low_risk_llm = _llm_response("low")
+    config = {"configurable": {"thread_id": "invalid-eligibility"}}
 
     with patch("src.agent.nodes.validate.get_llm", return_value=invalid_llm), \
-         patch("src.agent.nodes.classify.get_llm", return_value=valid_classification_llm), \
-         patch("src.agent.nodes.determine_risk.get_llm", return_value=low_risk_llm), \
-         patch("src.agent.nodes.retrieve.search", return_value=[_retrieved_chunk()]), \
+         patch("src.agent.nodes.classify.get_llm") as classify_llm, \
+         patch("src.agent.nodes.determine_risk.get_llm") as risk_llm, \
+         patch("src.agent.nodes.retrieve.search", return_value=[_retrieved_chunk()]) as search, \
          patch("src.agent.nodes.diagnose.get_llm") as diagnose_llm:
-        result = create_graph().compile().invoke({
+        result = create_graph().compile(checkpointer=MemorySaver()).invoke({
             "execution_id": "invalid-eligibility",
             "incident_number": "INC_INVALID",
             "incident_payload": {"description": "unrelated non-IT request"},
-        })
+        }, config=config)
 
     assert result["outputs"]["eligibility"] == "invalid"
-    assert result["action_taken"] == "interrupted:invalid_incident"
+    assert result["gate"] == "invalid_incident"
     assert result["human_review_required"] is True
-    diagnose_llm.assert_not_called()
+    assert result["__interrupt__"][0].value["gate"] == "invalid_incident"
+    for mock in (classify_llm, risk_llm, search, diagnose_llm):
+        mock.assert_not_called()
 
 
 def test_retrieval_outage_routes_to_human_review():
@@ -128,12 +138,12 @@ def test_retrieval_outage_routes_to_human_review():
         result = retrieve_node({"incident_payload": {"description": "VPN cannot connect"}})
 
     assert result == {"retrieved_evidence": [], "retrieval_failed": True}
-    assert route_after_retrieve(result) == "interrupt"
+    assert route_after_retrieve(result) == "prepare_review"
 
 
 def test_high_risk_request_skips_automatic_resolution():
     """High-risk requests route directly to the human-review interrupt path."""
-    assert route_after_risk({"risk": "high"}) == "interrupt"
+    assert route_after_risk({"risk": "high"}) == "prepare_review"
 
 
 def test_malformed_agent_output_and_repeated_critic_failure_are_contained():
@@ -144,4 +154,4 @@ def test_malformed_agent_output_and_repeated_critic_failure_are_contained():
     assert diagnosis["supporting_evidence"] == []
     assert route_after_critic(
         {"critic_verdict": {"passed": False}, "critic_exhausted": True}
-    ) == "act"
+    ) == "prepare_review"
