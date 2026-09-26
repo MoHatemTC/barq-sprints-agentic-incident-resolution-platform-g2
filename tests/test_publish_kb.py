@@ -311,3 +311,38 @@ def test_metadata_is_omitted_until_servicenow_field_names_are_configured(monkeyp
         "workflow_state",
         "kb_category",
     }
+def test_publish_article_creates_and_verifies_article(
+    monkeypatch,
+    publish_env,
+):
+    fake_client = _FakeClient(
+        write_result={"sys_id": "human-resolution-sys-id"},
+        read_results=[_matching_read_back()],
+    )
+
+    _install_client(monkeypatch, fake_client)
+
+    monkeypatch.setattr(
+        publish_kb,
+        "load_mapping",
+        lambda: {},
+    )
+
+    result = publish_kb.publish_article(_article())
+
+    assert result == {
+        "status": "created",
+        "article_number": "KB0010",
+        "sys_id": "human-resolution-sys-id",
+    }
+
+    # ServiceNow write happened.
+    assert len(fake_client.posts) == 1
+
+    # Critical: fresh read-back verification happened.
+    assert len(fake_client.gets) == 1
+
+    # The mapping is saved only after verification succeeds.
+    assert publish_env == [
+        {"KB0010": "human-resolution-sys-id"}
+    ]

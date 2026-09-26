@@ -6,6 +6,7 @@ from typing import Protocol
 
 from celery import Celery, Task
 from celery.exceptions import SoftTimeLimitExceeded
+from langgraph.types import Command
 
 from src.agent.graph import compile_graph
 from src.agent.checkpointer import get_checkpointer
@@ -27,31 +28,77 @@ class GraphAgentExecutor:
     Implements the agent execution seam expected by the Celery worker infrastructure.
     Matches the AgentExecutor protocol.
     """
-    
+
     @trace_execution(name="execute_incident_graph")
-    def execute(self, accepted_incident: dict, execution_id: str = None, incident_number: str = None) -> dict:
+    def execute(
+        self,
+        accepted_incident: dict,
+        execution_id: str = None,
+        incident_number: str = None,
+    ) -> dict:
         """
         Execute the LangGraph state machine.
         """
-        # If execution_id/incident_number are passed as args, trace_execution will pick them up
-        # If not, try to extract them from accepted_incident
-        exec_id = execution_id or accepted_incident.get("execution_id", "default_exec_id")
-        inc_num = incident_number or accepted_incident.get("number") or accepted_incident.get("sys_id", "UNKNOWN_INC")
-        
+        exec_id = execution_id or accepted_incident.get(
+            "execution_id",
+            "default_exec_id",
+        )
+        inc_num = (
+            incident_number
+            or accepted_incident.get("number")
+            or accepted_incident.get("sys_id", "UNKNOWN_INC")
+        )
+
         checkpointer = get_checkpointer()
         graph = compile_graph(checkpointer=checkpointer)
-        
+
         initial_state = {
             "execution_id": exec_id,
             "incident_number": inc_num,
-            "incident_payload": accepted_incident
+            "incident_payload": accepted_incident,
         }
-        
-        config = {"configurable": {"thread_id": exec_id}}
-        
-        # Run the graph
+
+        config = {
+            "configurable": {
+                "thread_id": exec_id,
+            }
+        }
+
         result = graph.invoke(initial_state, config=config)
         return result
+
+
+def resume_incident_graph(
+    execution_id: str,
+    decision: dict,
+) -> dict:
+    """
+    Resume a paused LangGraph execution.
+
+    The same execution_id is reused as the LangGraph thread_id so the
+    existing checkpoint is resumed instead of starting a new execution.
+    """
+    if not execution_id:
+        raise ValueError("execution_id is required")
+
+    if not isinstance(decision, dict):
+        raise ValueError("decision must be a dictionary")
+
+    checkpointer = get_checkpointer()
+    graph = compile_graph(checkpointer=checkpointer)
+
+    config = {
+        "configurable": {
+            "thread_id": execution_id,
+        }
+    }
+
+    result = graph.invoke(
+        Command(resume=decision),
+        config=config,
+    )
+
+    return result
 
 
 class AgentExecutor(Protocol):
@@ -106,20 +153,33 @@ class ProductionIntegrationSeams:
     failing_node: str = "celery_worker"
 
     def for_task(self, task: Task) -> IntegrationSeams:
-        context = context_from_task_headers(getattr(task.request, "headers", None))
+        context = context_from_task_headers(
+            getattr(task.request, "headers", None)
+        )
         request_args = getattr(task.request, "args", ()) or ()
         accepted_incident = request_args[0] if request_args else None
+
         if context is None:
-            if not isinstance(accepted_incident, MalformedIncidentPayload):
-                raise ValueError("S2.2 execution context is required for a valid incident")
+            if not isinstance(
+                accepted_incident,
+                MalformedIncidentPayload,
+            ):
+                raise ValueError(
+                    "S2.2 execution context is required for a valid incident"
+                )
+
             return IntegrationSeams(
                 agent=GraphAgentExecutor(),
                 state_recorder=_NoExecutionStateRecorder(),
                 dlq=self.dlq,
             )
+
         return IntegrationSeams(
             agent=_ContextualGraphAgentExecutor(context),
-            state_recorder=StateManagerTaskRecorder(context, self.failing_node),
+            state_recorder=StateManagerTaskRecorder(
+                context,
+                self.failing_node,
+            ),
             dlq=self.dlq,
             execution_context=context,
         )
@@ -128,10 +188,20 @@ class ProductionIntegrationSeams:
 class _NoExecutionStateRecorder:
     """Malformed wire data has no valid S2.2 execution to persist against."""
 
-    def record_retry(self, accepted_incident: object, retries_completed: int, error: BaseException) -> None:
+    def record_retry(
+        self,
+        accepted_incident: object,
+        retries_completed: int,
+        error: BaseException,
+    ) -> None:
         del accepted_incident, retries_completed, error
 
-    def record_failure(self, accepted_incident: object, retries_completed: int, error: BaseException) -> None:
+    def record_failure(
+        self,
+        accepted_incident: object,
+        retries_completed: int,
+        error: BaseException,
+    ) -> None:
         del accepted_incident, retries_completed, error
 
 
@@ -142,11 +212,17 @@ class _ContextualGraphAgentExecutor:
     def execute(self, accepted_incident: object) -> object:
         if not isinstance(accepted_incident, dict):
             raise ValueError("accepted incident must be a JSON object")
+
         incident_number = accepted_incident.get("number")
+
         return GraphAgentExecutor().execute(
             accepted_incident,
             execution_id=self.context.execution_identifier,
-            incident_number=incident_number if isinstance(incident_number, str) else None,
+            incident_number=(
+                incident_number
+                if isinstance(incident_number, str)
+                else None
+            ),
         )
 
 
@@ -162,17 +238,30 @@ def register_process_accepted_incident_task(
     app: Celery | None = None,
 ) -> Task:
     """Register the S2.3 task scaffold on the supplied or configured Celery app."""
+
     celery_app = app or create_celery_app()
 
     @celery_app.task(bind=True, shared=False)
-    def process_accepted_incident(task: Task, accepted_incident: object) -> object:
-        task_seams = seams.for_task(task) if isinstance(seams, ProductionIntegrationSeams) else seams
+    def process_accepted_incident(
+        task: Task,
+        accepted_incident: object,
+    ) -> object:
+        task_seams = (
+            seams.for_task(task)
+            if isinstance(seams, ProductionIntegrationSeams)
+            else seams
+        )
 
         def handle_failure(
-            error: BaseException, policy_error: BaseException
+            error: BaseException,
+            policy_error: BaseException,
         ) -> tuple[RetryDecision, object | None]:
+
             retries_completed = task.request.retries
-            decision = retry_policy.decide(policy_error, retries_completed)
+            decision = retry_policy.decide(
+                policy_error,
+                retries_completed,
+            )
 
             if decision is RetryDecision.RETRY:
                 task_seams.state_recorder.record_retry(
@@ -180,13 +269,22 @@ def register_process_accepted_incident_task(
                     retries_completed,
                     error,
                 )
+
                 retry_options: dict[str, object] = {
                     "exc": error,
-                    "countdown": retry_policy.delay_for_retry(retries_completed + 1),
+                    "countdown": retry_policy.delay_for_retry(
+                        retries_completed + 1
+                    ),
                     "max_retries": retry_policy.max_retries,
                 }
+
                 if isinstance(seams, ProductionIntegrationSeams):
-                    retry_options["headers"] = getattr(task.request, "headers", None)
+                    retry_options["headers"] = getattr(
+                        task.request,
+                        "headers",
+                        None,
+                    )
+
                 return (
                     decision,
                     task.retry(**retry_options),
@@ -197,11 +295,16 @@ def register_process_accepted_incident_task(
                 retries_completed,
                 error,
             )
+
             dlq_payload = (
                 accepted_incident.original_payload
-                if isinstance(accepted_incident, MalformedIncidentPayload)
+                if isinstance(
+                    accepted_incident,
+                    MalformedIncidentPayload,
+                )
                 else accepted_incident
             )
+
             task_seams.dlq.transition(
                 create_dead_letter_entry(
                     payload=dlq_payload,
@@ -212,25 +315,54 @@ def register_process_accepted_incident_task(
                     task_id=getattr(task.request, "id", None),
                 )
             )
+
             return decision, None
 
         try:
-            if isinstance(accepted_incident, MalformedIncidentPayload):
+            if isinstance(
+                accepted_incident,
+                MalformedIncidentPayload,
+            ):
                 raise accepted_incident.error
-            result = task_seams.agent.execute(accepted_incident)
-            record_success = getattr(task_seams.state_recorder, "record_success", None)
+
+            result = task_seams.agent.execute(
+                accepted_incident
+            )
+
+            record_success = getattr(
+                task_seams.state_recorder,
+                "record_success",
+                None,
+            )
+
             if callable(record_success):
-                record_success(accepted_incident, result)
+                record_success(
+                    accepted_incident,
+                    result,
+                )
+
             return result
+
         except SoftTimeLimitExceeded as error:
-            decision, result = handle_failure(error, _RetryableTimeoutForPolicy())
+            decision, result = handle_failure(
+                error,
+                _RetryableTimeoutForPolicy(),
+            )
+
             if decision is RetryDecision.RETRY:
                 return result
+
             raise
+
         except Exception as error:
-            decision, result = handle_failure(error, error)
+            decision, result = handle_failure(
+                error,
+                error,
+            )
+
             if decision is RetryDecision.RETRY:
                 return result
+
             raise
 
     return process_accepted_incident
@@ -239,19 +371,34 @@ def register_process_accepted_incident_task(
 # ---------------------------------------------------------------------------
 # Temporary standalone task for local use until S2.3 branch is fully merged
 # ---------------------------------------------------------------------------
-redis_url = os.environ.get("REDIS_URL")
-if redis_url:
-    app = Celery('tasks', broker=redis_url, backend=redis_url)
 
-    @app.task(bind=True, name="execute_incident_graph")
-    def execute_incident_graph(self, execution_id: str, incident_number: str, initial_payload: dict):
+redis_url = os.environ.get("REDIS_URL")
+
+if redis_url:
+    app = Celery(
+        "tasks",
+        broker=redis_url,
+        backend=redis_url,
+    )
+
+    @app.task(
+        bind=True,
+        name="execute_incident_graph",
+    )
+    def execute_incident_graph(
+        self,
+        execution_id: str,
+        incident_number: str,
+        initial_payload: dict,
+    ):
         """
         Execute the LangGraph state machine inside the Celery worker.
         Uses the Postgres checkpointer for state persistence.
         """
         executor = GraphAgentExecutor()
+
         return executor.execute(
             accepted_incident=initial_payload,
             execution_id=execution_id,
-            incident_number=incident_number
+            incident_number=incident_number,
         )

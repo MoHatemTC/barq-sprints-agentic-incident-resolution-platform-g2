@@ -13,3 +13,4 @@ class AgentState(TypedDict, total=False):
     action_taken: Optional[str]
     human_review_required: bool
     failure_reason: Optional[str]
+    human_solution: Optional[str]

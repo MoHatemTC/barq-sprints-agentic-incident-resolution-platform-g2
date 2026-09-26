@@ -1,5 +1,4 @@
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from src.agent.graph import create_graph
 
@@ -16,63 +15,101 @@ def _fake_chunk():
 @patch("src.agent.nodes.retrieve.search", return_value=[_fake_chunk()])
 def test_graph_routing_normal_risk(mock_search):
     """Normal risk incident should go through the full automated path to act."""
+
     graph = create_graph().compile()
+
     initial_state = {
         "execution_id": "test_1",
         "incident_number": "INC_TEST_01",
-        "incident_payload": {"description": "normal issue"},
+        "incident_payload": {
+            "description": "normal issue"
+        },
     }
 
     result = graph.invoke(initial_state)
 
     assert result["action_taken"] == "resolved_automatically"
-    assert result["risk"] == "low"  # Kept from incoming branch
+    assert result["risk"] == "low"
 
 
 @patch("src.agent.nodes.retrieve.search", return_value=[])
 def test_graph_routes_to_interrupt_when_no_evidence(mock_search):
-    """Empty retrieval result -> human review, not diagnose."""
+    """Empty retrieval result should pause for human resolution."""
+
     graph = create_graph().compile()
-    result = graph.invoke({
-        "execution_id": "test_2",
-        "incident_number": "INC_TEST_02",
-        "incident_payload": {"description": "something unrelated"},
-    })
 
-    assert result["action_taken"] == "interrupted:no_evidence"
-    assert result["human_review_required"] is True
-    assert result["failure_reason"] == "no_evidence"
+    result = graph.invoke(
+        {
+            "execution_id": "test_2",
+            "incident_number": "INC_TEST_02",
+            "incident_payload": {
+                "description": "something unrelated"
+            },
+        }
+    )
+
+    assert "__interrupt__" in result
+    assert len(result["__interrupt__"]) == 1
+
+    interrupt_value = result["__interrupt__"][0].value
+
+    assert interrupt_value["type"] == "human_resolution_required"
+    assert interrupt_value["execution_id"] == "test_2"
+    assert interrupt_value["incident_number"] == "INC_TEST_02"
+    assert interrupt_value["reason"] == "no_evidence"
 
 
-@patch("src.agent.nodes.retrieve.search", side_effect=RuntimeError("qdrant down"))
+@patch(
+    "src.agent.nodes.retrieve.search",
+    side_effect=RuntimeError("qdrant down"),
+)
 def test_graph_routes_to_interrupt_when_retrieval_fails(mock_search):
-    """Retrieval exception -> human review with retrieval_failed reason."""
-    graph = create_graph().compile()
-    result = graph.invoke({
-        "execution_id": "test_3",
-        "incident_number": "INC_TEST_03",
-        "incident_payload": {"description": "vpn issue"},
-    })
+    """Retrieval exception should pause for human resolution."""
 
-    assert result["action_taken"] == "interrupted:retrieval_failed"
-    assert result["human_review_required"] is True
-    assert result["failure_reason"] == "retrieval_failed"
+    graph = create_graph().compile()
+
+    result = graph.invoke(
+        {
+            "execution_id": "test_3",
+            "incident_number": "INC_TEST_03",
+            "incident_payload": {
+                "description": "vpn issue"
+            },
+        }
+    )
+
+    assert "__interrupt__" in result
+    assert len(result["__interrupt__"]) == 1
+
+    interrupt_value = result["__interrupt__"][0].value
+
+    assert interrupt_value["type"] == "human_resolution_required"
+    assert interrupt_value["execution_id"] == "test_3"
+    assert interrupt_value["incident_number"] == "INC_TEST_03"
+    assert interrupt_value["reason"] == "retrieval_failed"
 
 
 def test_graph_routing_high_risk():
-    """High-risk incident should skip retrieval and go to interrupt."""
+    """High-risk incident should skip retrieval and pause for human resolution."""
+
     graph = create_graph().compile()
 
     initial_state = {
-        "execution_id": "test_4",  # Updated to 4 to avoid conflict with test_2 above
+        "execution_id": "test_4",
         "incident_number": "INC_TEST_04",
-        "incident_payload": {"description": "this is a high-risk task"}, # Standardized to "description"
+        "incident_payload": {
+            "description": "this is a high-risk task"
+        },
     }
 
     result = graph.invoke(initial_state)
 
-    # High risk routes to interrupt, NOT act
-    assert result["action_taken"] == "interrupted:high_risk_incident"
-    assert result["risk"] == "high"
-    # Should NOT have retrieved evidence (skipped retrieval entirely)
-    assert result.get("retrieved_evidence") is None
+    assert "__interrupt__" in result
+    assert len(result["__interrupt__"]) == 1
+
+    interrupt_value = result["__interrupt__"][0].value
+
+    assert interrupt_value["type"] == "human_resolution_required"
+    assert interrupt_value["execution_id"] == "test_4"
+    assert interrupt_value["incident_number"] == "INC_TEST_04"
+    assert interrupt_value["reason"] == "high_risk_incident"

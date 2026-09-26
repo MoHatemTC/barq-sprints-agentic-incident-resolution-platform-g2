@@ -15,3 +15,4 @@ class Article:
     workflow_state: str
     version: int
     security_level: str
+    section: str = ""
