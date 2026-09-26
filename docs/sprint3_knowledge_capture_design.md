@@ -400,7 +400,7 @@ Recorded result:
 
 ```text
 .........                                      [100%]
-9 passed in 7.92s
+11 passed in 7.92s
 ```
 
 This confirms that the Article Composer, knowledge-capture orchestration, and loop-closure retrieval test all pass together.
@@ -441,7 +441,7 @@ LangGraph resume: OK
 
 ### Evidence Boundary
 
-The recorded `9 passed` result is an automated loop-closure demonstration using controlled test dependencies, including an in-memory Qdrant instance and mocked ServiceNow publication/source data.
+The recorded `11 passed` result is an automated loop-closure demonstration using controlled test dependencies, including an in-memory Qdrant instance and mocked ServiceNow publication/source data.
 
 It therefore demonstrates the complete S3.5 integration behavior and verifies the retrieval contract, but it should not be described as a production ServiceNow/Qdrant execution transcript.
 
@@ -468,5 +468,5 @@ docs/sprint3_knowledge_capture_design.md
 The focused verification suite passes:
 
 ```text
-9 passed
+11 passed
 ```
