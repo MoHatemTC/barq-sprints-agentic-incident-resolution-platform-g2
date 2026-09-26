@@ -16,30 +16,30 @@
       "mrr": 0.0,
       "answered_unanswerable": 2,
       "unanswerable": 2,
-      "p50_ms": 861.2,
-      "p95_ms": 997.6,
+      "p50_ms": 930.4,
+      "p95_ms": 2322.0,
       "extractor_dependent_hit_rate": 0
     },
     "stressor": {
-      "precision": 0.495,
+      "precision": 0.519,
       "recall": 1.0,
       "hit_rate": 1,
       "mrr": 1.0,
       "answered_unanswerable": 2,
       "unanswerable": 2,
-      "p50_ms": 826.3,
-      "p95_ms": 928.2,
+      "p50_ms": 828.5,
+      "p95_ms": 949.4,
       "extractor_dependent_hit_rate": 1
     },
     "combined": {
       "precision": 0.491,
       "recall": 1.0,
       "hit_rate": 1,
-      "mrr": 0.806,
+      "mrr": 0.778,
       "answered_unanswerable": 2,
       "unanswerable": 2,
-      "p50_ms": 823.9,
-      "p95_ms": 1048.7,
+      "p50_ms": 854.9,
+      "p95_ms": 2407.1,
       "extractor_dependent_hit_rate": 1
     }
   },
@@ -55,7 +55,7 @@
       "extractor_dependent_hit_rate": 0
     },
     "stressor": {
-      "precision": 0.495,
+      "precision": 0.519,
       "recall": 1.0,
       "hit_rate": 1,
       "mrr": 1.0,
@@ -67,7 +67,7 @@
       "precision": 0.491,
       "recall": 1.0,
       "hit_rate": 1,
-      "mrr": 0.806,
+      "mrr": 0.778,
       "answered_unanswerable": 2,
       "unanswerable": 2,
       "extractor_dependent_hit_rate": 1
@@ -137,11 +137,11 @@
       ],
       "extractor_returned": [
         "5.2",
-        "8.3"
+        "8.3",
+        "12.2"
       ],
       "hit_from": [
         "layout",
-        "tables",
         "tables",
         "tables"
       ]
@@ -178,8 +178,8 @@
         "layout",
         "layout",
         "tables",
-        "layout",
-        "tables"
+        "tables",
+        "layout"
       ]
     },
     {
@@ -190,14 +190,14 @@
         "body"
       ],
       "extractor_returned": [
-        "7.1",
-        "3.3"
+        "7.1"
       ],
       "hit_from": [
         "layout",
         "tables",
         "layout",
-        "tables"
+        "tables",
+        "ocr"
       ]
     },
     {
@@ -215,7 +215,7 @@
         "layout",
         "tables",
         "layout",
-        "tables"
+        "ocr"
       ]
     },
     {
@@ -298,12 +298,11 @@
       "extractor_returned": [
         "10.4",
         "7.1",
-        "11.8",
-        "3.3"
+        "11.8"
       ],
       "hit_from": [
-        "layout",
-        "ocr"
+        "ocr",
+        "layout"
       ]
     },
     {
@@ -315,8 +314,8 @@
       ],
       "extractor_returned": [
         "11.7",
-        "11.8",
-        "12.2"
+        "7.1",
+        "11.8"
       ],
       "hit_from": [
         "tables",
@@ -334,7 +333,7 @@
       "extractor_returned": [
         "12.2",
         "Appendix C",
-        "5.2"
+        "3.3"
       ],
       "hit_from": [
         "tables",
@@ -371,7 +370,7 @@
         "Appendix C",
         "3.3",
         "11.7",
-        "8.3"
+        "7.1"
       ],
       "hit_from": [
         "tables",
@@ -390,8 +389,8 @@
         "7.1"
       ],
       "hit_from": [
-        "ocr",
         "layout",
+        "ocr",
         "ocr"
       ]
     }
@@ -404,7 +403,7 @@
         "capability_class": "merged_header",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 882.9,
+        "ms": 942.3,
         "top_score": 0.0328,
         "returned": [
           "body"
@@ -428,7 +427,7 @@
         "capability_class": "merged_header",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 915.4,
+        "ms": 905.1,
         "top_score": 0.0328,
         "returned": [
           "body"
@@ -452,7 +451,7 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 828.3,
+        "ms": 893.8,
         "top_score": 0.0328,
         "returned": [
           "body"
@@ -476,7 +475,7 @@
         "capability_class": "nested_table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 821.1,
+        "ms": 830.6,
         "top_score": 0.0328,
         "returned": [
           "body"
@@ -500,7 +499,7 @@
         "capability_class": "nested_table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 914.9,
+        "ms": 835.0,
         "top_score": 0.0323,
         "returned": [
           "body"
@@ -524,7 +523,7 @@
         "capability_class": "page_crossing",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 814.5,
+        "ms": 809.8,
         "top_score": 0.0328,
         "returned": [
           "body"
@@ -548,7 +547,7 @@
         "capability_class": "page_crossing",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 920.2,
+        "ms": 2381.4,
         "top_score": 0.0313,
         "returned": [
           "body"
@@ -572,7 +571,7 @@
         "capability_class": "form_parsing",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 847.1,
+        "ms": 836.9,
         "top_score": 0.0328,
         "returned": [
           "body"
@@ -596,7 +595,7 @@
         "capability_class": "key_value",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 795.5,
+        "ms": 951.3,
         "top_score": 0.0328,
         "returned": [
           "body"
@@ -620,7 +619,7 @@
         "capability_class": "key_value",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 813.7,
+        "ms": 840.9,
         "top_score": 0.0325,
         "returned": [
           "body"
@@ -644,7 +643,7 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 778.9,
+        "ms": 969.4,
         "top_score": 0.0328,
         "returned": [
           "body"
@@ -668,7 +667,7 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 775.6,
+        "ms": 967.4,
         "top_score": 0.0325,
         "returned": [
           "body"
@@ -692,7 +691,7 @@
         "capability_class": "ocr",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 850.8,
+        "ms": 936.3,
         "top_score": 0.0325,
         "returned": [
           "body"
@@ -716,7 +715,7 @@
         "capability_class": "layout",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 999.8,
+        "ms": 972.6,
         "top_score": 0.0328,
         "returned": [
           "body"
@@ -740,7 +739,7 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 857.5,
+        "ms": 1192.9,
         "top_score": 0.0328,
         "returned": [
           "body"
@@ -764,7 +763,7 @@
         "capability_class": "merged_header",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 864.9,
+        "ms": 1046.6,
         "top_score": 0.0323,
         "returned": [
           "body"
@@ -788,7 +787,7 @@
         "capability_class": "layout",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 956.4,
+        "ms": 1010.4,
         "top_score": 0.0328,
         "returned": [
           "body"
@@ -812,7 +811,7 @@
         "capability_class": "ocr",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 901.3,
+        "ms": 924.4,
         "top_score": 0.0325,
         "returned": [
           "body"
@@ -836,7 +835,7 @@
         "capability_class": "unanswerable",
         "requires_extractor": false,
         "answerable": false,
-        "ms": 938.2,
+        "ms": 834.7,
         "top_score": 0.0317,
         "returned": [
           "body"
@@ -854,7 +853,7 @@
         "capability_class": "unanswerable",
         "requires_extractor": false,
         "answerable": false,
-        "ms": 880.1,
+        "ms": 785.3,
         "top_score": 0.0317,
         "returned": [
           "body"
@@ -874,7 +873,7 @@
         "capability_class": "merged_header",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 852.9,
+        "ms": 794.1,
         "top_score": 0.0325,
         "returned": [
           "2.1",
@@ -904,7 +903,7 @@
         "capability_class": "merged_header",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 842.5,
+        "ms": 822.0,
         "top_score": 0.0325,
         "returned": [
           "2.1",
@@ -934,7 +933,7 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 822.3,
+        "ms": 839.9,
         "top_score": 0.0325,
         "returned": [
           "3.3",
@@ -964,27 +963,27 @@
         "capability_class": "nested_table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 809.6,
+        "ms": 832.0,
         "top_score": 0.0325,
         "returned": [
           "5.2",
-          "8.3"
+          "8.3",
+          "12.2"
         ],
         "returners": [
           "layout",
           "tables",
           "tables",
           "tables",
-          "tables"
+          "layout"
         ],
-        "precision": 0.5,
+        "precision": 0.3333333333333333,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
         "first_rank": 1,
         "hit_from": [
           "layout",
-          "tables",
           "tables",
           "tables"
         ]
@@ -994,7 +993,7 @@
         "capability_class": "nested_table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 928.5,
+        "ms": 812.5,
         "top_score": 0.0323,
         "returned": [
           "5.2",
@@ -1024,7 +1023,7 @@
         "capability_class": "page_crossing",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 813.9,
+        "ms": 896.1,
         "top_score": 0.0325,
         "returned": [
           "7.1"
@@ -1033,8 +1032,8 @@
           "layout",
           "layout",
           "tables",
-          "layout",
-          "tables"
+          "tables",
+          "layout"
         ],
         "precision": 1.0,
         "recall": 1.0,
@@ -1045,8 +1044,8 @@
           "layout",
           "layout",
           "tables",
-          "layout",
-          "tables"
+          "tables",
+          "layout"
         ]
       },
       {
@@ -1054,20 +1053,19 @@
         "capability_class": "page_crossing",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 823.6,
-        "top_score": 0.0325,
+        "ms": 796.7,
+        "top_score": 0.0323,
         "returned": [
-          "7.1",
-          "3.3"
+          "7.1"
         ],
         "returners": [
           "layout",
           "tables",
           "layout",
           "tables",
-          "tables"
+          "ocr"
         ],
-        "precision": 0.5,
+        "precision": 1.0,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -1076,7 +1074,8 @@
           "layout",
           "tables",
           "layout",
-          "tables"
+          "tables",
+          "ocr"
         ]
       },
       {
@@ -1084,7 +1083,7 @@
         "capability_class": "form_parsing",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 815.8,
+        "ms": 949.7,
         "top_score": 0.0328,
         "returned": [
           "7.1"
@@ -1094,7 +1093,7 @@
           "layout",
           "tables",
           "layout",
-          "tables"
+          "ocr"
         ],
         "precision": 1.0,
         "recall": 1.0,
@@ -1106,7 +1105,7 @@
           "layout",
           "tables",
           "layout",
-          "tables"
+          "ocr"
         ]
       },
       {
@@ -1114,7 +1113,7 @@
         "capability_class": "key_value",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 817.7,
+        "ms": 943.7,
         "top_score": 0.0323,
         "returned": [
           "7.1",
@@ -1143,7 +1142,7 @@
         "capability_class": "key_value",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 833.2,
+        "ms": 808.8,
         "top_score": 0.0325,
         "returned": [
           "7.1",
@@ -1172,7 +1171,7 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 804.6,
+        "ms": 924.0,
         "top_score": 0.0325,
         "returned": [
           "8.3",
@@ -1202,7 +1201,7 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 819.2,
+        "ms": 821.4,
         "top_score": 0.0328,
         "returned": [
           "8.3",
@@ -1232,29 +1231,28 @@
         "capability_class": "ocr",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 826.3,
+        "ms": 833.7,
         "top_score": 0.0325,
         "returned": [
           "10.4",
           "7.1",
-          "11.8",
-          "3.3"
+          "11.8"
         ],
         "returners": [
-          "layout",
           "ocr",
           "layout",
           "layout",
-          "layout"
+          "layout",
+          "ocr"
         ],
-        "precision": 0.25,
+        "precision": 0.3333333333333333,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
         "first_rank": 1,
         "hit_from": [
-          "layout",
-          "ocr"
+          "ocr",
+          "layout"
         ]
       },
       {
@@ -1262,19 +1260,19 @@
         "capability_class": "layout",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 922.8,
+        "ms": 834.6,
         "top_score": 0.0328,
         "returned": [
           "11.7",
-          "11.8",
-          "12.2"
+          "7.1",
+          "11.8"
         ],
         "returners": [
           "tables",
           "layout",
+          "ocr",
           "layout",
-          "layout",
-          "ocr"
+          "layout"
         ],
         "precision": 0.3333333333333333,
         "recall": 1.0,
@@ -1292,19 +1290,19 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 921.2,
+        "ms": 881.7,
         "top_score": 0.0328,
         "returned": [
           "12.2",
           "Appendix C",
-          "5.2"
+          "3.3"
         ],
         "returners": [
           "tables",
           "layout",
           "layout",
           "layout",
-          "layout"
+          "tables"
         ],
         "precision": 0.3333333333333333,
         "recall": 1.0,
@@ -1322,7 +1320,7 @@
         "capability_class": "merged_header",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 810.1,
+        "ms": 828.6,
         "top_score": 0.0328,
         "returned": [
           "Appendix C",
@@ -1335,7 +1333,7 @@
           "layout",
           "layout",
           "layout",
-          "layout"
+          "ocr"
         ],
         "precision": 0.25,
         "recall": 1.0,
@@ -1352,20 +1350,20 @@
         "capability_class": "layout",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 848.8,
+        "ms": 811.8,
         "top_score": 0.0328,
         "returned": [
           "Appendix C",
           "3.3",
           "11.7",
-          "8.3"
+          "7.1"
         ],
         "returners": [
           "tables",
           "layout",
           "layout",
           "layout",
-          "layout"
+          "ocr"
         ],
         "precision": 0.25,
         "recall": 1.0,
@@ -1382,15 +1380,15 @@
         "capability_class": "ocr",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 887.0,
-        "top_score": 0.0323,
+        "ms": 828.5,
+        "top_score": 0.0325,
         "returned": [
           "11.8",
           "7.1"
         ],
         "returners": [
-          "ocr",
           "layout",
+          "ocr",
           "ocr",
           "layout",
           "tables"
@@ -1401,8 +1399,8 @@
         "rr": 1.0,
         "first_rank": 1,
         "hit_from": [
-          "ocr",
           "layout",
+          "ocr",
           "ocr"
         ]
       },
@@ -1411,7 +1409,7 @@
         "capability_class": "unanswerable",
         "requires_extractor": false,
         "answerable": false,
-        "ms": 832.5,
+        "ms": 784.1,
         "top_score": 0.0318,
         "returned": [
           "3.3",
@@ -1431,7 +1429,7 @@
         "capability_class": "unanswerable",
         "requires_extractor": false,
         "answerable": false,
-        "ms": 826.3,
+        "ms": 783.7,
         "top_score": 0.0313,
         "returned": [
           "7.1",
@@ -1453,7 +1451,7 @@
         "capability_class": "merged_header",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 818.5,
+        "ms": 808.9,
         "top_score": 0.0325,
         "returned": [
           "body",
@@ -1482,7 +1480,7 @@
         "capability_class": "merged_header",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 818.6,
+        "ms": 822.6,
         "top_score": 0.0328,
         "returned": [
           "body",
@@ -1511,7 +1509,7 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 821.9,
+        "ms": 967.4,
         "top_score": 0.0325,
         "returned": [
           "3.3",
@@ -1540,7 +1538,7 @@
         "capability_class": "nested_table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 816.1,
+        "ms": 767.1,
         "top_score": 0.0323,
         "returned": [
           "5.2",
@@ -1569,7 +1567,7 @@
         "capability_class": "nested_table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 812.4,
+        "ms": 834.0,
         "top_score": 0.0315,
         "returned": [
           "5.2",
@@ -1598,7 +1596,7 @@
         "capability_class": "page_crossing",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 825.8,
+        "ms": 778.1,
         "top_score": 0.0325,
         "returned": [
           "body",
@@ -1626,8 +1624,8 @@
         "capability_class": "page_crossing",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 819.1,
-        "top_score": 0.0311,
+        "ms": 871.6,
+        "top_score": 0.0309,
         "returned": [
           "7.1",
           "body"
@@ -1655,15 +1653,15 @@
         "capability_class": "form_parsing",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 922.9,
+        "ms": 797.5,
         "top_score": 0.0323,
         "returned": [
-          "7.1",
-          "body"
+          "body",
+          "7.1"
         ],
         "returners": [
-          "layout",
           "line_reading",
+          "layout",
           "layout",
           "tables",
           "layout"
@@ -1671,8 +1669,8 @@
         "precision": 0.5,
         "recall": 1.0,
         "hit": true,
-        "rr": 1.0,
-        "first_rank": 1,
+        "rr": 0.5,
+        "first_rank": 2,
         "hit_from": [
           "layout",
           "layout",
@@ -1685,7 +1683,7 @@
         "capability_class": "key_value",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 1023.0,
+        "ms": 838.2,
         "top_score": 0.0317,
         "returned": [
           "7.1",
@@ -1714,7 +1712,7 @@
         "capability_class": "key_value",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 827.2,
+        "ms": 802.3,
         "top_score": 0.0323,
         "returned": [
           "body",
@@ -1743,7 +1741,7 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 811.9,
+        "ms": 831.4,
         "top_score": 0.0325,
         "returned": [
           "body",
@@ -1772,7 +1770,7 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 859.5,
+        "ms": 811.2,
         "top_score": 0.0325,
         "returned": [
           "body",
@@ -1799,7 +1797,7 @@
         "capability_class": "ocr",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 881.1,
+        "ms": 926.5,
         "top_score": 0.0325,
         "returned": [
           "10.4",
@@ -1827,7 +1825,7 @@
         "capability_class": "layout",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 916.5,
+        "ms": 1769.9,
         "top_score": 0.0328,
         "returned": [
           "body",
@@ -1856,7 +1854,7 @@
         "capability_class": "table",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 814.0,
+        "ms": 1196.5,
         "top_score": 0.0328,
         "returned": [
           "12.2",
@@ -1885,7 +1883,7 @@
         "capability_class": "merged_header",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 1050.1,
+        "ms": 954.2,
         "top_score": 0.0328,
         "returned": [
           "Appendix C",
@@ -1914,7 +1912,7 @@
         "capability_class": "layout",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 908.0,
+        "ms": 1087.6,
         "top_score": 0.0328,
         "returned": [
           "Appendix C",
@@ -1942,8 +1940,8 @@
         "capability_class": "ocr",
         "requires_extractor": true,
         "answerable": true,
-        "ms": 813.1,
-        "top_score": 0.0323,
+        "ms": 1317.5,
+        "top_score": 0.0325,
         "returned": [
           "11.8",
           "body"
@@ -1971,7 +1969,7 @@
         "capability_class": "unanswerable",
         "requires_extractor": false,
         "answerable": false,
-        "ms": 834.1,
+        "ms": 1506.4,
         "top_score": 0.031,
         "returned": [
           "body",
@@ -1990,7 +1988,7 @@
         "capability_class": "unanswerable",
         "requires_extractor": false,
         "answerable": false,
-        "ms": 803.6,
+        "ms": 2440.6,
         "top_score": 0.0306,
         "returned": [
           "body",

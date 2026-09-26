@@ -132,8 +132,31 @@ page_needs_ocr(page) / page_has_text_layer(page) -> bool
 **Checkbox detection is deliberately narrow.** It fires on a ruled square of the right size, or on a
 glyph known to be a box, and it requires two of the manual's own field labels to sit beside the box. On the
 52 pages it fires zero times, and that is the correct answer: 10.4's approval form is a raster screenshot,
-so the checkboxes exist as pixels and the honest result is `ocr_applied: false`. A detector that reported 13
-checkboxes there would be reading the shape of the raster's compression artefacts.
+so the checkboxes exist as pixels and the layout extractor does not claim to have read them. A detector that
+reported 13 checkboxes there would be reading the shape of the raster's compression artefacts. Reading the
+checkboxes is OCR's job, not the layout extractor's, and it is the image *region* that carries the result.
+
+### 2.3 `extractors/ocr.py` — system dependencies
+
+From S3.3 (`origin/feat/Sprint-3-(S3.3)---Input-&-Output-Guardrails-&-Ocr`, Marcelino). Python deps are in
+`requirements.txt` (`pytesseract==0.3.13`, `pillow`, `pdf2image==1.17.0`). Two things pip cannot install:
+
+```bash
+# 1. Tesseract, the OCR engine. pytesseract is only a binding; it shells out to this binary.
+sudo apt-get install -y tesseract-ocr        # Debian/Ubuntu
+brew install tesseract                      # macOS
+choco install tesseract                     # Windows
+
+# 2. Poppler, ONLY for the whole-file PDF path (scripts/check_ocr.py), because
+#    pdf2image drives pdftoppm. The ingestion path does not need it -- it renders
+#    regions with PyMuPDF and passes the image in.
+sudo apt-get install -y poppler-utils       # Debian/Ubuntu
+brew install poppler                        # macOS
+```
+
+Both are optional at runtime. `ingest_stressors` asks `ocr_available()` first and records the reason in the
+payload when OCR is not usable, so a box without Tesseract indexes the same regions minus the words. Verify
+with `python scripts/check_ocr.py --help` against a file you know the contents of.
 
 ---
 
@@ -220,7 +243,8 @@ Three keys are added alongside:
 - `extractor` — `tables`, `layout` or `ocr`
 - `provenance` — per artifact: `has_merged_header`, `has_nested`, `nested_count`, `spans_page_boundary`,
   `columns`, `issues` for tables; `column_count`, `reading_order_changed`, `field_count`, `fields` for
-  forms; `region_bbox`, `region_px`, `ocr_applied` for images
+  forms; `region_bbox`, `region_px`, `ocr_applied`, `reason`, and when OCR ran also `ocr_confidence`,
+  `ocr_text_chars` and `tesseract_cmd_version` for images
 
 ---
 
@@ -264,6 +288,16 @@ comparison against `barq_manual`, and is reported separately in the sprint repor
 
 ## 5. Known limits
 
+- **Enabling OCR text costs a second query, and this is newly measured.** Tesseract is now installed on
+  this box, so the 5 image regions are actually read: 3 pass the confidence gate and are indexed
+  (conf 86.0 / 85.0 / 79.0), 2 are read and rejected (conf 22.3 / 30.7, below `MIN_OCR_CONFIDENCE`). The
+  accepted `INC1027` regression below still stands, but `hybrid_rerank` now loses a **second** query,
+  `INC1011` — *"user locked out and also cannot connect VPN after password change this morning"*. Cause
+  is attributable: the new OCR point for 7.1's incident form (page 25, conf 86.0) takes rank 1 at score
+  5.67 and pushes `KB0005` out of the top 5. Its text really does describe a locked-out user, so the
+  reranker is not wrong to like it — the problem is that it crowds out the article that answers the
+  question. See the sprint report §6.1 for the full before/after and the options.
+
 - **One known, understood and accepted regression: `INC1027`.** `hybrid` and `hybrid_rerank` each drop
   `INC1027` — *"new starter locked out on day one and also cannot see the finance shared folder"*, which
   expects `KB0005`/`KB0020` — out of the top 5 once the manual's pages share the collection. A manual
@@ -271,12 +305,17 @@ comparison against `barq_manual`, and is reported separately in the sprint repor
   number (`number: ""`), it cannot satisfy the expectation, so the query loses its only hit. This is
   **slot-crowding from increased corpus competition, not index corruption and not an extractor defect** —
   the same points answer 18 manual questions that the corpus could not answer at all before this sprint.
-  `dense` is unaffected (0.281 → 0.281); `hybrid` and `hybrid_rerank` each go 0.312 → 0.281. **Accepted as-is:
+  `dense` is unaffected (0.281 → 0.281); `hybrid` goes 0.312 → 0.281. **Accepted as-is:
   no k change, no intent filter.** Raising `k` or filtering by intent would both fix it, but `k=5` is shared
   with S2.4/S2.5 and the deadline made a change there a worse trade than the one lost query.
-- **OCR is not implemented on this branch.** `extractors/ocr.py` exists on
-  `origin/feat/Sprint-3-(S3.3)---Input-&-Output-Guardrails-&-Ocr`. Image regions are recorded with their
-  bbox, pixel size and `ocr_applied: false`. S3.3 wires the import in; S2.6 does not duplicate the logic.
+- **OCR is now wired, and is still an unproven path here.** `extractors/ocr.py` came from
+  `origin/feat/Sprint-3-(S3.3)---Input-&-Output-Guardrails-&-Ocr` (S3.3, Marcelino) and `ingest_stressors.py`
+  now renders each image region with PyMuPDF and reads it. Two gates: OCR must be available (the
+  `pytesseract` binding importable *and* a `tesseract` binary on PATH), and Tesseract's own confidence must be
+  ≥ `MIN_OCR_CONFIDENCE` (55) before the text is indexed. A region that fails either gate is still indexed —
+  with its bbox, pixel size, `ocr_applied` and a `reason` — so nothing is silently dropped. **The numbers in
+  this document were measured with OCR unavailable** (no tesseract binary), so they describe the
+  recorded-but-unread path. See §6.1 of the report.
 - **`page_crossing` is declared on 7.1, not 8.3.** The contents page reads as though 8.3 is one long
   register; it is two, a problem register on p29 and a known-error register on p30, and the page that
   actually breaks is 7.1's journal. `STR-12` is the row that catches answering the known-error question

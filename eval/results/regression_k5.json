@@ -20,8 +20,8 @@
       "hit_rate": 0.281,
       "mrr": 0.25,
       "planted_hits": 0,
-      "p50_ms": 819.1,
-      "p95_ms": 921.5
+      "p50_ms": 879.7,
+      "p95_ms": 1273.2
     },
     "kb_only|hybrid": {
       "precision": 0.099,
@@ -29,8 +29,8 @@
       "hit_rate": 0.312,
       "mrr": 0.258,
       "planted_hits": 0,
-      "p50_ms": 822.4,
-      "p95_ms": 920.3
+      "p50_ms": 841.5,
+      "p95_ms": 1243.3
     },
     "kb_only|hybrid_rerank": {
       "precision": 0.084,
@@ -38,8 +38,8 @@
       "hit_rate": 0.312,
       "mrr": 0.232,
       "planted_hits": 0,
-      "p50_ms": 1560.8,
-      "p95_ms": 1833.2
+      "p50_ms": 1754.6,
+      "p95_ms": 2109.4
     },
     "mixed|dense": {
       "precision": 0.091,
@@ -47,26 +47,26 @@
       "hit_rate": 0.281,
       "mrr": 0.25,
       "planted_hits": 0,
-      "p50_ms": 846.2,
-      "p95_ms": 4201.2
+      "p50_ms": 830.4,
+      "p95_ms": 1177.8
     },
     "mixed|hybrid": {
-      "precision": 0.082,
+      "precision": 0.081,
       "recall": 0.234,
       "hit_rate": 0.281,
       "mrr": 0.245,
       "planted_hits": 0,
-      "p50_ms": 924.0,
-      "p95_ms": 1912.6
+      "p50_ms": 875.9,
+      "p95_ms": 1515.2
     },
     "mixed|hybrid_rerank": {
-      "precision": 0.07,
-      "recall": 0.25,
-      "hit_rate": 0.281,
-      "mrr": 0.221,
+      "precision": 0.062,
+      "recall": 0.234,
+      "hit_rate": 0.25,
+      "mrr": 0.214,
       "planted_hits": 0,
-      "p50_ms": 3319.2,
-      "p95_ms": 3677.2
+      "p50_ms": 3528.5,
+      "p95_ms": 4681.9
     }
   },
   "verdict": {
@@ -79,7 +79,7 @@
       "hits_gained": 0,
       "regression": false,
       "queries_where_a_stressor_took_a_slot": {
-        "1": 3
+        "1": 4
       },
       "lost": [],
       "gained": []
@@ -93,7 +93,7 @@
       "hits_gained": 0,
       "regression": true,
       "queries_where_a_stressor_took_a_slot": {
-        "1": 12
+        "1": 13
       },
       "lost": [
         {
@@ -112,8 +112,8 @@
           "kb_only_first_rank": 4,
           "mixed_returned": [
             "7.4",
-            "KB0003",
             "6.2",
+            "KB0003",
             ""
           ]
         }
@@ -122,16 +122,36 @@
     },
     "hybrid_rerank": {
       "hit_rate_kb_only": 0.312,
-      "hit_rate_mixed": 0.281,
+      "hit_rate_mixed": 0.25,
       "mrr_kb_only": 0.232,
-      "mrr_mixed": 0.221,
-      "hits_lost": 1,
+      "mrr_mixed": 0.214,
+      "hits_lost": 2,
       "hits_gained": 0,
       "regression": true,
       "queries_where_a_stressor_took_a_slot": {
-        "1": 25
+        "1": 26
       },
       "lost": [
+        {
+          "query_id": "INC1011",
+          "query": "User locked out and also cannot connect VPN after password change this morning",
+          "expected": [
+            "KB0005",
+            "KB0001"
+          ],
+          "kb_only_returned": [
+            "3.2",
+            "7.2",
+            "KB0005",
+            "7.4"
+          ],
+          "kb_only_first_rank": 3,
+          "mixed_returned": [
+            "",
+            "3.2",
+            "7.2"
+          ]
+        },
         {
           "query_id": "INC1027",
           "query": "New starter locked out on day one and also cannot see the finance shared folder",

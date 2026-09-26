@@ -13,14 +13,16 @@ Four results. The third is a regression this sprint caused, and it is reported a
    `page_crossing`, 0.000 → 1.000. (§4)
 2. **With the manual's pages in the shared collection, all 18 stressor rows are answerable and the
    `combined` arm still answers all of them.** (§3)
-3. **Adding the manual's pages to the live corpus costs exactly one baseline query, and that cost is
-   accepted.** `INC1027` drops out of the top 5 under `hybrid` and `hybrid_rerank`; `dense` is unaffected.
-   hit@5 goes 0.312 → 0.281 in the two fusion modes. Root cause is slot-crowding from more corpus
-   competition, not index corruption and not an extractor defect. **No k change, no intent filter** — see
-   §2.2 for the decision and why. (§2)
-4. **Three things do not work, and are documented rather than papered over.** OCR is not on this branch, the
-   form extractor reports 57 false fields off its home page, and every arm answers both deliberately-
-   unanswerable rows. (§6)
+3. **Adding the manual's pages to the live corpus costs one baseline query, and that cost is accepted. With
+   OCR text actually indexed it costs a second.** `INC1027` drops out of the top 5 under `hybrid` and
+   `hybrid_rerank`; `dense` is unaffected. hit@5 goes 0.312 → 0.281 in the two fusion modes. Root cause is
+   slot-crowding from more corpus competition, not index corruption and not an extractor defect. **No k
+   change, no intent filter** — see §2.2 for the decision and why. Once Tesseract is installed and the 3
+   confident OCR regions are indexed, `hybrid_rerank` drops `INC1011` as well, to 0.250. (§2, §6.1)
+4. **Two things do not work, and are documented rather than papered over.** The form extractor reports 57
+   false fields off its home page, and every arm answers both deliberately-unanswerable rows. OCR itself
+   works; it is its *effect on the ranking* that is unresolved, at one lost query for no gain in hit rate
+   or recall anywhere. (§6)
 
 ### The correction that produced result 3
 
@@ -311,16 +313,59 @@ measured at 64 s for the full run.
 
 ## 6. What does not work
 
-### 6.1 OCR is not on this branch
+### 6.1 OCR works, and enabling it is not free
 
-`extractors/ocr.py` exists only on `origin/feat/Sprint-3-(S3.3)---Input-&-Output-Guardrails-&-Ocr`. Image
-regions are recorded with their bbox, pixel size and `ocr_applied: false`, and the indexed text says so
-explicitly rather than summarising a page it could not read. 5 regions across 3 pages.
+`extractors/ocr.py` came from `origin/feat/Sprint-3-(S3.3)---Input-&-Output-Guardrails-&-Ocr` (S3.3, Marcelino).
+`ingest_stressors.py` renders each image region off the page with PyMuPDF's `get_pixmap` and reads it through
+`extract_ocr_from_image` — so the ingestion path needs neither pdf2image nor Poppler. 5 regions across 4 pages
+(25, 35, 42, 44), routed by `page_needs_ocr`.
 
-The two `ocr` rows score 1.000 in both readings because the section is findable by its heading and caption.
-That is **section discovery, not OCR**. A question about the *contents* of 10.4's approval form will not be
-answered on this branch, and the payload says so. Wiring the import in is S3.3's work; S2.6 deliberately
-does not duplicate the logic.
+Tesseract 5.3.4 and pytesseract 0.3.13 are installed, so this is measured, not projected:
+
+| page | confidence | chars | outcome |
+|---|---|---|---|
+| 25 (7.1 incident form) | 86.01 | 641 | indexed |
+| 35 (10.4 approval form) | 85.02 | 337 | indexed |
+| 42 (worker log) | 78.97 | 968 | indexed |
+| 42 | 22.33 | 57 | read, rejected — below the 55 gate |
+| 44 | 30.74 | 211 | read, rejected — below the 55 gate |
+
+The gate earns its keep on the last two: tesseract returned text, and it was wrong enough not to be worth
+indexing. A region is always indexed either way, with `ocr_applied` and a `reason`, so nothing is dropped
+silently.
+
+**It also changes the measurement, and not for the better.** Re-running `--regression` with the OCR text in
+the collection:
+
+| arm | accepted (OCR recorded, not read) | with OCR text | Δ |
+|---|---|---|---|
+| `dense` | 0.281 → 0.281, 0 lost | 0.281 → 0.281, 0 lost | held |
+| `hybrid` | 0.312 → 0.281, 1 lost | 0.312 → 0.281, 1 lost | held |
+| `hybrid_rerank` | 0.312 → 0.281, 1 lost | 0.312 → **0.250, 2 lost** | **one more query lost** |
+
+The extra loss is `INC1011` — *"user locked out and also cannot connect VPN after password change this
+morning"*, expecting `KB0005`/`KB0001`. Attributable, not diffuse: the new OCR point for 7.1's incident form
+(page 25, conf 86.0) takes rank 1 at score 5.67 and displaces `KB0005`, which had been rank 3.
+
+On the manual side `--stressors` is flat where it matters and slightly down where it does not: `hit@5` and
+`recall@5` stay 1.000 in the `stressor` and `combined` arms, `combined` MRR moves 0.806 → 0.778.
+
+**So OCR on this corpus buys no hit rate and no recall anywhere, and costs one query in the rerank arm.** The
+honest reading is that the confidence gate is not the lever — the page-25 region scores 86 and is arguably
+*right*: its text describes a locked-out user, which is what the query is about. The failure is that it
+outranks and displaces the article that answers the question. That is a ranking-and-crowding problem, not an
+OCR-quality problem, so raising `MIN_OCR_CONFIDENCE` would not fix it; it would only discard good text.
+
+Three ways forward, none of them taken unilaterally here:
+1. **Accept 2 lost queries** and document the cause. Cheapest; the corpus competition story stays the same
+   as the already-accepted `INC1027`.
+2. **Record regions, do not index their text** — the previously accepted state. Returns `hybrid_rerank` to
+   0.281 and leaves 10.4's form unread, which is a real capability loss for 3 of 18 manual questions.
+3. **Give the stressor points a decoy-free shape** — e.g. index OCR text under a payload the KB arm can be
+   told to ignore, which is the same lever as the rejected intent filter and needs the mentor's view.
+
+The two `ocr` rows in the stressor eval still score 1.000 for the reason they did before: the section is
+findable by heading and caption. That is section discovery, and it is unchanged by OCR.
 
 ### 6.2 The form extractor over-fires off 7.1
 
