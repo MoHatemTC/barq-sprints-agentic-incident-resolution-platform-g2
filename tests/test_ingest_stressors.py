@@ -317,11 +317,18 @@ def test_stressor_point_ids_are_deterministic(points_and_stats):
     assert [p.id for p in first] == [p.id for p in second]
 
 
-def test_stressor_payload_keeps_every_manual_payload_key(points_and_stats):
+def test_stressor_payload_keeps_every_manual_payload_key(points_and_stats, monkeypatch):
     """A stressor point has to be filterable by the same fields as a manual one."""
-    from src.retrieval.ingest_manual import build_points
+    from src.retrieval import ingest_manual
 
-    manual_keys = set(build_points(parse_manual()[:1])[0].payload)
+    # This asserts on payload *keys*, so it has no use for real vectors. Left
+    # unstubbed it was the one test here that loaded the embedding model, which
+    # made it the one intermittently slow and failing test in this file.
+    monkeypatch.setattr(ingest_manual, "embed_dense", lambda text: [0.0] * 8)
+    monkeypatch.setattr(ingest_manual, "embed_sparse",
+                        lambda text, *a, **k: {"indices": [1], "values": [1.0]})
+
+    manual_keys = set(ingest_manual.build_points(parse_manual()[:1])[0].payload)
     points, _ = points_and_stats
     for point in points:
         assert manual_keys <= set(point.payload), f"missing {manual_keys - set(point.payload)}"
@@ -339,14 +346,101 @@ def test_stressor_points_are_marked_and_carry_provenance(points_and_stats):
         assert payload["extractor_pages"]
 
 
-def test_ocr_points_record_the_region_without_claiming_it_was_read(points_and_stats):
-    points, _ = points_and_stats
+def test_ocr_points_are_honest_about_whether_they_were_read(points_and_stats):
+    """An OCR point must never imply its text was indexed when it was not.
+
+    ``ocr_applied`` records that OCR *ran*, which is independent of whether the
+    text was good enough to keep: a region can be read and then rejected on
+    confidence. Tesseract may also be absent entirely, so neither outcome is
+    pinned here. What this will not allow is a region whose words are missing
+    from the point without a reason saying which gate they failed.
+    """
+    points, stats = points_and_stats
     ocr_points = [p for p in points if p.payload["capability_class"] == "ocr"]
     assert ocr_points
     for point in ocr_points:
-        assert point.payload["provenance"]["ocr_applied"] is False
-        assert point.payload["provenance"]["region_bbox"]
-        assert "not indexed as text" in point.payload["text"]
+        provenance = point.payload["provenance"]
+        payload_text = point.payload["text"]
+        assert provenance["region_bbox"]
+
+        if not provenance["ocr_applied"]:
+            assert provenance["reason"], "a region skipped without a reason is not a result"
+            assert "not indexed as text" in payload_text
+            continue
+
+        # OCR ran, so it must say what it found and how sure it was.
+        assert provenance["ocr_text_chars"] >= 0
+        assert 0.0 <= provenance["ocr_confidence"] <= 100.0
+        confident = provenance["ocr_confidence"] >= mod.MIN_OCR_CONFIDENCE
+        found_something = provenance["ocr_text_chars"] > 0
+
+        if confident and found_something:
+            assert "reason" not in provenance, "kept the text and still gave a reason to drop it"
+            assert "not indexed as text" not in payload_text
+        else:
+            assert provenance["reason"], "read but not indexed, with no reason given"
+            assert "not indexed as text" in payload_text
+
+    # applied + indexed + skipped accounts for every region, no double counting
+    outcomes = stats["ocr"]
+    assert outcomes["indexed"] + outcomes["skipped"] == stats["by_kind"]["ocr_region"]
+    assert outcomes["applied"] >= outcomes["indexed"]
+
+
+def test_ocr_text_is_indexed_when_ocr_is_available(monkeypatch, stubbed_embeddings):
+    """The wiring, with the extractor stubbed: text read from a region is indexed.
+
+    Real tesseract is not assumed. What is under test is the connection -- region
+    -> extractor -> point text and payload -- not tesseract's accuracy.
+    """
+    from src.retrieval.extractors.ocr import OCRExtractionResult
+    import src.retrieval.extractors.ocr as ocr_mod
+
+    read = OCRExtractionResult(
+        text="SAP GUI still points to APPSRV-OLD-04",
+        confidence_score=91.25,
+        page_count=1,
+        provenance={"extractor": "pytesseract", "tesseract_cmd_version": "5.4.0"},
+    )
+    monkeypatch.setattr(ocr_mod, "ocr_available", lambda: (True, ""))
+    monkeypatch.setattr(ocr_mod, "extract_ocr_from_image", lambda *a, **k: read)
+
+    points, stats = build_stressor_points()
+    ocr_points = [p for p in points if p.payload["capability_class"] == "ocr"]
+    assert ocr_points
+    for point in ocr_points:
+        provenance = point.payload["provenance"]
+        assert provenance["ocr_applied"] is True
+        assert provenance["ocr_confidence"] == 91.25
+        assert "APPSRV-OLD-04" in point.payload["text"]
+        assert "not indexed as text" not in point.payload["text"]
+    assert stats["ocr"]["indexed"] == stats["by_kind"]["ocr_region"]
+
+
+def test_low_confidence_ocr_is_recorded_but_not_indexed(monkeypatch, stubbed_embeddings):
+    """A badly-read screenshot is worse than an unread one: it must not be indexed."""
+    from src.retrieval.extractors.ocr import OCRExtractionResult
+    import src.retrieval.extractors.ocr as ocr_mod
+
+    read = OCRExtractionResult(
+        text="~ ~ ~ APPSRV-0LD-O4 ~ ~ ~",
+        confidence_score=12.0,
+        page_count=1,
+        provenance={"extractor": "pytesseract", "tesseract_cmd_version": "5.4.0"},
+    )
+    monkeypatch.setattr(ocr_mod, "ocr_available", lambda: (True, ""))
+    monkeypatch.setattr(ocr_mod, "extract_ocr_from_image", lambda *a, **k: read)
+
+    points, stats = build_stressor_points()
+    ocr_points = [p for p in points if p.payload["capability_class"] == "ocr"]
+    assert ocr_points
+    for point in ocr_points:
+        provenance = point.payload["provenance"]
+        assert provenance["ocr_applied"] is True, "ocr did run, and should say so"
+        assert "below" in provenance["reason"]
+        assert "~ ~ ~" not in point.payload["text"], "low-confidence text must not be indexed"
+    assert stats["ocr"]["indexed"] == 0
+    assert stats["ocr"]["skipped"] == stats["by_kind"]["ocr_region"]
 
 
 def test_table_points_carry_the_flags_the_measurement_needs(points_and_stats):

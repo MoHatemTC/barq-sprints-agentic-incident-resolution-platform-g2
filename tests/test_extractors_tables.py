@@ -417,6 +417,44 @@ def test_table_cell_covers_respects_both_spans():
     assert not cell.covers(2, 0) and not cell.covers(4, 1)
 
 
+def test_nested_table_values_are_indexed_once_and_only_once():
+    """A sub-table's words must reach the index exactly once.
+
+    ``_attach_nested`` renders each sub-table inline into its host cell's value
+    (``TableCell.as_text``) and rebuilds the parent's rows, so ``to_markdown``
+    already contains them. That is the only reason nested values are searchable
+    at all -- so a second rendering appended to ``to_markdown`` would look like a
+    fix and actually double-weight every sub-table value in both the dense and
+    the sparse vector. This test is here to make that mistake loud.
+    """
+    parent = ExtractedTable(
+        columns=["SERVICE", "OWNERSHIP AND WINDOW"],
+        rows=[["order-processing", "Owner: K. Selim; Group: Platform Eng"]],
+        cells=[[TableCell(row=0, col=0, text="order-processing"),
+                TableCell(row=0, col=1, text="",
+                          nested=[ExtractedTable(
+                              columns=["FIELD", "VALUE"],
+                              rows=[["Owner", "K. Selim"], ["Group", "Platform Eng"]],
+                              cells=[[TableCell(row=0, col=0, text="Owner"),
+                                      TableCell(row=0, col=1, text="K. Selim")],
+                                     [TableCell(row=1, col=0, text="Group"),
+                                      TableCell(row=1, col=1, text="Platform Eng")]],
+                              header_cells=[], bbox=(160, 106, 330, 128), page_numbers=[1],
+                          )])]],
+        header_cells=[], bbox=(40, 100, 340, 160), page_numbers=[1],
+    )
+    markdown = parent.to_markdown()
+
+    # present, because this is what the ingest path indexes
+    assert "K. Selim" in markdown
+    assert "Platform Eng" in markdown
+    # present exactly once each: not lost, not duplicated
+    assert markdown.count("K. Selim") == 1
+    assert markdown.count("Platform Eng") == 1
+    # and the grid itself is still a well-formed two-column table
+    assert markdown.splitlines()[0] == "| SERVICE | OWNERSHIP AND WINDOW |"
+
+
 def test_result_is_falsey_when_the_page_had_no_table():
     doc = make_pdf([("page",)])
     assert extract_page_tables(doc[0], 1) == []

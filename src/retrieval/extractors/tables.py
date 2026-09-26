@@ -54,6 +54,8 @@ from typing import Any, Iterable, Sequence
 
 import pymupdf
 
+from .geometry import containment
+
 logger = logging.getLogger(__name__)
 
 EXTRACTOR_NAME = "pymupdf.find_tables"
@@ -76,6 +78,10 @@ COLUMN_BAND_TOLERANCE = 0.08
 
 
 def _clean(text: str | None) -> str:
+    # Collapses newlines too, unlike ``layout._clean`` which keeps them.  That is
+    # deliberate: a cell's value belongs on one line of a markdown row, whereas
+    # layout assembles blocks line by line and needs the line breaks to survive.
+    # Do not merge the two -- see ``layout._clean`` for the other half of why.
     return re.sub(r"\s+", " ", text or "").strip()
 
 
@@ -95,10 +101,6 @@ class TableCell:
     col_span: int = 1
     is_header: bool = False
     nested: list["ExtractedTable"] = field(default_factory=list)
-
-    @property
-    def is_empty(self) -> bool:
-        return not self.text and not self.nested
 
     def as_text(self) -> str:
         """The cell's readable value, rendering any nested sub-tables inline."""
@@ -155,24 +157,11 @@ class ExtractedTable:
     def page_number(self) -> int:
         return self.page_numbers[0] if self.page_numbers else 0
 
-    @property
-    def is_continuation_only(self) -> bool:
-        """True for a fragment that was absorbed into a table on the previous page."""
-        return self.page_number in self.page_numbers[1:]
-
     def cell(self, row: int, col: int) -> TableCell | None:
         """The cell anchored at ``(row, col)``; shadowed span cells return None."""
         if not 0 <= row < len(self.cells):
             return None
         for candidate in self.cells[row]:
-            if candidate.col == col:
-                return candidate
-        return None
-
-    def header_cell(self, row: int, col: int) -> TableCell | None:
-        if not 0 <= row < len(self.header_cells):
-            return None
-        for candidate in self.header_cells[row]:
             if candidate.col == col:
                 return candidate
         return None
@@ -189,6 +178,15 @@ class ExtractedTable:
         return found
 
     def to_markdown(self) -> str:
+        """The grid as markdown, which is what gets indexed.
+
+        Nested sub-tables are already in here, rendered inline into their host
+        cell's value by ``_attach_nested`` (see ``TableCell.as_text``), which
+        rebuilds the parent's rows once the cells carry their sub-tables.  They
+        must not be appended again: the same value would then appear two or
+        three times in one point's text, weighting it further in both the dense
+        and the sparse vector for no gain.
+        """
         def line(cells: Sequence[str]) -> str:
             return "| " + " | ".join(str(c).replace("|", "/") for c in cells) + " |"
 
@@ -548,17 +546,8 @@ def _dedupe_columns(columns: Sequence[str]) -> list[str]:
 # --------------------------------------------------------------------------- #
 
 
-def _containment(inner: Sequence[float], outer: Sequence[float]) -> float:
-    area = (inner[2] - inner[0]) * (inner[3] - inner[1])
-    if area <= 0:
-        return 0.0
-    x = max(0.0, min(inner[2], outer[2]) - max(inner[0], outer[0]))
-    y = max(0.0, min(inner[3], outer[3]) - max(inner[1], outer[1]))
-    return (x * y) / area
-
-
 def _inside_any(rect: Sequence[float], boxes: Sequence[Sequence[float]], ratio: float = 0.5) -> bool:
-    return any(_containment(rect, box) >= ratio for box in boxes)
+    return any(containment(rect, box) >= ratio for box in boxes)
 
 
 def _signature(table: ExtractedTable) -> tuple:
@@ -598,16 +587,20 @@ def _grid_position(table: ExtractedTable, bbox: Sequence[float]) -> tuple[int | 
     return row_index, col_index
 
 
-def _attach_nested(tables: list[ExtractedTable], containment: float = 0.8) -> None:
+def _attach_nested(tables: list[ExtractedTable], min_containment: float = 0.8) -> None:
     """Attach each inner table to the cell of its container that holds it.
 
     ``find_tables`` also reports the same sub-grid twice (once with the hairline
     read as extra columns, once without).  After reconstruction the two agree,
     so the duplicate is dropped rather than indexed.
+
+    ``min_containment`` is how much of the inner table has to sit inside the
+    outer one before it counts as nested.  It is not named ``containment``
+    because that is the geometry helper this now imports.
     """
     for inner in tables:
         container = next(
-            (o for o in tables if o is not inner and _containment(inner.bbox, o.bbox) >= containment),
+            (o for o in tables if o is not inner and containment(inner.bbox, o.bbox) >= min_containment),
             None,
         )
         if container is None:
@@ -764,7 +757,7 @@ def extract_page_tables(
         inner_bboxes = [
             other.bbox
             for other in raw_tables
-            if other is not raw and _containment(other.bbox, raw.bbox) >= 0.8
+            if other is not raw and containment(other.bbox, raw.bbox) >= 0.8
         ]
         try:
             table = _place(page, raw, number, sliver_width_pt, inner_bboxes)
@@ -874,5 +867,11 @@ IMAGE_TRAITS: dict[str, list[str]] = {
 
 
 def page_capability(section_id: str) -> list[str]:
-    """Which stressor classes a manual section exercises (used by the ingest path)."""
+    """Which stressor classes a manual section exercises.
+
+    A thin view over ``STRESSOR_SECTIONS``, for callers and tests that want the
+    declared answer.  Note that ingestion does *not* route on this: routing
+    decides from what the page holds, and the declared list is only ever
+    compared against that decision, never used to make it.
+    """
     return list(STRESSOR_SECTIONS.get(section_id, []))

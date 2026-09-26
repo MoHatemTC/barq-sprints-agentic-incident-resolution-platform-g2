@@ -38,6 +38,8 @@ from typing import Any, Iterable, Sequence
 
 import pymupdf
 
+from .geometry import containment
+
 logger = logging.getLogger(__name__)
 
 EXTRACTOR_NAME = "pymupdf.layout"
@@ -93,6 +95,10 @@ BOLD_FLAG = 16
 
 
 def _clean(text: str | None) -> str:
+    # Keeps newlines, unlike ``tables._clean`` which collapses them.  Deliberate:
+    # ``_block_text`` rebuilds a block line by line, so flattening a line here
+    # would throw away the reading order this module exists to recover.  Do not
+    # merge the two -- see ``tables._clean`` for the other half of why.
     return re.sub(r"[ \t]+", " ", (text or "")).strip()
 
 
@@ -354,13 +360,6 @@ def order_blocks(
 # --------------------------------------------------------------------------- #
 
 
-def _is_label(span: dict, max_words: int = MAX_FORM_LABEL_WORDS, max_size: float = MAX_FORM_LABEL_PT) -> bool:
-    text = _clean(span["text"])
-    if not text or len(text.split()) > max_words:
-        return False
-    return bool(span["flags"] & BOLD_FLAG) and span["size"] <= max_size
-
-
 @dataclass
 class _Run:
     text: str
@@ -528,7 +527,7 @@ def detect_checkboxes(
             continue
         if abs(w - h) > 0.35 * max(w, h):
             continue
-        if any(_containment((rect.x0, rect.y0, rect.x1, rect.y1), box) > 0.5 for box in exclude_rects):
+        if any(containment((rect.x0, rect.y0, rect.x1, rect.y1), box) > 0.5 for box in exclude_rects):
             continue
         found.append(Checkbox(
             label=_label_right_of(rect, labels),
@@ -551,15 +550,6 @@ def _label_right_of(rect: Any, runs: Sequence[_Run]) -> str:
         if text and (not best or run.bbox[0] < best_start):
             best, best_start = text, run.bbox[0]
     return best if len(best.split()) <= MAX_CHECKBOX_LABEL_WORDS else ""
-
-
-def _containment(inner: Sequence[float], outer: Sequence[float]) -> float:
-    area = (inner[2] - inner[0]) * (inner[3] - inner[1])
-    if area <= 0:
-        return 0.0
-    x = max(0.0, min(inner[2], outer[2]) - max(inner[0], outer[0]))
-    y = max(0.0, min(inner[3], outer[3]) - max(inner[1], outer[1]))
-    return (x * y) / area
 
 
 # --------------------------------------------------------------------------- #
