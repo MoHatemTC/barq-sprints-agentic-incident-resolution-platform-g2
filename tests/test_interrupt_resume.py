@@ -10,6 +10,8 @@ from src.agent.graph import create_graph, route_after_confidence
 from src.agent.nodes.interrupt import normalize_decision
 from src.agent.nodes.prepare_review import detect_gate
 
+pytestmark = pytest.mark.usefixtures("hermetic_llm")
+
 
 HIGH_RISK = {"description": "this is a high-risk task"}
 

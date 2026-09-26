@@ -9,6 +9,8 @@ from langgraph.types import Command
 from src.agent.graph import create_graph
 from src.agent.nodes.act import ExecutionLogNotWritten
 
+pytestmark = pytest.mark.usefixtures("hermetic_llm")
+
 
 SYS_ID = "sys-0001"
 HIGH_RISK = {"sys_id": SYS_ID, "description": "this is a high-risk task"}

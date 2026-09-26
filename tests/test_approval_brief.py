@@ -12,6 +12,9 @@ from src.agent.approval_brief import build_prompt, generate_approval_brief, pars
 from src.agent.graph import create_graph
 
 
+pytestmark = pytest.mark.usefixtures("hermetic_llm")
+
+
 GOOD_BRIEF = {
     "what_happened": "The production database is down.",
     "why_stopped": "The incident was classified as high risk.",

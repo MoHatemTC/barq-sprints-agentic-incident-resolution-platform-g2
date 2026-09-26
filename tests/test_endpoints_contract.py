@@ -10,6 +10,8 @@ from src.api.routers import approvals
 from langgraph.checkpoint.memory import MemorySaver
 from src.agent.graph import create_graph
 
+pytestmark = pytest.mark.usefixtures("hermetic_llm")
+
 TEST_TOKEN = "test-token-123"
 
 def get_test_settings() -> Settings:

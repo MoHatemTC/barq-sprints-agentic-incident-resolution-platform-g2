@@ -42,7 +42,9 @@ gate ──▶ interrupt ──▶ END                     gate ──▶ prepar
 The full graph after S3.4:
 
 ```
-load → validate → classify → determine_risk ──high──────────────────────────┐
+load → validate ──invalid───────────────────────────────────────────────────┐
+          │                                                                 │
+       classify → determine_risk ──high────────────────────────────────────┤
                                   │                                         │
                                retrieve ──no evidence / failed─────────────┤
                                   │                                         ▼
@@ -61,22 +63,31 @@ the run to review:
 
 | order | router | gate | condition in state | set by |
 |---|---|---|---|---|
-| 1 | `route_after_risk` | `high_risk` | `risk == "high"` | determine_risk |
-| 2 | `route_after_retrieve` | `invalid_incident` | `outputs.eligibility == "invalid"` | validate |
+| 1 | `route_after_validate` | `invalid_incident` | `outputs.eligibility == "invalid"` | validate |
+| 2 | `route_after_risk` | `high_risk` | `risk == "high"` | determine_risk |
 | 3 | `route_after_retrieve` | `retrieval_failed` | `retrieved_evidence` empty and `retrieval_failed == True` | retrieve |
 | 4 | `route_after_retrieve` | `no_evidence` | `retrieved_evidence` empty | retrieve |
 | 5 | `route_after_critic` | `critic_exhausted` | `critic_exhausted == True` | S3.1 critic |
 | 6 | `route_after_confidence` | `safety_blocked` | `action_taken == "blocked_by_guardrail"` | S3.3 safety_check |
 | 7 | `route_after_confidence` | `low_confidence` | `confidence < 0.6` | confidence_check |
 
-**Why graph order, not "most specific first".** `validate` runs on every incident and always sets
-`eligibility`, but it is only used for routing in `route_after_retrieve`. A high-risk incident is sent
-to review by `route_after_risk` before that. If `detect_gate()` checked eligibility first, a high-risk
-ticket the validator also called invalid would be labelled `invalid_incident`, giving the reviewer a
-reason that did not stop the run (NFR-07). Checking in router order means every gate is one that
-actually fired. The other verdicts (risk, confidence, critic, guardrail) are still in the payload's
-`verdicts` block. Regression tests: `test_high_risk_gate_wins_over_invalid_eligibility`,
-`test_high_risk_invalid_ticket_reports_high_risk_gate`.
+**Why graph order, not "most specific first".** Several nodes leave flags in state that no router
+reads at that point (`validate` always sets `eligibility`, `determine_risk` always sets `risk`). If
+`detect_gate()` ranked flags by how specific they are, a run could be labelled with a gate that did
+not stop it. For example, an earlier version checked eligibility ahead of risk while only
+`route_after_retrieve` routed on it, so a high-risk ticket the validator also called invalid was
+shown to the reviewer as `invalid_incident` (NFR-07). Checking in router order means every gate is
+one that actually fired. The other verdicts (risk, confidence, critic, guardrail) are still in the
+payload's `verdicts` block for the reviewer.
+
+**Invalid tickets stop at `validate`.** `route_after_validate` sends an invalid or out-of-scope
+ticket to review before `classify` / `determine_risk` spend two LLM calls on it. That is also why
+`invalid_incident` is gate 1: an invalid ticket never gets a risk verdict (`verdicts.risk` is `null`).
+S3.1 briefly moved this check into `route_after_retrieve` (commit `bcaf4ee`); S3.4 restores it.
+
+Regression tests: `test_detect_gate`, `test_valid_high_risk_ticket_reports_high_risk_gate`,
+`test_invalid_ticket_stops_before_classify` (`tests/test_interrupt_resume.py`) and
+`test_invalid_eligibility_pauses_before_classify` (`tests/test_workflow_reliability.py`).
 
 `route_after_confidence` also sends `critic_exhausted` and `blocked_by_guardrail` to review, so S3.1
 and S3.3 plug in without new edges.
@@ -281,13 +292,15 @@ observations API:
 
 | from | S3.4 reads | effect |
 |---|---|---|
-| S3.1 | `critic_exhausted` (bool), `critic_verdict` (dict), `outputs.diagnosis`, `outputs.resolution` | gate 1; draft shown to the reviewer; resolution written by `act` |
-| S3.3 | `action_taken = "blocked_by_guardrail"`, `failure_reason`, `confidence = 0.0` | gate 2; reason shown as the guardrail verdict |
+| S3.1 | `critic_exhausted` (bool), `critic_verdict` (dict), `outputs.diagnosis`, `outputs.resolution` | gate 5; draft shown to the reviewer; resolution written by `act` |
+| S3.3 | `action_taken = "blocked_by_guardrail"`, `failure_reason`, `confidence = 0.0` | gate 6; reason shown as the guardrail verdict |
 | S3.2 | proposed: `high_risk_action = True` | to be added as a gate once the key is agreed |
 
 At merge time, every router that returns `"interrupt"` on the other branches must return `"prepare_review"`,
-S3.1's `route_after_critic` "exhausted → act" must become `prepare_review`, and S3.1's `invalid_incident`
-reason moves into `detect_gate()`. Only `act` may write to ServiceNow, because nodes re-run after a crash.
+S3.1's `route_after_critic` "exhausted → act" must become `prepare_review`, S3.1's `invalid_incident`
+reason moves into `detect_gate()`, and `route_after_validate` stays on the `validate` edge. Any new gate
+must be added to `detect_gate()` at the position of the router that fires it. Only `act` may write to
+ServiceNow, because nodes re-run after a crash.
 
 ## 9. Reproduce
 
@@ -301,8 +314,17 @@ curl http://localhost:8000/api/v1/approvals/<execution_id>
 curl -X POST http://localhost:8000/api/v1/approvals/<execution_id>/decide \
      -H "Content-Type: application/json" -d '{"action":"approve","reviewer":"bassant"}'
 
-pytest tests/test_interrupt_resume.py tests/test_approval_brief.py tests/test_approvals_api.py -v
+pytest tests/test_interrupt_resume.py tests/test_crash_recovery.py tests/test_approval_brief.py \
+       tests/test_adversarial_brief.py tests/test_approvals_api.py tests/test_endpoints_contract.py -v
 ```
+
+**The tests do not depend on the configured LLM.** Each graph test file sets
+`pytestmark = pytest.mark.usefixtures("hermetic_llm")` (`tests/conftest.py`). The fixture gives every
+agent a fixed reply (validate "valid", a draft citing `KB0001` that passes the critic), and leaves
+`determine_risk` on `MockLLM`, which says "high" only for "high-risk" text. So the suite gives the same
+result with real LiteLLM credentials in `.env` and with none. Tests that need another reply (an invalid
+ticket, a given brief) patch that node's `get_llm` themselves. Checked both ways: 108 passed with the
+real LLM configured, 108 passed with `LITELLM_API_KEY` unset.
 
 ---
 

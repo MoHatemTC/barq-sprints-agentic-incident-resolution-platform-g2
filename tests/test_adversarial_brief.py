@@ -9,6 +9,7 @@ Only the reviewer's own decision, sent to POST /decide, can resume the run.
 import json
 from unittest.mock import MagicMock
 
+import pytest
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.types import Command
 
@@ -16,6 +17,8 @@ from src.agent.approval_brief import BRIEF_KEYS, parse_brief
 from src.agent.checkpointer import thread_config
 from src.agent.graph import create_graph
 from tests.test_approvals_api import _pause, graph, setup  # noqa: F401  (fixtures)
+
+pytestmark = pytest.mark.usefixtures("hermetic_llm")
 
 
 INJECTED_INCIDENT = {

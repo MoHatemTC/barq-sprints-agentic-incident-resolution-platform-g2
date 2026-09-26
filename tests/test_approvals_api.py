@@ -18,6 +18,9 @@ from src.workers.retry_policy import RetryPolicy
 from src.workers.runtime_integration import execution_status_for
 
 
+pytestmark = pytest.mark.usefixtures("hermetic_llm")
+
+
 BRIEF = {
     "what_happened": "Payroll database is down.",
     "why_stopped": "The incident was classified as high risk.",
