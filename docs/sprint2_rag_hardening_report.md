@@ -13,16 +13,17 @@ Four results. The third is a regression this sprint caused, and it is reported a
    `page_crossing`, 0.000 → 1.000. (§4)
 2. **With the manual's pages in the shared collection, all 18 stressor rows are answerable and the
    `combined` arm still answers all of them.** (§3)
-3. **Adding the manual's pages to the live corpus costs one baseline query, and that cost is accepted. With
-   OCR text actually indexed it costs a second.** `INC1027` drops out of the top 5 under `hybrid` and
-   `hybrid_rerank`; `dense` is unaffected. hit@5 goes 0.312 → 0.281 in the two fusion modes. Root cause is
-   slot-crowding from more corpus competition, not index corruption and not an extractor defect. **No k
-   change, no intent filter** — see §2.2 for the decision and why. Once Tesseract is installed and the 3
-   confident OCR regions are indexed, `hybrid_rerank` drops `INC1011` as well, to 0.250. (§2, §6.1)
+3. **Adding the manual's pages to the live corpus costs two baseline queries, and that cost is accepted.**
+   `INC1027` drops out of the top 5 under `hybrid` and `hybrid_rerank`; `dense` is unaffected. hit@5 goes
+   0.312 → 0.281. Once OCR text is indexed, `hybrid_rerank` drops `INC1011` too, to 0.250. Both are the
+   same pattern — a relevant manual or OCR point outranks the KB article that answers the query and takes
+   its slot, and cannot itself satisfy an `expected_articles` row. **Rank displacement from corpus
+   competition, not index corruption and not an extractor defect. No k change, no intent filter** — see §2.2
+   for the decision and why. (§2)
 4. **Two things do not work, and are documented rather than papered over.** The form extractor reports 57
-   false fields off its home page, and every arm answers both deliberately-unanswerable rows. OCR itself
-   works; it is its *effect on the ranking* that is unresolved, at one lost query for no gain in hit rate
-   or recall anywhere. (§6)
+   false fields off its home page, and every arm answers both deliberately-unanswerable rows. OCR does work
+   and is measured against real Tesseract 5.3.4: 5 regions across 4 pages, 3 indexed, 2 correctly rejected by
+   the confidence gate, and 10.4's approval form now readable as text. (§6)
 
 ### The correction that produced result 3
 
@@ -123,19 +124,23 @@ before ranking, so it returns the same KB points in the same order a KB-only col
 | mode | hit@5 (KB only) | hit@5 (manual mixed in) | Δ | MRR (KB only) | MRR (mixed) | lost | gained | verdict |
 |---|---|---|---|---|---|---|---|---|
 | `dense` | 0.281 | 0.281 | +0.000 | 0.250 | 0.250 | 0 | 0 | held |
-| `hybrid` | 0.312 | 0.281 | **−0.031** | 0.258 | 0.245 | **1** | 0 | **REGRESSION** |
-| `hybrid_rerank` | 0.312 | 0.281 | **−0.031** | 0.232 | 0.221 | **1** | 0 | **REGRESSION** |
+| `hybrid` | 0.312 | 0.281 | **−0.031** | 0.258 | 0.245 | **1** | 0 | **REGRESSION, accepted** |
+| `hybrid_rerank` | 0.312 | 0.250 | **−0.062** | 0.232 | 0.214 | **2** | 0 | **REGRESSION, accepted** |
 
-**Answer to the question asked: baseline hit@5 did not hold steady. It dropped by one query in 32, in both
-fusion modes, and held exactly in `dense`.**
+**Answer to the question asked: baseline hit@5 did not hold steady. It dropped by one query in 32 under
+`hybrid` and by two under `hybrid_rerank`, and held exactly in `dense`.** Both lost queries are named,
+traced and accepted as one pattern in §2.1–§2.2: `INC1027`, and — since OCR text entered the collection —
+`INC1011`. `eval/results/ablation_k5.{json,md}` has been regenerated and now records the *live* corpus
+(unfiltered), so its `hybrid` and `hybrid_rerank` hit@5 read 0.281 and 0.250. That file previously held the
+pre-sprint 0.312 as "no regression" evidence; it no longer claims that.
 
-`eval/results/ablation_k5.{json,md}` has been regenerated and now records the *live* corpus (unfiltered), so
-its `hybrid` and `hybrid_rerank` hit@5 read 0.281. That file previously held the pre-sprint 0.312 as
-"no regression" evidence; it no longer claims that.
+### 2.1 The two queries that changed
 
-### 2.1 The query that changed
+One pattern, two instances: a manual or OCR point that is *relevant* scores above the KB article that
+*answers* the query, takes its slot, and cannot itself satisfy an `expected_articles` row because a manual
+section carries no KB number. Both are rank displacements, not index corruption and not extraction defects.
 
-`INC1027` — *"New starter locked out on day one and also cannot see the finance shared folder"* — expects
+**`INC1027`** — *"New starter locked out on day one and also cannot see the finance shared folder"* — expects
 `KB0005` and `KB0020`.
 
 | condition | top-5 | first hit |
@@ -145,46 +150,72 @@ its `hybrid` and `hybrid_rerank` hit@5 read 0.281. That file previously held the
 | `hybrid_rerank`, KB only | `3.2`, `7.4`, `6.2`, **`KB0005`** | rank 4 |
 | `hybrid_rerank`, manual mixed in | **`''`**, `3.2`, `7.4`, `6.2` | none |
 
-A manual section carries no KB number, so its `number` is `""` and it shows up as `''` in a result list.
-In both modes the manual point scores above `KB0005` for this query and takes its place in the top 5. It
-cannot satisfy the expectation — a row graded on `expected_articles` needs a KB number and this point has
-none — so the query loses its only hit.
+**`INC1011`** — *"User locked out and also cannot connect VPN after password change this morning"* — expects
+`KB0005` and `KB0001`. This one appeared only once OCR text was indexed.
+
+| condition | top-5 | first hit |
+|---|---|---|
+| `hybrid_rerank`, KB only | `3.2`, `7.2`, **`KB0005`**, `7.4` | rank 3 |
+| `hybrid_rerank`, OCR text indexed | **`''`**, `3.2`, `7.2` | none |
+
+The displacing point is the OCR region for **7.1's incident form** (page 25, Tesseract confidence 86.01), taken
+at rank 1 with score 5.67. It is worth being precise about why, because it is the whole argument for
+accepting it: **that read is correct.** Its text describes a locked-out user, which is exactly what the query
+asks about, and 86.01 is a confident read. The reranker is not malfunctioning — it is ranking a relevant
+document highly. The failure is narrower and different in kind: the region cannot satisfy an
+`expected_articles` row (no KB number), so it consumes the slot that `KB0005` was holding at rank 3.
+
+**Raising `MIN_OCR_CONFIDENCE` would not fix this, and would be the wrong fix.** The offending region scores
+86.01; no threshold below that excludes it, and a threshold above it discards a correct read along with 10.4's
+approval form. The defect, to the extent there is one, is in ranking and slot allocation, not in OCR quality
+— the extractor is doing its job in both cases.
 
 (To be precise about two things that are easy to conflate: the displacing point is characterised by its
 empty **`number`**, which is what makes it ungradable here. Its absent **`content_hash`** is a different
 fact with a different consequence — that is what made `sync_kb()` treat it as a deleted article, §1.2. And in
-the de-duplicated list above the displacement is at rank 4, not the 5th slot; the raw top-5 contains
+the de-duplicated lists above the displacement is at rank 3 or 4, not the 5th slot; the raw top-5 contains
 duplicate article numbers, so the unique rank and the slot number differ.)
 
-This is **slot-crowding from increased corpus competition, not index corruption and not an extractor
-defect.** The same 48 points answer 18 manual-section questions that the live corpus could not answer at all
-before this sprint (§3). The effect is scoped by the slot histogram:
+This is **slot-crowding from increased corpus competition.** The same 48 points answer 18 manual-section
+questions that the live corpus could not answer at all before this sprint (§3), and 3 of those are now
+answerable from text that was previously only recorded as a region. The effect is scoped by the slot
+histogram:
 
 | mode | queries where a manual point took 1 top-5 slot | 2 or more |
 |---|---|---|
-| `dense` | 3 / 37 | 0 |
-| `hybrid` | 12 / 37 | 0 |
-| `hybrid_rerank` | 25 / 37 | 0 |
+| `dense` | 4 / 37 | 0 |
+| `hybrid` | 13 / 37 | 0 |
+| `hybrid_rerank` | 26 / 37 | 0 |
 
 `hybrid_rerank` is hit hardest because its cross-encoder stage promotes the manual page, and `dense` barely
 moves because it has no fusion step to promote anything. No query gains a hit in either mode, so this is
-net −1, not a redistribution.
+net −2, not a redistribution.
 
 ### 2.2 The decision: accepted, no k change, no intent filter
 
-Reviewed and decided at mentor review. The regression stands as measured.
+Reviewed and decided at mentor review, twice — once for `INC1027` and again after OCR was measured against
+real Tesseract and `INC1011` appeared. Both stand as measured.
 
-**Accepted trade:** one baseline query out of 32, in two of three retrieval modes, against 18
+**Accepted trade:** two baseline queries out of 32, in two of three retrieval modes, against 18
 manual-section questions that move from unreachable in the live corpus to answered — the `stressor` arm at
-precision@5 0.495, recall@5 1.000, hit@5 1.000 (§3). The corpus is strictly more informative and one
-retrieval slot on one query is less informative.
+precision@5 0.519, recall@5 1.000, hit@5 1.000 (§3). Ten of the eighteen are gained by extraction work
+alone; the approval form on 10.4 is now readable as text rather than only as a located region, which is a
+capability that did not exist before this sprint. The corpus is strictly more informative and two retrieval
+slots on two queries is less informative.
+
+`INC1011` is accepted on the same reasoning as `INC1027`, and for the same reason it is not a quality defect:
+the point that displaces the article is a *correct* read of a *relevant* document. Trading one query's rank
+order for the ability to read 10.4 at all is the same trade as trading one for 18 section-level answers,
+scaled down. If the two had opposite signs — if the displacing point were garbage — the decision would be
+different, which is why the 55 gate exists and why the two rejected regions (22.3, 30.7) are not in this
+discussion.
 
 **`k=5` is unchanged, deliberately.** It is not a parameter this sprint owns: `QDRANT`/`RETRIEVAL.top_k` is
-shared, and S2.4 and S2.5 results are both quoted at k=5. Raising it to 10 would very likely recover
-`INC1027` — `KB0005` sat at unique-rank 4 before the manual was added, immediately adjacent to the
-displacing point — but it changes the retrieval contract for every caller in the system and invalidates
-the comparative baselines those sprints reported. Assessed this close to the deadline, that is more
-downstream risk than the one query it buys, so it was not done.
+shared, and S2.4 and S2.5 results are both quoted at k=5. Raising it to 10 would very likely recover both
+queries — `KB0005` sat at unique-rank 3–4 in each before the manual was added, immediately adjacent to the
+displacing point — but it changes the retrieval contract for every caller in the system and invalidates the
+comparative baselines those sprints reported. Assessed this close to the deadline, that is more downstream
+risk than the two queries it buys, so it was not done.
 
 **No intent filter.** `RetrievalFilters(is_stressor=...)` would restore 0.312 exactly and is a one-line
 change, but it pushes a routing decision upstream of retrieval and gives up the property that made this
@@ -192,8 +223,9 @@ measurement possible in the first place — that a live query sees one corpus. K
 whoever owns the retrieval contract, not adopted here.
 
 **What would revisit this:** if the manual's 48 points grow substantially, or if further KB articles are
-added, the crowding compounds and the same argument stops holding. The check is a repeatable command —
-`python eval/ablation.py --regression` — so the next person to touch this does not have to reconstruct it.
+added, the crowding compounds and the same argument stops holding — a third displacement would be a trend,
+not a cost. The check is a repeatable command — `python eval/ablation.py --regression` — so the next person
+to touch this does not have to reconstruct it.
 
 ---
 
@@ -207,18 +239,20 @@ added, the crowding compounds and the same argument stops holding. The check is 
 
 | arm | eligible | precision@5 | recall@5 | hit@5 | MRR | answered-unanswerable | p95 ms |
 |---|---|---|---|---|---|---|---|
-| `baseline` | KB articles only | 0.000 | 0.000 | 0.000 | 0.000 | 2/2 | 998 |
-| `stressor` | manual pages only | 0.495 | **1.000** | **1.000** | **1.000** | 2/2 | 928 |
-| `combined` | everything | 0.491 | **1.000** | **1.000** | 0.806 | 2/2 | 1049 |
+| `baseline` | KB articles only | 0.000 | 0.000 | 0.000 | 0.000 | 2/2 | 2322.0 |
+| `stressor` | manual pages only | 0.519 | **1.000** | **1.000** | **1.000** | 2/2 | 949.4 |
+| `combined` | everything | 0.491 | **1.000** | **1.000** | 0.778 | 2/2 | 2407.1 |
 
 `baseline` scoring 0.000 is the expected reading, not a defect: the KB articles carry no manual section
 labels, so a section-level question can only be answered by a manual point. This table answers *whether the
 manual is reachable in the live corpus at all*. It does not measure extractor quality — that is §4, and the
-two must not be conflated.
+two must not be confounded.
 
-`combined` matches on hit and recall but drops to 0.806 MRR (§6.5): with KB articles also in the candidate set,
+`combined` matches on hit and recall but drops to 0.778 MRR (§6.5): with KB articles also in the candidate set,
 the correct section is sometimes pushed below a KB article that is topically close. This is the same
 crowding mechanism as §2.1, visible from the other side, and it is the cost of not filtering by intent.
+Before OCR text was indexed this figure read 0.806; the 3 confident OCR regions are the difference, and the
+move is the same accepted trade as §2.1, not a new failure.
 
 ---
 
@@ -233,7 +267,7 @@ directly because neither is additive live content.
 | reading | collection | precision@5 | recall@5 | hit@5 | MRR |
 |---|---|---|---|---|---|
 | lines of text | `barq_manual` | 0.200 | 0.722 | 0.722 | 0.616 |
-| tables, forms, reading order | shared, `is_stressor = true` | **0.495** | **1.000** | **1.000** | **1.000** |
+| tables, forms, reading order | shared, `is_stressor = true` | **0.519** | **1.000** | **1.000** | **1.000** |
 
 ### 4.1 Per capability class
 
@@ -294,10 +328,16 @@ request per `embed_dense` call, and every retrieval mode starts with one. That s
 query latency and is the whole reason the 500 ms budget is missed: the Qdrant work, including the second
 search that `hybrid` adds, is 12–27 ms combined.
 
-The three arms' latency is the same within noise — 928 ms against 998 ms — which is the point: the extractors
-are index-time work, and the shared collection costs no extra query latency, only the `is_stressor` filter
-and one more 48 points in a 214-point index. An earlier run of the same command reported a 6043 ms p95; the
-outlier was one `STR-10` call whose embedding round-trip took 6.1 s, and it did not recur.
+The three arms' latency is the same within noise, which is the point: the extractors are index-time work,
+and the shared collection costs no extra query latency, only the `is_stressor` filter and one more 48 points
+in a 214-point index. The absolute p95 is not stable between runs, because the term that dominates it is
+the remote embedding round-trip (§5, 97–99% of query latency), which this sprint does not control. The run
+whose numbers are in `eval/results/stressors_k5_hybrid.md` reports 949 ms for `stressor` against 2322 ms for
+`baseline` and 2407 ms for `combined`; an earlier run of the same command reported 928 / 998 / 1049 ms. The
+ordering flips between the two runs, which is what "within noise" means here — and it is worth being explicit
+that neither run shows the extractors adding query latency, which is the only claim this section makes. An
+even earlier run reported a 6043 ms p95; that outlier was one `STR-10` call whose embedding round-trip took
+6.1 s, and it did not recur.
 
 **Recommendation (unchanged from S2.4, and now with a cause):** the budget needs the embedding call
 addressed, not retrieval. Batching is not available — there is nothing else to batch a single query
@@ -311,16 +351,19 @@ measured at 64 s for the full run.
 
 ---
 
-## 6. What does not work
+## 6. Known limits and accepted trades
 
-### 6.1 OCR works, and enabling it is not free
+### 6.1 OCR: measured against real Tesseract, and accepted
 
 `extractors/ocr.py` came from `origin/feat/Sprint-3-(S3.3)---Input-&-Output-Guardrails-&-Ocr` (S3.3, Marcelino).
 `ingest_stressors.py` renders each image region off the page with PyMuPDF's `get_pixmap` and reads it through
 `extract_ocr_from_image` — so the ingestion path needs neither pdf2image nor Poppler. 5 regions across 4 pages
-(25, 35, 42, 44), routed by `page_needs_ocr`.
+(**25, 35, 42, 44** — not 3 pages, as an earlier draft of this report said), routed by `page_needs_ocr`.
 
-Tesseract 5.3.4 and pytesseract 0.3.13 are installed, so this is measured, not projected:
+**Every figure below is measured against real Tesseract 5.3.4 with pytesseract 0.3.13, not projected and not
+mocked.** An earlier draft of this report stated the opposite — that the numbers here were collected with no
+`tesseract` binary on the box and that the applied path was therefore unexercised. Tesseract is now
+installed, the pipeline was re-ingested, and §2 was re-measured against the result.
 
 | page | confidence | chars | outcome |
 |---|---|---|---|
@@ -334,38 +377,29 @@ The gate earns its keep on the last two: tesseract returned text, and it was wro
 indexing. A region is always indexed either way, with `ocr_applied` and a `reason`, so nothing is dropped
 silently.
 
-**It also changes the measurement, and not for the better.** Re-running `--regression` with the OCR text in
-the collection:
+**10.4's approval form is no longer unanswerable.** Page 35 reads at 85.02 confidence and is indexed as
+text. It was previously a located region with no readable contents, and it is now one of the 18
+manual-section questions the live corpus can answer.
 
-| arm | accepted (OCR recorded, not read) | with OCR text | Δ |
-|---|---|---|---|
-| `dense` | 0.281 → 0.281, 0 lost | 0.281 → 0.281, 0 lost | held |
-| `hybrid` | 0.312 → 0.281, 1 lost | 0.312 → 0.281, 1 lost | held |
-| `hybrid_rerank` | 0.312 → 0.281, 1 lost | 0.312 → **0.250, 2 lost** | **one more query lost** |
-
-The extra loss is `INC1011` — *"user locked out and also cannot connect VPN after password change this
-morning"*, expecting `KB0005`/`KB0001`. Attributable, not diffuse: the new OCR point for 7.1's incident form
-(page 25, conf 86.0) takes rank 1 at score 5.67 and displaces `KB0005`, which had been rank 3.
+**What it costs.** `hybrid_rerank` loses one further baseline query, `INC1011`, taking hit@5 from the
+accepted 0.281 to **0.250** (MRR 0.232 → 0.214) with `INC1027` still lost. `dense` holds at 0.281 and
+`hybrid` still loses exactly the one accepted query. The full before/after and the root cause are in §2.1;
+the short form is that 7.1's incident form, read at 86.01 confidence, is a *correct* read of a *relevant*
+document that takes rank 1 ahead of `KB0005`.
 
 On the manual side `--stressors` is flat where it matters and slightly down where it does not: `hit@5` and
 `recall@5` stay 1.000 in the `stressor` and `combined` arms, `combined` MRR moves 0.806 → 0.778.
 
-**So OCR on this corpus buys no hit rate and no recall anywhere, and costs one query in the rerank arm.** The
-honest reading is that the confidence gate is not the lever — the page-25 region scores 86 and is arguably
-*right*: its text describes a locked-out user, which is what the query is about. The failure is that it
-outranks and displaces the article that answers the question. That is a ranking-and-crowding problem, not an
-OCR-quality problem, so raising `MIN_OCR_CONFIDENCE` would not fix it; it would only discard good text.
+**Raising `MIN_OCR_CONFIDENCE` is not the fix and was not adopted.** The offending region scores 86.01; no
+threshold below that excludes it, and one above it throws away a correct read together with 10.4's form. The
+issue is ranking and slot allocation, not OCR quality, so tuning the extractor would be treating the wrong
+layer.
 
-Three ways forward, none of them taken unilaterally here:
-1. **Accept 2 lost queries** and document the cause. Cheapest; the corpus competition story stays the same
-   as the already-accepted `INC1027`.
-2. **Record regions, do not index their text** — the previously accepted state. Returns `hybrid_rerank` to
-   0.281 and leaves 10.4's form unread, which is a real capability loss for 3 of 18 manual questions.
-3. **Give the stressor points a decoy-free shape** — e.g. index OCR text under a payload the KB arm can be
-   told to ignore, which is the same lever as the rejected intent filter and needs the mentor's view.
-
-The two `ocr` rows in the stressor eval still score 1.000 for the reason they did before: the section is
-findable by heading and caption. That is section discovery, and it is unchanged by OCR.
+**Decision: accepted, mentor-approved, on the same grounds as `INC1027`.** Both losses are instances of one
+pattern — mixed-corpus retrieval trading a small number of specific, understood rank displacements for
+genuine coverage gains. The net: **2 baseline queries lost** (`INC1027`, `INC1011`) against **18
+manual-section questions gained**, among them an approval form that was not readable as text before this
+sprint. `k=5` stays, no intent filter is introduced, and the reasoning is set out in full in §2.2.
 
 ### 6.2 The form extractor over-fires off 7.1
 
@@ -397,10 +431,10 @@ report.
 
 ### 6.5 `combined` MRR is below the `stressor` arm
 
-0.806 against 1.000 (§3). Same mechanism as the §2.1 regression seen from the other side: KB articles in the
-candidate set push the correct manual section down. It is reported rather than tuned away, and it falls under
-the same accepted trade (§2.2) — the `combined` arm is not the shipping configuration, and no intent filter
-was adopted to protect it.
+0.778 against 1.000 (§3), moved from 0.806 by the same accepted trade documented in §6.1. Same mechanism as
+the §2.1 regressions seen from the other side: KB articles in the candidate set push the correct manual
+section down. It is reported rather than tuned away, and it falls under the same accepted trade (§2.2) — the
+`combined` arm is not the shipping configuration, and no intent filter was adopted to protect it.
 
 ---
 

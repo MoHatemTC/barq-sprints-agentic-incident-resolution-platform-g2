@@ -21,19 +21,25 @@ results below are real, and the second one is a regression this sprint introduce
 |---|---|---|---|
 | `baseline` | KB articles only | 0.000 | 0.000 |
 | `stressor` | the manual's extracted pages only | **1.000** | **1.000** |
-| `combined` | everything, as a live query sees it | 1.000 | 0.806 |
+| `combined` | everything, as a live query sees it | 1.000 | 0.778 |
 
 | 37 baseline KB rows, k=5 | hit@5 (KB only) | hit@5 (manual mixed in) | verdict |
 |---|---|---|---|
 | `dense` | 0.281 | 0.281 | held |
 | `hybrid` | 0.312 | 0.281 | **−1 query (INC1027)** |
-| `hybrid_rerank` | 0.312 | 0.281 | **−1 query (INC1027)** |
+| `hybrid_rerank` | 0.312 | 0.250 | **−2 queries (INC1027, INC1011)** |
 
-**This one-query regression is accepted, not fixed.** Manual pages take a top-5 slot on 12/37 baseline
-queries under `hybrid` and 25/37 under `hybrid_rerank`, but only 3/37 under `dense` — which is why `dense`
-is untouched and the two fusion modes each lose exactly one query. `k=5` was deliberately left alone: it is
-a shared retrieval parameter that S2.4 and S2.5 also depend on, and changing it this close to the deadline
-was assessed as more downstream risk than the benefit. The full reasoning is in
+**This two-query regression is accepted, not fixed.** It is one pattern twice over: a relevant manual or OCR
+point outranks the KB article that answers a query, takes its slot, and cannot itself satisfy an
+`expected_articles` row because a manual section carries no KB number. Manual pages take a top-5 slot on
+13/37 baseline queries under `hybrid` and 26/37 under `hybrid_rerank`, but only 4/37 under `dense` — which is
+why `dense` is untouched. The second loss, `INC1011`, appeared only once OCR text was indexed; the
+displacing point is 7.1's incident form read at 86.01 confidence, which is a *correct* read of a *relevant*
+document, so the extractor is not at fault and raising the confidence gate would only discard good text.
+`k=5` was deliberately left alone: it is a shared retrieval parameter that S2.4 and S2.5 also depend on, and
+changing it this close to the deadline was assessed as more downstream risk than the benefit. **2 queries
+lost against 18 manual-section questions gained**, among them 10.4's approval form, which is now readable as
+text rather than only as a located region. The full reasoning is in
 [`sprint2_rag_hardening_report.md`](sprint2_rag_hardening_report.md) §2.
 
 **No new dependencies.** PyMuPDF only — no `pdf2image`, no Poppler.
@@ -288,34 +294,38 @@ comparison against `barq_manual`, and is reported separately in the sprint repor
 
 ## 5. Known limits
 
-- **Enabling OCR text costs a second query, and this is newly measured.** Tesseract is now installed on
-  this box, so the 5 image regions are actually read: 3 pass the confidence gate and are indexed
-  (conf 86.0 / 85.0 / 79.0), 2 are read and rejected (conf 22.3 / 30.7, below `MIN_OCR_CONFIDENCE`). The
-  accepted `INC1027` regression below still stands, but `hybrid_rerank` now loses a **second** query,
-  `INC1011` — *"user locked out and also cannot connect VPN after password change this morning"*. Cause
-  is attributable: the new OCR point for 7.1's incident form (page 25, conf 86.0) takes rank 1 at score
-  5.67 and pushes `KB0005` out of the top 5. Its text really does describe a locked-out user, so the
-  reranker is not wrong to like it — the problem is that it crowds out the article that answers the
-  question. See the sprint report §6.1 for the full before/after and the options.
+- **Two accepted regressions, one pattern: `INC1027` and `INC1011`.** Both are rank displacements caused by
+  mixed-corpus retrieval, not index corruption and not extraction defects. In each case a relevant manual
+  or OCR point scores above the KB article that answers the query, takes its top-5 slot, and cannot itself
+  satisfy the row because a manual section carries no KB number (`number: ""`). `dense` is unaffected
+  (0.281 → 0.281); `hybrid` loses one query (0.312 → 0.281); `hybrid_rerank` loses two (0.312 → 0.250).
 
-- **One known, understood and accepted regression: `INC1027`.** `hybrid` and `hybrid_rerank` each drop
-  `INC1027` — *"new starter locked out on day one and also cannot see the finance shared folder"*, which
-  expects `KB0005`/`KB0020` — out of the top 5 once the manual's pages share the collection. A manual
-  stressor point outranks `KB0005` for that query and takes its place; because a manual section carries no KB
-  number (`number: ""`), it cannot satisfy the expectation, so the query loses its only hit. This is
-  **slot-crowding from increased corpus competition, not index corruption and not an extractor defect** —
-  the same points answer 18 manual questions that the corpus could not answer at all before this sprint.
-  `dense` is unaffected (0.281 → 0.281); `hybrid` goes 0.312 → 0.281. **Accepted as-is:
-  no k change, no intent filter.** Raising `k` or filtering by intent would both fix it, but `k=5` is shared
-  with S2.4/S2.5 and the deadline made a change there a worse trade than the one lost query.
-- **OCR is now wired, and is still an unproven path here.** `extractors/ocr.py` came from
-  `origin/feat/Sprint-3-(S3.3)---Input-&-Output-Guardrails-&-Ocr` (S3.3, Marcelino) and `ingest_stressors.py`
-  now renders each image region with PyMuPDF and reads it. Two gates: OCR must be available (the
-  `pytesseract` binding importable *and* a `tesseract` binary on PATH), and Tesseract's own confidence must be
-  ≥ `MIN_OCR_CONFIDENCE` (55) before the text is indexed. A region that fails either gate is still indexed —
-  with its bbox, pixel size, `ocr_applied` and a `reason` — so nothing is silently dropped. **The numbers in
-  this document were measured with OCR unavailable** (no tesseract binary), so they describe the
-  recorded-but-unread path. See §6.1 of the report.
+  `INC1027` — *"new starter locked out on day one and also cannot see the finance shared folder"*, expecting
+  `KB0005`/`KB0020` — has been lost since the manual's pages joined the shared collection.
+
+  `INC1011` — *"user locked out and also cannot connect VPN after password change this morning"*, expecting
+  `KB0005`/`KB0001` — appeared once OCR text was indexed. The displacing point is the OCR region for 7.1's
+  incident form (page 25, confidence 86.01), taken at rank 1 with score 5.67. **That read is correct** — its
+  text describes a locked-out user, which is what the query is about — so the reranker is ranking a relevant
+  document highly and the extractor is doing its job. Raising `MIN_OCR_CONFIDENCE` would not help: no
+  threshold below 86.01 excludes it, and one above it discards a correct read along with 10.4's approval form.
+  The issue is slot allocation, not OCR quality.
+
+  **Accepted as-is, mentor-approved: no k change, no intent filter.** `k=5` is shared with S2.4/S2.5, and
+  changing it this close to the deadline was assessed as more downstream risk than the two queries it would
+  recover. The net trade is **2 baseline queries lost against 18 manual-section questions gained**, including
+  10.4's approval form becoming readable as text. See report §2.1–§2.2.
+
+- **OCR is wired and measured against real Tesseract 5.3.4** — not projected, not mocked.
+  `extractors/ocr.py` came from `origin/feat/Sprint-3-(S3.3)---Input-&-Output-Guardrails-&-Ocr` (S3.3,
+  Marcelino) and `ingest_stressors.py` renders each image region with PyMuPDF and reads it. Two gates: OCR
+  must be available (the `pytesseract` binding importable *and* a `tesseract` binary on PATH), and Tesseract's
+  own confidence must be ≥ `MIN_OCR_CONFIDENCE` (55) before the text is indexed. A region that fails either
+  gate is still indexed — with its bbox, pixel size, `ocr_applied` and a `reason` — so nothing is silently
+  dropped. **5 regions across 4 pages (25, 35, 42, 44)**: 3 indexed at confidence 86.0 / 85.0 / 79.0, and 2
+  correctly rejected by the gate at 22.3 / 30.7 — Tesseract returned text in both rejected cases and it was
+  wrong enough not to be worth having. **All numbers in this document were measured with the OCR text
+  indexed.** See §6.1 of the report.
 - **`page_crossing` is declared on 7.1, not 8.3.** The contents page reads as though 8.3 is one long
   register; it is two, a problem register on p29 and a known-error register on p30, and the page that
   actually breaks is 7.1's journal. `STR-12` is the row that catches answering the known-error question
