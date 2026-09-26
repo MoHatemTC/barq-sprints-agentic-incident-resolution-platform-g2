@@ -238,6 +238,7 @@ class WorkerConfig:
     task_acks_late: bool
     task_reject_on_worker_lost: bool
     worker_shutdown_timeout_seconds: int
+    visibility_timeout_seconds: int = 120
 
     @classmethod
     def from_environment(
@@ -279,6 +280,11 @@ class WorkerConfig:
             ),
             worker_shutdown_timeout_seconds=_required_worker_positive_int(
                 env, "CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS"
+            ),
+            visibility_timeout_seconds=(
+                _required_worker_positive_int(env, "CELERY_VISIBILITY_TIMEOUT_SECONDS")
+                if env.get("CELERY_VISIBILITY_TIMEOUT_SECONDS", "").strip()
+                else 120
             ),
         )
         if config.task_time_limit_seconds <= config.task_soft_time_limit_seconds:

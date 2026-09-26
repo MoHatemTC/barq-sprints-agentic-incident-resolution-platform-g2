@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from src.observability.tracing import get_llm_callback, trace_node
 from src.agent.llm import get_llm

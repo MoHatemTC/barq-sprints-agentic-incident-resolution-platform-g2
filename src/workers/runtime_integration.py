@@ -21,6 +21,13 @@ from typing import Protocol
 logger = logging.getLogger(__name__)
 
 
+def execution_status_for(result: object) -> str:
+    """S3.4: a graph that paused at interrupt() is awaiting approval, not finished."""
+    if isinstance(result, Mapping) and result.get("__interrupt__"):
+        return "awaiting_approval"
+    return "succeeded"
+
+
 @dataclass(frozen=True)
 class ExecutionContext:
     """S2.2-generated identifiers carried internally in Celery headers."""
@@ -152,7 +159,7 @@ class StateManagerTaskRecorder:
             )
             execution = state_manager.update_execution_status(
                 self.context.execution_identifier,
-                "succeeded",
+                execution_status_for(result),
             )
             get_retry_state = getattr(state_manager, "get_retry_state", None)
             retry_state = (
@@ -164,6 +171,10 @@ class StateManagerTaskRecorder:
         finally:
             close()
 
+        # S3.4: a paused run must not write to ServiceNow before the human decides;
+        # act writes after the approval resumes it
+        if execution_status_for(result) == "awaiting_approval":
+            return
         _sync_servicenow_completion(
             accepted_incident,
             checkpoint,

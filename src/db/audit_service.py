@@ -83,6 +83,8 @@ def get_execution_audit(
         termination_reason = "Execution blocked"
     elif execution.status == "abandoned":
         termination_reason = "Execution abandoned"
+    elif execution.status == "awaiting_approval":
+        termination_reason = "Paused for human approval"
     else:
         termination_reason = "Execution still in progress"
 

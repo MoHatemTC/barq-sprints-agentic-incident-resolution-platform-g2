@@ -27,3 +27,15 @@ class AgentState(TypedDict, total=False):
     # Set to True by graph routing when revision_count >= CRITIC_MAX_RETRIES.
     # Downstream sprints (S3.4) can inspect this to gate human escalation.
     critic_exhausted: bool
+
+    #S3.4 human-in-the-loop
+    # Which gate sent the run to human review
+    gate: Optional[str]
+    # Raw payload shown to the reviewer
+    interrupt_payload: Dict[str, Any]
+    # Reviewer-facing summary of the payload; None when generation failed
+    approval_brief: Optional[Dict[str, str]]
+    # Reviewer decision passed back through Command
+    human_decision: Optional[Dict[str, Any]]
+    # ServiceNow write outcome from act: written | already_done | skipped_no_sys_id
+    servicenow_write: Optional[str]

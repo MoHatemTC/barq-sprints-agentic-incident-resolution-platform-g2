@@ -41,6 +41,8 @@ services:
   api:
     build: .
     image: barq-g2:latest
+    # create / upgrade the database tables once, then start the API workers
+    command: sh -c "alembic upgrade head && exec uvicorn src.api.app:app --host 0.0.0.0 --port 8000 --workers $${UVICORN_WORKERS}"
     ports:
       - "8000:8000"
     environment:
@@ -49,6 +51,9 @@ services:
       DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator
       REDIS_HOST: redis
       QDRANT_URL: http://qdrant:6333
+      # S3.4: the approvals API reads checkpoints and queues resume tasks
+      PG_CONN_STRING: postgresql://app:app@postgres:5432/orchestrator
+      CELERY_BROKER_URL: redis://redis:6379/0
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,7 +65,11 @@ services:
   worker:
     image: barq-g2:latest
     command: python run_worker.py
+    # S3.4: come back after a crash so Celery re-delivers the unfinished task
+    restart: unless-stopped
     environment:
+      # DEMO ONLY: before_write | after_write kills the worker once per run (empty = off)
+      DEMO_CRASH_AT: ${DEMO_CRASH_AT:-}
       POSTGRES_HOST: postgres
       DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator
       REDIS_HOST: redis

@@ -11,7 +11,7 @@ reaches diagnose/generate/verify_evidence.
 Test scenarios:
   1. Critic passes on first attempt → safety_check → confidence_check → act
   2. Critic fails once, then passes on revision → act (same final result)
-  3. Critic fails CRITIC_MAX_RETRIES times → critic_exhausted=True → act
+  3. Critic fails CRITIC_MAX_RETRIES times → critic_exhausted=True → paused for human review (S3.4)
   4. Empty retrieval still routes to interrupt (existing behaviour preserved)
   5. High-risk incident still routes to interrupt (existing behaviour preserved)
   6. route_after_critic unit tests — deterministic, no graph compile needed
@@ -20,7 +20,8 @@ Test scenarios:
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
+
+from langgraph.checkpoint.memory import MemorySaver
 
 from src.agent.graph import create_graph
 
@@ -212,20 +213,20 @@ def test_revision_on_first_fail_then_pass(
 
 
 # ---------------------------------------------------------------------------
-# Test 3: Critic exhausted → routes to act with critic_exhausted=True
+# Test 3: Critic exhausted → pauses for human review with critic_exhausted=True
 # ---------------------------------------------------------------------------
 
 @patch("src.agent.nodes.retrieve.search", return_value=[_fake_chunk()])
 @patch("src.agent.nodes.diagnose.get_llm")
 @patch("src.agent.nodes.generate.get_llm")
 @patch("src.agent.nodes.verify_evidence.get_llm")
-def test_exhaustion_routes_to_act(
+def test_exhaustion_pauses_for_review(
     mock_critic_llm, mock_gen_llm, mock_diag_llm, mock_search
 ):
     """
     Critic always fails for CRITIC_MAX_RETRIES iterations → critic_exhausted=True
-    → graph routes directly to act without going through safety_check.
-    action_taken is still set (act.py is not modified by S3.1).
+    → graph skips safety_check and pauses at interrupt for a human (S3.4),
+    instead of writing an unreviewed draft through act.
     """
     from src.config import AGENT
     max_retries = AGENT.critic_max_retries   # default 2
@@ -244,14 +245,16 @@ def test_exhaustion_routes_to_act(
     for p in patches:
         p.start()
     try:
-        graph = create_graph().compile()
-        result = graph.invoke(_INITIAL_GRAPH_STATE)
+        graph = create_graph().compile(checkpointer=MemorySaver())
+        config = {"configurable": {"thread_id": "test-exhausted"}}
+        result = graph.invoke(_INITIAL_GRAPH_STATE, config=config)
     finally:
         for p in patches:
             p.stop()
 
-    # Graph must have terminated
-    assert "action_taken" in result
+    # Graph must have paused for a human, with the critic as the gate
+    assert "__interrupt__" in result
+    assert graph.get_state(config).values["gate"] == "critic_exhausted"
     # S3.1 exhaustion flag must be set
     assert result.get("critic_exhausted") is True
     # Critic must still be reporting a failure verdict
@@ -269,18 +272,22 @@ def test_no_evidence_still_routes_to_interrupt(mock_search):
     for p in patches:
         p.start()
     try:
-        graph = create_graph().compile()
-        result = graph.invoke({
+        graph = create_graph().compile(checkpointer=MemorySaver())
+        config = {"configurable": {"thread_id": "test-no-ev"}}
+        graph.invoke({
             "execution_id": "test-no-ev",
             "incident_number": "INC_NO_EV",
             "incident_payload": {"description": "something went wrong"},
-        })
+        }, config=config)
     finally:
         for p in patches:
             p.stop()
 
-    assert result["action_taken"] == "interrupted:no_evidence"
-    assert result["human_review_required"] is True
+    # S3.4: the run pauses at interrupt instead of ending
+    snapshot = graph.get_state(config)
+    assert snapshot.next == ("interrupt",)
+    assert snapshot.values["gate"] == "no_evidence"
+    assert snapshot.values["human_review_required"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -301,18 +308,22 @@ def test_high_risk_still_routes_to_interrupt():
     for p in patches:
         p.start()
     try:
-        graph = create_graph().compile()
-        result = graph.invoke({
+        graph = create_graph().compile(checkpointer=MemorySaver())
+        config = {"configurable": {"thread_id": "test-high"}}
+        graph.invoke({
             "execution_id": "test-high",
             "incident_number": "INC_HIGH",
             "incident_payload": {"description": "high-risk data center wipe"},
-        })
+        }, config=config)
     finally:
         for p in patches:
             p.stop()
 
-    assert result["action_taken"] == "interrupted:high_risk_incident"
-    assert result["risk"] == "high"
+    # S3.4: the run pauses at interrupt instead of ending
+    snapshot = graph.get_state(config)
+    assert snapshot.next == ("interrupt",)
+    assert snapshot.values["gate"] == "high_risk"
+    assert snapshot.values["risk"] == "high"
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +345,7 @@ def test_route_after_critic_fail_with_retries():
 
 def test_route_after_critic_fail_exhausted():
     state = {"critic_verdict": {"passed": False}, "critic_exhausted": True}
-    assert route_after_critic(state) == "act"
+    assert route_after_critic(state) == "prepare_review"
 
 
 def test_route_after_critic_no_verdict_defaults_to_generate():

@@ -131,7 +131,8 @@ class Execution(Base):
     __table_args__ = (
         CheckConstraint(
             "status IN "
-            "('started', 'succeeded', 'failed', 'blocked', 'abandoned')",
+            "('started', 'succeeded', 'failed', 'blocked', 'abandoned', "
+            "'awaiting_approval')",
             name="ck_executions_status",
         ),
         CheckConstraint(

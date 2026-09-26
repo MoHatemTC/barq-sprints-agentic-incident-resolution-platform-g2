@@ -1,9 +1,17 @@
-﻿import pytest
-import json
+﻿import json
 from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
 
+from langgraph.checkpoint.memory import MemorySaver
+
 from src.agent.graph import create_graph
+
+
+def _paused(graph, thread_id):
+    """State of a run that paused at interrupt() for human review."""
+    snapshot = graph.get_state({"configurable": {"thread_id": thread_id}})
+    assert snapshot.next == ("interrupt",)
+    return snapshot.values
 
 
 def _fake_chunk():
@@ -87,14 +95,15 @@ def test_graph_routing_normal_risk(mock_search):
 def test_graph_routes_to_interrupt_when_no_evidence(mock_search):
     """Empty retrieval result -> human review, not diagnose."""
     with _mock_routing_agents():
-        graph = create_graph().compile()
-        result = graph.invoke({
+        graph = create_graph().compile(checkpointer=MemorySaver())
+        graph.invoke({
             "execution_id": "test_2",
             "incident_number": "INC_TEST_02",
             "incident_payload": {"description": "something unrelated"},
-        })
+        }, config={"configurable": {"thread_id": "test_2"}})
 
-    assert result["action_taken"] == "interrupted:no_evidence"
+    result = _paused(graph, "test_2")
+    assert result["gate"] == "no_evidence"
     assert result["human_review_required"] is True
     assert result["failure_reason"] == "no_evidence"
 
@@ -103,14 +112,15 @@ def test_graph_routes_to_interrupt_when_no_evidence(mock_search):
 def test_graph_routes_to_interrupt_when_retrieval_fails(mock_search):
     """Retrieval exception -> human review with retrieval_failed reason."""
     with _mock_routing_agents():
-        graph = create_graph().compile()
-        result = graph.invoke({
+        graph = create_graph().compile(checkpointer=MemorySaver())
+        graph.invoke({
             "execution_id": "test_3",
             "incident_number": "INC_TEST_03",
             "incident_payload": {"description": "vpn issue"},
-        })
+        }, config={"configurable": {"thread_id": "test_3"}})
 
-    assert result["action_taken"] == "interrupted:retrieval_failed"
+    result = _paused(graph, "test_3")
+    assert result["gate"] == "retrieval_failed"
     assert result["human_review_required"] is True
     assert result["failure_reason"] == "retrieval_failed"
 
@@ -118,15 +128,17 @@ def test_graph_routes_to_interrupt_when_retrieval_fails(mock_search):
 def test_graph_routing_high_risk():
     """High-risk incident should skip retrieval and go to interrupt."""
     with _mock_routing_agents(risk="high"):
-        graph = create_graph().compile()
-        result = graph.invoke({
+        graph = create_graph().compile(checkpointer=MemorySaver())
+        graph.invoke({
             "execution_id": "test_4",
             "incident_number": "INC_TEST_04",
             "incident_payload": {"description": "this is a high-risk task"},
-        })
+        }, config={"configurable": {"thread_id": "test_4"}})
 
-    # High risk routes to interrupt, NOT act
-    assert result["action_taken"] == "interrupted:high_risk_incident"
+    # High risk pauses for human review, NOT act
+    result = _paused(graph, "test_4")
+    assert result["gate"] == "high_risk"
+    assert result.get("action_taken") is None
     assert result["risk"] == "high"
     # Should NOT have retrieved evidence (skipped retrieval entirely)
     assert result.get("retrieved_evidence") is None
@@ -134,7 +146,8 @@ def test_graph_routing_high_risk():
 
 def test_compiled_graph_nodes_match_baseline():
     """
-    The compiled graph must contain exactly the 11 baseline nodes + interrupt + __start__ + __end__.
+    The compiled graph must contain exactly the 11 baseline nodes + prepare_review (S3.4)
+    + interrupt + __start__ + __end__.
     S3.1 must NOT add or remove any external node (e.g. no check_exhaustion
     or route_after_validate outside the internal multi-agent boundary).
     """
@@ -151,6 +164,7 @@ def test_compiled_graph_nodes_match_baseline():
         "verify_evidence",
         "safety_check",
         "confidence_check",
+        "prepare_review",
         "interrupt",
         "act",
     }
