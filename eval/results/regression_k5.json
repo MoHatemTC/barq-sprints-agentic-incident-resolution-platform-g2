@@ -1,0 +1,160 @@
+{
+  "k": 5,
+  "modes": [
+    "dense",
+    "hybrid",
+    "hybrid_rerank"
+  ],
+  "collection": "barq_knowledge_base",
+  "conditions": {
+    "kb_only": "is_stressor=False",
+    "mixed": "no filter (live)"
+  },
+  "baseline_rows": 37,
+  "answerable_rows": 32,
+  "evaluation_set_version": "1.2",
+  "summary": {
+    "kb_only|dense": {
+      "precision": 0.091,
+      "recall": 0.234,
+      "hit_rate": 0.281,
+      "mrr": 0.25,
+      "planted_hits": 0,
+      "p50_ms": 819.1,
+      "p95_ms": 921.5
+    },
+    "kb_only|hybrid": {
+      "precision": 0.099,
+      "recall": 0.25,
+      "hit_rate": 0.312,
+      "mrr": 0.258,
+      "planted_hits": 0,
+      "p50_ms": 822.4,
+      "p95_ms": 920.3
+    },
+    "kb_only|hybrid_rerank": {
+      "precision": 0.084,
+      "recall": 0.266,
+      "hit_rate": 0.312,
+      "mrr": 0.232,
+      "planted_hits": 0,
+      "p50_ms": 1560.8,
+      "p95_ms": 1833.2
+    },
+    "mixed|dense": {
+      "precision": 0.091,
+      "recall": 0.234,
+      "hit_rate": 0.281,
+      "mrr": 0.25,
+      "planted_hits": 0,
+      "p50_ms": 846.2,
+      "p95_ms": 4201.2
+    },
+    "mixed|hybrid": {
+      "precision": 0.082,
+      "recall": 0.234,
+      "hit_rate": 0.281,
+      "mrr": 0.245,
+      "planted_hits": 0,
+      "p50_ms": 924.0,
+      "p95_ms": 1912.6
+    },
+    "mixed|hybrid_rerank": {
+      "precision": 0.07,
+      "recall": 0.25,
+      "hit_rate": 0.281,
+      "mrr": 0.221,
+      "planted_hits": 0,
+      "p50_ms": 3319.2,
+      "p95_ms": 3677.2
+    }
+  },
+  "verdict": {
+    "dense": {
+      "hit_rate_kb_only": 0.281,
+      "hit_rate_mixed": 0.281,
+      "mrr_kb_only": 0.25,
+      "mrr_mixed": 0.25,
+      "hits_lost": 0,
+      "hits_gained": 0,
+      "regression": false,
+      "queries_where_a_stressor_took_a_slot": {
+        "1": 3
+      },
+      "lost": [],
+      "gained": []
+    },
+    "hybrid": {
+      "hit_rate_kb_only": 0.312,
+      "hit_rate_mixed": 0.281,
+      "mrr_kb_only": 0.258,
+      "mrr_mixed": 0.245,
+      "hits_lost": 1,
+      "hits_gained": 0,
+      "regression": true,
+      "queries_where_a_stressor_took_a_slot": {
+        "1": 12
+      },
+      "lost": [
+        {
+          "query_id": "INC1027",
+          "query": "New starter locked out on day one and also cannot see the finance shared folder",
+          "expected": [
+            "KB0005",
+            "KB0020"
+          ],
+          "kb_only_returned": [
+            "7.4",
+            "KB0003",
+            "6.2",
+            "KB0005"
+          ],
+          "kb_only_first_rank": 4,
+          "mixed_returned": [
+            "7.4",
+            "KB0003",
+            "6.2",
+            ""
+          ]
+        }
+      ],
+      "gained": []
+    },
+    "hybrid_rerank": {
+      "hit_rate_kb_only": 0.312,
+      "hit_rate_mixed": 0.281,
+      "mrr_kb_only": 0.232,
+      "mrr_mixed": 0.221,
+      "hits_lost": 1,
+      "hits_gained": 0,
+      "regression": true,
+      "queries_where_a_stressor_took_a_slot": {
+        "1": 25
+      },
+      "lost": [
+        {
+          "query_id": "INC1027",
+          "query": "New starter locked out on day one and also cannot see the finance shared folder",
+          "expected": [
+            "KB0005",
+            "KB0020"
+          ],
+          "kb_only_returned": [
+            "3.2",
+            "7.4",
+            "6.2",
+            "KB0005"
+          ],
+          "kb_only_first_rank": 4,
+          "mixed_returned": [
+            "",
+            "3.2",
+            "7.4",
+            "6.2"
+          ]
+        }
+      ],
+      "gained": []
+    }
+  }
+}

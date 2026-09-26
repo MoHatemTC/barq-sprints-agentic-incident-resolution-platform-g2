@@ -18,6 +18,15 @@ class RetrievalFilters:
     category: str | None = None
     service: str | None = None
     version: int | None = None
+    # S2.6: which half of the corpus to search. The KB articles and the manual's
+    # extracted pages share one collection, so the two are told apart by this flag.
+    #   None = both (what a live query gets)
+    #   True = the manual's extracted pages only
+    #   False = the KB articles only
+    # False is expressed as must_not rather than must == false, because a KB point
+    # has no ``is_stressor`` key at all and MatchValue does not match a missing
+    # field: must == false would return nothing.
+    is_stressor: bool | None = None
     # Always applied. Defaults come from .env / config.
     allowed_workflow_states: tuple[str, ...] = field(
         default_factory=lambda: RETRIEVAL.allowed_workflow_states
@@ -52,5 +61,11 @@ def build_qdrant_filter(filters: RetrievalFilters | None = None) -> models.Filte
         value = getattr(f, key)
         if value is not None:
             must.append(_equals(key, value))
+
+    # S2.6: the two halves of the shared collection. See RetrievalFilters.
+    if f.is_stressor is True:
+        must.append(_equals("is_stressor", True))
+    elif f.is_stressor is False:
+        must_not.append(_equals("is_stressor", True))
 
     return models.Filter(must=must, must_not=must_not)

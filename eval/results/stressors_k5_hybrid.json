@@ -1,0 +1,2010 @@
+{
+  "evaluation_set_version": "1.2",
+  "k": 5,
+  "mode": "hybrid",
+  "collection": "barq_knowledge_base",
+  "arms": {
+    "baseline": "KB articles only (`is_stressor` absent)",
+    "stressor": "extracted pages only (`is_stressor` = true)",
+    "combined": "KB articles + extracted pages"
+  },
+  "summary": {
+    "baseline": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "hit_rate": 0,
+      "mrr": 0.0,
+      "answered_unanswerable": 2,
+      "unanswerable": 2,
+      "p50_ms": 861.2,
+      "p95_ms": 997.6,
+      "extractor_dependent_hit_rate": 0
+    },
+    "stressor": {
+      "precision": 0.495,
+      "recall": 1.0,
+      "hit_rate": 1,
+      "mrr": 1.0,
+      "answered_unanswerable": 2,
+      "unanswerable": 2,
+      "p50_ms": 826.3,
+      "p95_ms": 928.2,
+      "extractor_dependent_hit_rate": 1
+    },
+    "combined": {
+      "precision": 0.491,
+      "recall": 1.0,
+      "hit_rate": 1,
+      "mrr": 0.806,
+      "answered_unanswerable": 2,
+      "unanswerable": 2,
+      "p50_ms": 823.9,
+      "p95_ms": 1048.7,
+      "extractor_dependent_hit_rate": 1
+    }
+  },
+  "quality_fingerprint": {
+    "note": "quality metrics only; timing excluded because embed_dense is a network round-trip",
+    "baseline": {
+      "precision": 0.0,
+      "recall": 0.0,
+      "hit_rate": 0,
+      "mrr": 0.0,
+      "answered_unanswerable": 2,
+      "unanswerable": 2,
+      "extractor_dependent_hit_rate": 0
+    },
+    "stressor": {
+      "precision": 0.495,
+      "recall": 1.0,
+      "hit_rate": 1,
+      "mrr": 1.0,
+      "answered_unanswerable": 2,
+      "unanswerable": 2,
+      "extractor_dependent_hit_rate": 1
+    },
+    "combined": {
+      "precision": 0.491,
+      "recall": 1.0,
+      "hit_rate": 1,
+      "mrr": 0.806,
+      "answered_unanswerable": 2,
+      "unanswerable": 2,
+      "extractor_dependent_hit_rate": 1
+    }
+  },
+  "gained": [
+    {
+      "query_id": "STR-01",
+      "capability_class": "merged_header",
+      "query": "how many analysts cover Dubai out of hours and what are the hours",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "2.1",
+        "5.2"
+      ],
+      "hit_from": [
+        "tables",
+        "layout",
+        "layout",
+        "tables"
+      ]
+    },
+    {
+      "query_id": "STR-02",
+      "capability_class": "merged_header",
+      "query": "what time does the Cairo desk start on a Saturday and how many analysts are on",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "2.1",
+        "5.2"
+      ],
+      "hit_from": [
+        "tables",
+        "layout",
+        "layout",
+        "tables"
+      ]
+    },
+    {
+      "query_id": "STR-03",
+      "capability_class": "table",
+      "query": "which priority states pause the SLA clock and who may set them",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "3.3",
+        "12.2"
+      ],
+      "hit_from": [
+        "tables",
+        "layout",
+        "layout",
+        "tables"
+      ]
+    },
+    {
+      "query_id": "STR-04",
+      "capability_class": "nested_table",
+      "query": "who owns the sap-erp service and in which window is it maintained",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "5.2",
+        "8.3"
+      ],
+      "hit_from": [
+        "layout",
+        "tables",
+        "tables",
+        "tables"
+      ]
+    },
+    {
+      "query_id": "STR-05",
+      "capability_class": "nested_table",
+      "query": "what is the maintenance window for the identity service and who is its owner",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "5.2",
+        "8.3"
+      ],
+      "hit_from": [
+        "tables",
+        "layout",
+        "tables",
+        "tables"
+      ]
+    },
+    {
+      "query_id": "STR-06",
+      "capability_class": "page_crossing",
+      "query": "what was the last entry in the INC0010023 journal and what time was it",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "7.1"
+      ],
+      "hit_from": [
+        "layout",
+        "layout",
+        "tables",
+        "layout",
+        "tables"
+      ]
+    },
+    {
+      "query_id": "STR-07",
+      "capability_class": "page_crossing",
+      "query": "which work note closed the VPN incident and how long did the whole thing take",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "7.1",
+        "3.3"
+      ],
+      "hit_from": [
+        "layout",
+        "tables",
+        "layout",
+        "tables"
+      ]
+    },
+    {
+      "query_id": "STR-08",
+      "capability_class": "form_parsing",
+      "query": "what assignment group and assignee are recorded on incident INC0010023",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "7.1"
+      ],
+      "hit_from": [
+        "layout",
+        "layout",
+        "tables",
+        "layout",
+        "tables"
+      ]
+    },
+    {
+      "query_id": "STR-09",
+      "capability_class": "key_value",
+      "query": "what impact and urgency did the caller record on INC0010023",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "7.1",
+        "Appendix C"
+      ],
+      "hit_from": [
+        "layout",
+        "layout",
+        "tables"
+      ]
+    },
+    {
+      "query_id": "STR-10",
+      "capability_class": "key_value",
+      "query": "was there an SLA breach on INC0010023 and against what target",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "7.1",
+        "12.2"
+      ],
+      "hit_from": [
+        "layout",
+        "layout",
+        "tables"
+      ]
+    },
+    {
+      "query_id": "STR-11",
+      "capability_class": "table",
+      "query": "what is the difference between a problem and a known error in this manual",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "8.3",
+        "3.3"
+      ],
+      "hit_from": [
+        "tables",
+        "layout",
+        "tables",
+        "layout"
+      ]
+    },
+    {
+      "query_id": "STR-12",
+      "capability_class": "table",
+      "query": "which known error covers the SAP GUI RFC timeout and what is its permanent fix",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "8.3",
+        "5.2"
+      ],
+      "hit_from": [
+        "layout",
+        "tables",
+        "layout",
+        "tables"
+      ]
+    },
+    {
+      "query_id": "STR-13",
+      "capability_class": "ocr",
+      "query": "what approval record covers CHG0030455 against the incident",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "10.4",
+        "7.1",
+        "11.8",
+        "3.3"
+      ],
+      "hit_from": [
+        "layout",
+        "ocr"
+      ]
+    },
+    {
+      "query_id": "STR-14",
+      "capability_class": "layout",
+      "query": "which agent stages screen the incident text for embedded instructions",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "11.7",
+        "11.8",
+        "12.2"
+      ],
+      "hit_from": [
+        "tables",
+        "layout",
+        "layout"
+      ]
+    },
+    {
+      "query_id": "STR-15",
+      "capability_class": "table",
+      "query": "what is the contractual SLA attainment measure and what is it used for",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "12.2",
+        "Appendix C",
+        "5.2"
+      ],
+      "hit_from": [
+        "tables",
+        "layout",
+        "layout"
+      ]
+    },
+    {
+      "query_id": "STR-16",
+      "capability_class": "merged_header",
+      "query": "what counts as impact 2 and what counts as urgency 2",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "Appendix C",
+        "3.3",
+        "5.2",
+        "7.1"
+      ],
+      "hit_from": [
+        "tables",
+        "layout"
+      ]
+    },
+    {
+      "query_id": "STR-17",
+      "capability_class": "layout",
+      "query": "should impact be counted by how many people are blocked or by how many are inconvenienced",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "Appendix C",
+        "3.3",
+        "11.7",
+        "8.3"
+      ],
+      "hit_from": [
+        "tables",
+        "layout"
+      ]
+    },
+    {
+      "query_id": "STR-18",
+      "capability_class": "ocr",
+      "query": "how do I read the run log for the integration failure in the appendix",
+      "baseline_returned": [
+        "body"
+      ],
+      "extractor_returned": [
+        "11.8",
+        "7.1"
+      ],
+      "hit_from": [
+        "ocr",
+        "layout",
+        "ocr"
+      ]
+    }
+  ],
+  "lost": [],
+  "per_query": {
+    "baseline": [
+      {
+        "query_id": "STR-01",
+        "capability_class": "merged_header",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 882.9,
+        "top_score": 0.0328,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-02",
+        "capability_class": "merged_header",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 915.4,
+        "top_score": 0.0328,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-03",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 828.3,
+        "top_score": 0.0328,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-04",
+        "capability_class": "nested_table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 821.1,
+        "top_score": 0.0328,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-05",
+        "capability_class": "nested_table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 914.9,
+        "top_score": 0.0323,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-06",
+        "capability_class": "page_crossing",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 814.5,
+        "top_score": 0.0328,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-07",
+        "capability_class": "page_crossing",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 920.2,
+        "top_score": 0.0313,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-08",
+        "capability_class": "form_parsing",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 847.1,
+        "top_score": 0.0328,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-09",
+        "capability_class": "key_value",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 795.5,
+        "top_score": 0.0328,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-10",
+        "capability_class": "key_value",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 813.7,
+        "top_score": 0.0325,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-11",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 778.9,
+        "top_score": 0.0328,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-12",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 775.6,
+        "top_score": 0.0325,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-13",
+        "capability_class": "ocr",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 850.8,
+        "top_score": 0.0325,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-14",
+        "capability_class": "layout",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 999.8,
+        "top_score": 0.0328,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-15",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 857.5,
+        "top_score": 0.0328,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-16",
+        "capability_class": "merged_header",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 864.9,
+        "top_score": 0.0323,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-17",
+        "capability_class": "layout",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 956.4,
+        "top_score": 0.0328,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-18",
+        "capability_class": "ocr",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 901.3,
+        "top_score": 0.0325,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null,
+        "hit_from": []
+      },
+      {
+        "query_id": "STR-19",
+        "capability_class": "unanswerable",
+        "requires_extractor": false,
+        "answerable": false,
+        "ms": 938.2,
+        "top_score": 0.0317,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ]
+      },
+      {
+        "query_id": "STR-20",
+        "capability_class": "unanswerable",
+        "requires_extractor": false,
+        "answerable": false,
+        "ms": 880.1,
+        "top_score": 0.0317,
+        "returned": [
+          "body"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ]
+      }
+    ],
+    "stressor": [
+      {
+        "query_id": "STR-01",
+        "capability_class": "merged_header",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 852.9,
+        "top_score": 0.0325,
+        "returned": [
+          "2.1",
+          "5.2"
+        ],
+        "returners": [
+          "tables",
+          "layout",
+          "layout",
+          "tables",
+          "layout"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-02",
+        "capability_class": "merged_header",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 842.5,
+        "top_score": 0.0325,
+        "returned": [
+          "2.1",
+          "5.2"
+        ],
+        "returners": [
+          "tables",
+          "layout",
+          "layout",
+          "layout",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-03",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 822.3,
+        "top_score": 0.0325,
+        "returned": [
+          "3.3",
+          "12.2"
+        ],
+        "returners": [
+          "tables",
+          "layout",
+          "layout",
+          "tables",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-04",
+        "capability_class": "nested_table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 809.6,
+        "top_score": 0.0325,
+        "returned": [
+          "5.2",
+          "8.3"
+        ],
+        "returners": [
+          "layout",
+          "tables",
+          "tables",
+          "tables",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "tables",
+          "tables",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-05",
+        "capability_class": "nested_table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 928.5,
+        "top_score": 0.0323,
+        "returned": [
+          "5.2",
+          "8.3"
+        ],
+        "returners": [
+          "tables",
+          "layout",
+          "tables",
+          "tables",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout",
+          "tables",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-06",
+        "capability_class": "page_crossing",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 813.9,
+        "top_score": 0.0325,
+        "returned": [
+          "7.1"
+        ],
+        "returners": [
+          "layout",
+          "layout",
+          "tables",
+          "layout",
+          "tables"
+        ],
+        "precision": 1.0,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "layout",
+          "tables",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-07",
+        "capability_class": "page_crossing",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 823.6,
+        "top_score": 0.0325,
+        "returned": [
+          "7.1",
+          "3.3"
+        ],
+        "returners": [
+          "layout",
+          "tables",
+          "layout",
+          "tables",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "tables",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-08",
+        "capability_class": "form_parsing",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 815.8,
+        "top_score": 0.0328,
+        "returned": [
+          "7.1"
+        ],
+        "returners": [
+          "layout",
+          "layout",
+          "tables",
+          "layout",
+          "tables"
+        ],
+        "precision": 1.0,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "layout",
+          "tables",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-09",
+        "capability_class": "key_value",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 817.7,
+        "top_score": 0.0323,
+        "returned": [
+          "7.1",
+          "Appendix C"
+        ],
+        "returners": [
+          "layout",
+          "layout",
+          "tables",
+          "layout",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-10",
+        "capability_class": "key_value",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 833.2,
+        "top_score": 0.0325,
+        "returned": [
+          "7.1",
+          "12.2"
+        ],
+        "returners": [
+          "layout",
+          "layout",
+          "tables",
+          "tables",
+          "layout"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-11",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 804.6,
+        "top_score": 0.0325,
+        "returned": [
+          "8.3",
+          "3.3"
+        ],
+        "returners": [
+          "tables",
+          "layout",
+          "tables",
+          "layout",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout",
+          "tables",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-12",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 819.2,
+        "top_score": 0.0328,
+        "returned": [
+          "8.3",
+          "5.2"
+        ],
+        "returners": [
+          "layout",
+          "tables",
+          "layout",
+          "layout",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "tables",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-13",
+        "capability_class": "ocr",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 826.3,
+        "top_score": 0.0325,
+        "returned": [
+          "10.4",
+          "7.1",
+          "11.8",
+          "3.3"
+        ],
+        "returners": [
+          "layout",
+          "ocr",
+          "layout",
+          "layout",
+          "layout"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "ocr"
+        ]
+      },
+      {
+        "query_id": "STR-14",
+        "capability_class": "layout",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 922.8,
+        "top_score": 0.0328,
+        "returned": [
+          "11.7",
+          "11.8",
+          "12.2"
+        ],
+        "returners": [
+          "tables",
+          "layout",
+          "layout",
+          "layout",
+          "ocr"
+        ],
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-15",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 921.2,
+        "top_score": 0.0328,
+        "returned": [
+          "12.2",
+          "Appendix C",
+          "5.2"
+        ],
+        "returners": [
+          "tables",
+          "layout",
+          "layout",
+          "layout",
+          "layout"
+        ],
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-16",
+        "capability_class": "merged_header",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 810.1,
+        "top_score": 0.0328,
+        "returned": [
+          "Appendix C",
+          "3.3",
+          "5.2",
+          "7.1"
+        ],
+        "returners": [
+          "tables",
+          "layout",
+          "layout",
+          "layout",
+          "layout"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-17",
+        "capability_class": "layout",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 848.8,
+        "top_score": 0.0328,
+        "returned": [
+          "Appendix C",
+          "3.3",
+          "11.7",
+          "8.3"
+        ],
+        "returners": [
+          "tables",
+          "layout",
+          "layout",
+          "layout",
+          "layout"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-18",
+        "capability_class": "ocr",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 887.0,
+        "top_score": 0.0323,
+        "returned": [
+          "11.8",
+          "7.1"
+        ],
+        "returners": [
+          "ocr",
+          "layout",
+          "ocr",
+          "layout",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "ocr",
+          "layout",
+          "ocr"
+        ]
+      },
+      {
+        "query_id": "STR-19",
+        "capability_class": "unanswerable",
+        "requires_extractor": false,
+        "answerable": false,
+        "ms": 832.5,
+        "top_score": 0.0318,
+        "returned": [
+          "3.3",
+          "12.2",
+          "11.7"
+        ],
+        "returners": [
+          "tables",
+          "tables",
+          "layout",
+          "tables",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-20",
+        "capability_class": "unanswerable",
+        "requires_extractor": false,
+        "answerable": false,
+        "ms": 826.3,
+        "top_score": 0.0313,
+        "returned": [
+          "7.1",
+          "12.2",
+          "2.1"
+        ],
+        "returners": [
+          "layout",
+          "layout",
+          "tables",
+          "tables",
+          "layout"
+        ]
+      }
+    ],
+    "combined": [
+      {
+        "query_id": "STR-01",
+        "capability_class": "merged_header",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 818.5,
+        "top_score": 0.0325,
+        "returned": [
+          "body",
+          "2.1"
+        ],
+        "returners": [
+          "line_reading",
+          "tables",
+          "layout",
+          "line_reading",
+          "layout"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2,
+        "hit_from": [
+          "tables",
+          "layout",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-02",
+        "capability_class": "merged_header",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 818.6,
+        "top_score": 0.0328,
+        "returned": [
+          "body",
+          "2.1"
+        ],
+        "returners": [
+          "line_reading",
+          "tables",
+          "layout",
+          "line_reading",
+          "layout"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2,
+        "hit_from": [
+          "tables",
+          "layout",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-03",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 821.9,
+        "top_score": 0.0325,
+        "returned": [
+          "3.3",
+          "body"
+        ],
+        "returners": [
+          "tables",
+          "line_reading",
+          "layout",
+          "layout",
+          "line_reading"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-04",
+        "capability_class": "nested_table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 816.1,
+        "top_score": 0.0323,
+        "returned": [
+          "5.2",
+          "body"
+        ],
+        "returners": [
+          "layout",
+          "line_reading",
+          "tables",
+          "line_reading",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "tables",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-05",
+        "capability_class": "nested_table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 812.4,
+        "top_score": 0.0315,
+        "returned": [
+          "5.2",
+          "body"
+        ],
+        "returners": [
+          "tables",
+          "layout",
+          "line_reading",
+          "tables",
+          "line_reading"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-06",
+        "capability_class": "page_crossing",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 825.8,
+        "top_score": 0.0325,
+        "returned": [
+          "body",
+          "7.1"
+        ],
+        "returners": [
+          "line_reading",
+          "layout",
+          "layout",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2,
+        "hit_from": [
+          "layout",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-07",
+        "capability_class": "page_crossing",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 819.1,
+        "top_score": 0.0311,
+        "returned": [
+          "7.1",
+          "body"
+        ],
+        "returners": [
+          "layout",
+          "tables",
+          "layout",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "tables",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-08",
+        "capability_class": "form_parsing",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 922.9,
+        "top_score": 0.0323,
+        "returned": [
+          "7.1",
+          "body"
+        ],
+        "returners": [
+          "layout",
+          "line_reading",
+          "layout",
+          "tables",
+          "layout"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "layout",
+          "tables",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-09",
+        "capability_class": "key_value",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 1023.0,
+        "top_score": 0.0317,
+        "returned": [
+          "7.1",
+          "body"
+        ],
+        "returners": [
+          "layout",
+          "line_reading",
+          "layout",
+          "tables",
+          "line_reading"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-10",
+        "capability_class": "key_value",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 827.2,
+        "top_score": 0.0323,
+        "returned": [
+          "body",
+          "7.1"
+        ],
+        "returners": [
+          "line_reading",
+          "layout",
+          "line_reading",
+          "layout",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2,
+        "hit_from": [
+          "layout",
+          "layout",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-11",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 811.9,
+        "top_score": 0.0325,
+        "returned": [
+          "body",
+          "8.3"
+        ],
+        "returners": [
+          "line_reading",
+          "layout",
+          "tables",
+          "line_reading",
+          "tables"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2,
+        "hit_from": [
+          "layout",
+          "tables",
+          "tables"
+        ]
+      },
+      {
+        "query_id": "STR-12",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 859.5,
+        "top_score": 0.0325,
+        "returned": [
+          "body",
+          "8.3"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "line_reading",
+          "layout",
+          "line_reading"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2,
+        "hit_from": [
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-13",
+        "capability_class": "ocr",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 881.1,
+        "top_score": 0.0325,
+        "returned": [
+          "10.4",
+          "body"
+        ],
+        "returners": [
+          "layout",
+          "ocr",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "ocr"
+        ]
+      },
+      {
+        "query_id": "STR-14",
+        "capability_class": "layout",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 916.5,
+        "top_score": 0.0328,
+        "returned": [
+          "body",
+          "11.7"
+        ],
+        "returners": [
+          "line_reading",
+          "tables",
+          "line_reading",
+          "layout",
+          "layout"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2,
+        "hit_from": [
+          "tables",
+          "layout",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-15",
+        "capability_class": "table",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 814.0,
+        "top_score": 0.0328,
+        "returned": [
+          "12.2",
+          "body"
+        ],
+        "returners": [
+          "tables",
+          "line_reading",
+          "layout",
+          "layout",
+          "line_reading"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-16",
+        "capability_class": "merged_header",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 1050.1,
+        "top_score": 0.0328,
+        "returned": [
+          "Appendix C",
+          "body",
+          "3.3"
+        ],
+        "returners": [
+          "tables",
+          "layout",
+          "line_reading",
+          "line_reading",
+          "layout"
+        ],
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-17",
+        "capability_class": "layout",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 908.0,
+        "top_score": 0.0328,
+        "returned": [
+          "Appendix C",
+          "body"
+        ],
+        "returners": [
+          "tables",
+          "line_reading",
+          "layout",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "tables",
+          "layout"
+        ]
+      },
+      {
+        "query_id": "STR-18",
+        "capability_class": "ocr",
+        "requires_extractor": true,
+        "answerable": true,
+        "ms": 813.1,
+        "top_score": 0.0323,
+        "returned": [
+          "11.8",
+          "body"
+        ],
+        "returners": [
+          "layout",
+          "ocr",
+          "ocr",
+          "line_reading",
+          "line_reading"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1,
+        "hit_from": [
+          "layout",
+          "ocr",
+          "ocr"
+        ]
+      },
+      {
+        "query_id": "STR-19",
+        "capability_class": "unanswerable",
+        "requires_extractor": false,
+        "answerable": false,
+        "ms": 834.1,
+        "top_score": 0.031,
+        "returned": [
+          "body",
+          "3.3"
+        ],
+        "returners": [
+          "line_reading",
+          "tables",
+          "line_reading",
+          "line_reading",
+          "line_reading"
+        ]
+      },
+      {
+        "query_id": "STR-20",
+        "capability_class": "unanswerable",
+        "requires_extractor": false,
+        "answerable": false,
+        "ms": 803.6,
+        "top_score": 0.0306,
+        "returned": [
+          "body",
+          "7.1",
+          "2.1"
+        ],
+        "returners": [
+          "line_reading",
+          "line_reading",
+          "layout",
+          "tables",
+          "line_reading"
+        ]
+      }
+    ]
+  }
+}
