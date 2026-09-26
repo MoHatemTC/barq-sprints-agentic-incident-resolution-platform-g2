@@ -2,6 +2,9 @@ from fastapi import Request, Header, HTTPException, Depends
 from src.api.schemas import Settings
 from functools import lru_cache
 
+from src.db.database import SessionLocal
+
+
 class RedisIncidentProducer:
 
     """
@@ -16,12 +19,15 @@ class RedisIncidentProducer:
     async def enqueue(self, payload: str):
         await self._redis.rpush("incident_events", payload)
 
+
 def get_redis_producer(request: Request) -> RedisIncidentProducer:
     return RedisIncidentProducer(request.app.state.redis)
+
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
 
 class ServiceNowClient:
 
@@ -35,13 +41,34 @@ class ServiceNowClient:
         self._base_url = base_url
         self._auth_token = auth_token
 
-def get_servicenow_client(settings: Settings = Depends(get_settings)) -> ServiceNowClient:
-    raise NotImplementedError("ServiceNow client wiring lands with worker integration")
+
+def get_servicenow_client(
+    settings: Settings = Depends(get_settings),
+) -> ServiceNowClient:
+    raise NotImplementedError(
+        "ServiceNow client wiring lands with worker integration"
+    )
 
 
 def get_redis(request: Request):
     return request.app.state.redis
 
+
 async def get_db_session(request: Request):
     async with request.app.state.async_session() as session:
         yield session
+
+
+def get_sync_db():
+    """
+    Provide the existing synchronous SQLAlchemy session.
+
+    Used by legacy synchronous database services such as
+    approval_service.py.
+    """
+    db = SessionLocal()
+
+    try:
+        yield db
+    finally:
+        db.close()

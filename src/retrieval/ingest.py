@@ -154,56 +154,106 @@ def _delete_article(client: QdrantClient, article_id: str):
 
 def sync_kb() -> dict:
     """
-    Manual KB sync from ServiceNow. Only touches articles that changed.
-    Returns {"status", "added", "updated", "deleted", "unchanged"}.
+    Manual KB sync from ServiceNow.
+
+    Only articles that are new or changed are embedded and upserted.
+
+    Returns:
+        status
+        added
+        updated
+        deleted
+        unchanged
+        point_ids
+
+    point_ids contains the deterministic Qdrant point IDs created
+    or refreshed during this synchronization.
     """
     start = time.time()
-    client = QdrantClient(url=QDRANT.url, check_compatibility=False)
+
+    client = QdrantClient(
+        url=QDRANT.url,
+        check_compatibility=False,
+    )
+
     _ensure_collection(client)
 
     from .sources.servicenow_source import load_articles_from_servicenow
+
     articles = load_articles_from_servicenow()
-    current = {a.article_id: a for a in articles}
+
+    current = {
+        article.article_id: article
+        for article in articles
+    }
+
     stored = _stored_hashes(client)
 
-    added = updated = unchanged = 0
+    added = 0
+    updated = 0
+    unchanged = 0
+    point_ids = []
+
     for article_id, article in current.items():
         new_hash = _content_hash(article)
+
         if article_id not in stored:
             added += 1
+
         elif stored[article_id] != new_hash:
             updated += 1
-            _delete_article(client, article_id)   # drop old chunks
+
+            # Remove old chunks before inserting the new version.
+            _delete_article(client, article_id)
+
         else:
             unchanged += 1
-            continue                              # nothing to embed
+            continue
 
         points = _build_points([article])
-        for p in points:
-            p.payload["content_hash"] = new_hash
-        if points:
-            client.upsert(QDRANT.collection_name, points=points)
 
-    # articles that disappeared from ServiceNow / are no longer published
-    removed = [a for a in stored if a not in current]
+        for point in points:
+            point.payload["content_hash"] = new_hash
+
+        if points:
+            client.upsert(
+                collection_name=QDRANT.collection_name,
+                points=points,
+            )
+
+            # Capture the deterministic Qdrant IDs.
+            point_ids.extend(
+                str(point.id)
+                for point in points
+            )
+
+    # Articles that disappeared from ServiceNow / are no longer published.
+    removed = [
+        article_id
+        for article_id in stored
+        if article_id not in current
+    ]
+
     for article_id in removed:
         _delete_article(client, article_id)
 
     result = {
-        "status": "up_to_date" if not (added or updated or removed) else "synced",
+        "status": (
+            "up_to_date"
+            if not (added or updated or removed)
+            else "synced"
+        ),
         "added": added,
         "updated": updated,
         "deleted": len(removed),
         "unchanged": unchanged,
-        "elapsed_seconds": round(time.time() - start, 2),
+        "point_ids": point_ids,
+        "elapsed_seconds": round(
+            time.time() - start,
+            2,
+        ),
     }
+
     print(f"KB sync complete: {result}")
+
     return result
-
-
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "sync":
-        sync_kb()
-    else:
-        ingest_articles(source="local")

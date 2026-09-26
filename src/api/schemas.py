@@ -77,6 +77,7 @@ class ApprovalDecision(BaseModel):
     action: str  # "approve" or "reject"
     reviewer: str
     rationale: Optional[str] = None
+    human_solution: Optional[str] = None
 
 class ApprovalDecisionResponse(BaseModel):
     approval_id: str

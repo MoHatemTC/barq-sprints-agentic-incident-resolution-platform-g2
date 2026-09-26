@@ -4,6 +4,7 @@ from src.db.models import (
     Approval,
     Execution,
     Failure,
+    KnowledgeCaptureAudit,
     WorkflowState,
 )
 
@@ -21,6 +22,7 @@ def get_execution_audit(
     - checkpoint/evidence data
     - failures
     - approval decisions
+    - knowledge capture events
     - termination reason
     """
 
@@ -67,6 +69,19 @@ def get_execution_audit(
         .order_by(
             Approval.decision_timestamp.asc(),
             Approval.id.asc(),
+        )
+        .all()
+    )
+
+    knowledge_captures = (
+        db.query(KnowledgeCaptureAudit)
+        .filter(
+            KnowledgeCaptureAudit.execution_reference
+            == execution_identifier
+        )
+        .order_by(
+            KnowledgeCaptureAudit.created_at.asc(),
+            KnowledgeCaptureAudit.id.asc(),
         )
         .all()
     )
@@ -125,5 +140,16 @@ def get_execution_audit(
                 "reviewer_identity": approval.reviewer_identity,
             }
             for approval in approvals
+        ],
+        "knowledge_captures": [
+            {
+                "article_number": capture.article_number,
+                "article_sys_id": capture.article_sys_id,
+                "qdrant_point_ids": capture.qdrant_point_ids,
+                "status": capture.status,
+                "error": capture.error,
+                "created_at": capture.created_at,
+            }
+            for capture in knowledge_captures
         ],
     }

@@ -40,6 +40,7 @@ services:
     
   api:
     build: .
+    image: barq-g2:latest
     ports:
       - "8000:8000"
     environment:
@@ -55,7 +56,7 @@ services:
       - .env
 
   worker:
-    build: .
+    image: barq-g2:latest
     command: python run_worker.py
     environment:
       POSTGRES_HOST: postgres
@@ -72,7 +73,7 @@ services:
       - .env
 
   consumer:
-    build: .
+    image: barq-g2:latest
     command: python run_consumer.py
     environment:
       POSTGRES_HOST: postgres
