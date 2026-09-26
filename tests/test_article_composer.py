@@ -112,3 +112,58 @@ def test_article_composer_rejects_missing_steps(monkeypatch):
             },
             "Restart the service.",
         )
+def test_article_composer_prompt_enforces_faithfulness_on_sparse_input(
+    monkeypatch,
+):
+    response = {
+        "title": "Restart the service",
+        "summary": "The service was unavailable.",
+        "steps": [
+            "Restart the service.",
+        ],
+    }
+
+    fake_llm = FakeLLM(json.dumps(response))
+
+    monkeypatch.setattr(
+        article_composer,
+        "get_llm",
+        lambda: fake_llm,
+    )
+
+    # Deliberately sparse incident information.
+    incident_snapshot = {
+        "number": "INC-SPARSE-001",
+        "short_description": "Service unavailable",
+    }
+
+    human_solution = "Restart the service."
+
+    result = article_composer.compose_article(
+        incident_snapshot,
+        human_solution,
+    )
+
+    assert result["title"] == "Restart the service"
+    assert result["steps"] == ["Restart the service."]
+
+    prompt = fake_llm.last_prompt
+
+    # Both grounding sources must be present.
+    assert "Service unavailable" in prompt
+    assert human_solution in prompt
+
+    # The prompt must explicitly prevent unsupported technical invention.
+    assert (
+        "Do not invent technical details, commands, causes, systems, "
+        "or configuration."
+    ) in prompt
+
+    assert (
+        "do not guess it"
+    ) in prompt.lower()
+
+    # Sparse input must not introduce technical facts that were not supplied.
+    assert "database" not in prompt.lower()
+    assert "server" not in prompt.lower()
+    assert "configuration" in prompt.lower()

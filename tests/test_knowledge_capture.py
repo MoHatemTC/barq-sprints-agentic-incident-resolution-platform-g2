@@ -144,6 +144,76 @@ def test_capture_reports_partial_success_when_qdrant_fails(
     )
 
 
+def test_servicenow_failure_prevents_qdrant_ingestion(monkeypatch):
+    """
+    ServiceNow publication must succeed before Qdrant ingestion starts.
+    If ServiceNow fails, sync_kb must never be called.
+    """
+
+    composed_article = {
+        "title": "Restart the affected service",
+        "summary": "The service was unavailable.",
+        "steps": [
+            "Restart the affected service.",
+        ],
+    }
+
+    monkeypatch.setattr(
+        knowledge_capture,
+        "compose_article",
+        lambda incident_snapshot, human_solution: composed_article,
+    )
+
+    monkeypatch.setattr(
+        knowledge_capture,
+        "composer_result_to_article",
+        lambda **kwargs: object(),
+    )
+
+    monkeypatch.setattr(
+        knowledge_capture,
+        "publish_article",
+        lambda article: (_ for _ in ()).throw(
+            RuntimeError("ServiceNow write failed")
+        ),
+    )
+
+    qdrant_called = False
+
+    def fail_if_qdrant_called():
+        nonlocal qdrant_called
+        qdrant_called = True
+        raise AssertionError(
+            "Qdrant ingestion must not start when "
+            "ServiceNow publication fails"
+        )
+
+    monkeypatch.setattr(
+        knowledge_capture,
+        "sync_kb",
+        fail_if_qdrant_called,
+    )
+
+    try:
+        knowledge_capture.capture_human_resolution(
+            incident_snapshot={
+                "number": "INC001103",
+                "short_description": "Service unavailable",
+            },
+            human_solution="Restart the affected service.",
+            article_number="KB0103",
+            category="network",
+        )
+    except RuntimeError as exc:
+        assert str(exc) == "ServiceNow write failed"
+    else:
+        raise AssertionError(
+            "Expected ServiceNow publication failure"
+        )
+
+    assert qdrant_called is False
+
+
 def test_capture_rejects_empty_human_solution():
     try:
         knowledge_capture.capture_human_resolution(
@@ -248,4 +318,4 @@ def test_capture_records_audit_result(monkeypatch):
     assert audit["qdrant_point_ids"] == [
         "point-101",
         "point-102",
-    ]   
+    ]
