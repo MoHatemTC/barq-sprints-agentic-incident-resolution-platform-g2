@@ -141,7 +141,7 @@ def knowledge_capture_node(state: AgentState) -> AgentState:
     try:
         result = DEFAULT_TOOL_REGISTRY.dispatch(
             "kb_write_back",
-            execution_id=execution_id,
+            execution_id,
             incident_snapshot=incident_payload,
             human_solution=human_solution,
             article_number=article_number,

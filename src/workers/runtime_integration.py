@@ -23,8 +23,15 @@ logger = logging.getLogger(__name__)
 
 def execution_status_for(result: object) -> str:
     """S3.4: a graph that paused at interrupt() is awaiting approval, not finished."""
-    if isinstance(result, Mapping) and result.get("__interrupt__"):
+    if not isinstance(result, Mapping):
+        return "succeeded"
+    
+    if result.get("__interrupt__") or result.get("human_review_required"):
         return "awaiting_approval"
+    
+    if result.get("failure_reason"):
+        return "failed"
+        
     return "succeeded"
 
 
@@ -171,10 +178,8 @@ class StateManagerTaskRecorder:
         finally:
             close()
 
-        # S3.4: a paused run must not write to ServiceNow before the human decides;
-        # act writes after the approval resumes it
-        if execution_status_for(result) == "awaiting_approval":
-            return
+        # Fix for BUG-01: Synchronize partial state to ServiceNow even when paused
+        # so reviewers can see the AI's diagnosis in ServiceNow while they review.
         _sync_servicenow_completion(
             accepted_incident,
             checkpoint,
@@ -338,8 +343,9 @@ def _servicenow_completion_fields(
     execution_metadata = execution_metadata or {}
     outputs = checkpoint.get("outputs")
     outputs = outputs if isinstance(outputs, Mapping) else {}
+    is_awaiting_approval = checkpoint.get("__interrupt__") or checkpoint.get("human_review_required")
     fields: dict[str, object] = {
-        "processing_state": "complete",
+        "processing_state": "awaiting_approval" if is_awaiting_approval else "complete",
         "processing_start": execution_metadata.get("processing_start"),
         "processing_end": execution_metadata.get("processing_end"),
         "max_retries": execution_metadata.get("max_retries", 3),
