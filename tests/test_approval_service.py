@@ -11,6 +11,7 @@ from src.db.approval_service import (
 )
 from src.db.models import Approval, Execution
 
+
 @pytest.fixture(scope="module", autouse=True)
 def setup_approval_trigger():
     """Ensures the immutability trigger exists before any tests in this module run."""
@@ -32,6 +33,7 @@ def setup_approval_trigger():
         db.commit()
     finally:
         db.close()
+
 
 def unique_execution_reference(prefix):
     return f"{prefix}-{uuid4().hex}"
@@ -59,7 +61,12 @@ def cleanup(execution_reference):
     try:
         # 1. Attempt to disable the trigger (ignore if it doesn't exist)
         try:
-            db.execute(text("ALTER TABLE approvals DISABLE TRIGGER approval_immutable"))
+            db.execute(
+                text(
+                    "ALTER TABLE approvals "
+                    "DISABLE TRIGGER approval_immutable"
+                )
+            )
         except ProgrammingError:
             db.rollback()
 
@@ -76,7 +83,12 @@ def cleanup(execution_reference):
 
         # 3. Attempt to re-enable the trigger
         try:
-            db.execute(text("ALTER TABLE approvals ENABLE TRIGGER approval_immutable"))
+            db.execute(
+                text(
+                    "ALTER TABLE approvals "
+                    "ENABLE TRIGGER approval_immutable"
+                )
+            )
             db.commit()
         except ProgrammingError:
             db.rollback()
@@ -239,5 +251,47 @@ def test_approval_cannot_be_deleted():
 
     finally:
         db.rollback()
+        db.close()
+        cleanup(execution_reference)
+
+
+def test_approval_stores_human_solution():
+
+    execution_reference = unique_execution_reference(
+        "exec-approval-human-solution"
+    )
+
+    cleanup(execution_reference)
+
+    db = SessionLocal()
+
+    try:
+        create_test_execution(
+            db,
+            execution_reference,
+        )
+
+        human_solution = (
+            "Restart the affected service and verify that the incident is resolved."
+        )
+
+        approval = create_approval(
+            db,
+            execution_reference,
+            "No existing KB evidence",
+            "approved",
+            "reviewer_user",
+            human_solution,
+        )
+
+        assert approval.human_solution == human_solution
+
+        stored = db.query(Approval).filter(
+            Approval.execution_reference == execution_reference
+        ).one()
+
+        assert stored.human_solution == human_solution
+
+    finally:
         db.close()
         cleanup(execution_reference)

@@ -11,6 +11,7 @@ def create_approval(
     evidence_presented: str,
     reviewer_decision: str,
     reviewer_identity: str,
+    human_solution: str | None = None,
 ):
     """
     Create an approval record.
@@ -19,6 +20,7 @@ def create_approval(
     approval = Approval(
         execution_reference=execution_reference,
         evidence_presented=evidence_presented,
+        human_solution=human_solution,
         reviewer_decision=reviewer_decision,
         decision_timestamp=datetime.now(timezone.utc),
         reviewer_identity=reviewer_identity,

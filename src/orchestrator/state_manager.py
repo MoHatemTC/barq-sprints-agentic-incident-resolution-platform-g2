@@ -132,6 +132,7 @@ class StateManager:
         evidence_presented: str,
         reviewer_decision: str,
         reviewer_identity: str,
+        human_solution: str | None = None,
     ):
         return create_approval(
             self.db,
@@ -139,6 +140,7 @@ class StateManager:
             evidence_presented,
             reviewer_decision,
             reviewer_identity,
+            human_solution,
         )
 
     def get_approvals(

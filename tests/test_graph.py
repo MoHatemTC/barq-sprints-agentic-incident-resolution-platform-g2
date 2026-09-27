@@ -1,6 +1,10 @@
+<<<<<<< HEAD
+from unittest.mock import MagicMock, patch
+=======
 ﻿import json
 from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
+>>>>>>> origin/development
 
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -79,6 +83,20 @@ def _mock_routing_agents(risk="low", include_resolution_agents=False):
 @patch("src.agent.nodes.retrieve.search", return_value=[_fake_chunk()])
 def test_graph_routing_normal_risk(mock_search):
     """Normal risk incident should go through the full automated path to act."""
+<<<<<<< HEAD
+
+    graph = create_graph().compile()
+
+    initial_state = {
+        "execution_id": "test_1",
+        "incident_number": "INC_TEST_01",
+        "incident_payload": {
+            "description": "normal issue"
+        },
+    }
+
+    result = graph.invoke(initial_state)
+=======
     with _mock_routing_agents(include_resolution_agents=True):
         graph = create_graph().compile()
         result = graph.invoke({
@@ -86,13 +104,39 @@ def test_graph_routing_normal_risk(mock_search):
             "incident_number": "INC_TEST_01",
             "incident_payload": {"description": "normal issue"},
         })
+>>>>>>> origin/development
 
     assert result["action_taken"] == "resolved_automatically"
-    assert result["risk"] == "low"  # Kept from incoming branch
+    assert result["risk"] == "low"
 
 
 @patch("src.agent.nodes.retrieve.search", return_value=[])
 def test_graph_routes_to_interrupt_when_no_evidence(mock_search):
+<<<<<<< HEAD
+    """Empty retrieval result should pause for human resolution."""
+
+    graph = create_graph().compile()
+
+    result = graph.invoke(
+        {
+            "execution_id": "test_2",
+            "incident_number": "INC_TEST_02",
+            "incident_payload": {
+                "description": "something unrelated"
+            },
+        }
+    )
+
+    assert "__interrupt__" in result
+    assert len(result["__interrupt__"]) == 1
+
+    interrupt_value = result["__interrupt__"][0].value
+
+    assert interrupt_value["type"] == "human_resolution_required"
+    assert interrupt_value["execution_id"] == "test_2"
+    assert interrupt_value["incident_number"] == "INC_TEST_02"
+    assert interrupt_value["reason"] == "no_evidence"
+=======
     """Empty retrieval result -> human review, not diagnose."""
     with _mock_routing_agents():
         graph = create_graph().compile(checkpointer=MemorySaver())
@@ -106,10 +150,65 @@ def test_graph_routes_to_interrupt_when_no_evidence(mock_search):
     assert result["gate"] == "no_evidence"
     assert result["human_review_required"] is True
     assert result["failure_reason"] == "no_evidence"
+>>>>>>> origin/development
 
 
-@patch("src.agent.nodes.retrieve.search", side_effect=RuntimeError("qdrant down"))
+@patch(
+    "src.agent.nodes.retrieve.search",
+    side_effect=RuntimeError("qdrant down"),
+)
 def test_graph_routes_to_interrupt_when_retrieval_fails(mock_search):
+<<<<<<< HEAD
+    """Retrieval exception should pause for human resolution."""
+
+    graph = create_graph().compile()
+
+    result = graph.invoke(
+        {
+            "execution_id": "test_3",
+            "incident_number": "INC_TEST_03",
+            "incident_payload": {
+                "description": "vpn issue"
+            },
+        }
+    )
+
+    assert "__interrupt__" in result
+    assert len(result["__interrupt__"]) == 1
+
+    interrupt_value = result["__interrupt__"][0].value
+
+    assert interrupt_value["type"] == "human_resolution_required"
+    assert interrupt_value["execution_id"] == "test_3"
+    assert interrupt_value["incident_number"] == "INC_TEST_03"
+    assert interrupt_value["reason"] == "retrieval_failed"
+
+
+def test_graph_routing_high_risk():
+    """High-risk incident should skip retrieval and pause for human resolution."""
+
+    graph = create_graph().compile()
+
+    initial_state = {
+        "execution_id": "test_4",
+        "incident_number": "INC_TEST_04",
+        "incident_payload": {
+            "description": "this is a high-risk task"
+        },
+    }
+
+    result = graph.invoke(initial_state)
+
+    assert "__interrupt__" in result
+    assert len(result["__interrupt__"]) == 1
+
+    interrupt_value = result["__interrupt__"][0].value
+
+    assert interrupt_value["type"] == "human_resolution_required"
+    assert interrupt_value["execution_id"] == "test_4"
+    assert interrupt_value["incident_number"] == "INC_TEST_04"
+    assert interrupt_value["reason"] == "high_risk_incident"
+=======
     """Retrieval exception -> human review with retrieval_failed reason."""
     with _mock_routing_agents():
         graph = create_graph().compile(checkpointer=MemorySaver())
@@ -287,3 +386,4 @@ def test_revised_draft_resolves_critic_flagged_issue(
 
 
 
+>>>>>>> origin/development

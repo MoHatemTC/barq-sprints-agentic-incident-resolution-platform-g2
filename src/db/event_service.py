@@ -41,3 +41,29 @@ def process_event(
     db.refresh(event)
 
     return event
+
+
+def get_incident_sys_id(
+    db: Session,
+    incident_number: str,
+) -> str | None:
+    """
+    Return the ServiceNow sys_id for an incident number.
+
+    The latest event is used when the same incident
+    has generated multiple events.
+    """
+
+    event = (
+        db.query(Event)
+        .filter(
+            Event.incident_number == incident_number
+        )
+        .order_by(Event.id.desc())
+        .first()
+    )
+
+    if event is None:
+        return None
+
+    return event.incident_sys_id

@@ -12,7 +12,11 @@ from sqlalchemy import (
     UniqueConstraint,
     DDL,
     event,
+<<<<<<< HEAD
+    JSON,
+=======
     false,
+>>>>>>> origin/development
 )
 
 from src.db.database import Base
@@ -144,6 +148,50 @@ class Execution(Base):
     )
 
 
+class KnowledgeCaptureAudit(Base):
+    __tablename__ = "knowledge_capture_audit"
+
+    id = Column(Integer, primary_key=True)
+
+    execution_reference = Column(
+        String(255),
+        nullable=False,
+        index=True,
+    )
+
+    article_number = Column(
+        String(255),
+        nullable=True,
+    )
+
+    article_sys_id = Column(
+        String(255),
+        nullable=True,
+    )
+
+    qdrant_point_ids = Column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
+
+    status = Column(
+        String(50),
+        nullable=False,
+    )
+
+    error = Column(
+        Text,
+        nullable=True,
+    )
+
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+
 class WorkflowState(Base):
     __tablename__ = "workflow_state"
 
@@ -202,6 +250,19 @@ class Approval(Base):
         nullable=False
     )
 
+    human_solution = Column(
+        Text,
+        nullable=True
+    )
+
+    # Single-use approval grant for HIGH_RISK tools.
+    # It is consumed atomically by permissions.is_approved().
+    consumed = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+    )
+
     reviewer_decision = Column(
         String(50),
         nullable=False
@@ -209,7 +270,8 @@ class Approval(Base):
 
     decision_timestamp = Column(
         DateTime(timezone=True),
-        nullable=False
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
     )
 
     reviewer_identity = Column(
@@ -301,6 +363,35 @@ class RetryState(Base):
 approval_trigger_function_ddl = DDL("""
 CREATE OR REPLACE FUNCTION prevent_approval_modification() RETURNS TRIGGER AS $$
 BEGIN
+<<<<<<< HEAD
+    IF TG_OP = 'DELETE' THEN
+        RAISE EXCEPTION 'approval records are immutable';
+    END IF;
+
+    IF TG_OP = 'UPDATE' THEN
+        IF
+            NEW.id IS DISTINCT FROM OLD.id
+            OR NEW.execution_reference IS DISTINCT FROM OLD.execution_reference
+            OR NEW.evidence_presented IS DISTINCT FROM OLD.evidence_presented
+            OR NEW.human_solution IS DISTINCT FROM OLD.human_solution
+            OR NEW.reviewer_decision IS DISTINCT FROM OLD.reviewer_decision
+            OR NEW.decision_timestamp IS DISTINCT FROM OLD.decision_timestamp
+            OR NEW.reviewer_identity IS DISTINCT FROM OLD.reviewer_identity
+            OR (
+                OLD.consumed = true
+                AND NEW.consumed IS DISTINCT FROM OLD.consumed
+            )
+            OR (
+                OLD.consumed = false
+                AND NEW.consumed = false
+            )
+        THEN
+            RAISE EXCEPTION 'approval records are immutable except for one-time consumption';
+        END IF;
+    END IF;
+
+    RETURN NEW;
+=======
     IF NEW.consumed = true AND OLD.consumed = false AND
        NEW.execution_reference IS NOT DISTINCT FROM OLD.execution_reference AND
        NEW.evidence_presented IS NOT DISTINCT FROM OLD.evidence_presented AND
@@ -311,6 +402,7 @@ BEGIN
         RETURN NEW;
     END IF;
     RAISE EXCEPTION 'approval records are immutable';
+>>>>>>> origin/development
 END;
 $$ LANGUAGE plpgsql;
 """)
@@ -325,7 +417,11 @@ BEFORE UPDATE OR DELETE ON approvals
 FOR EACH ROW EXECUTE FUNCTION prevent_approval_modification();
 """)
 
+<<<<<<< HEAD
+event.listen(Approval.__table__, "after_create", approval_trigger_ddl)
+=======
 # Tell SQLAlchemy to run this SQL immediately after creating the 'approvals' table
 event.listen(Approval.__table__, 'after_create', approval_trigger_function_ddl)
 event.listen(Approval.__table__, 'after_create', drop_approval_trigger_ddl)
 event.listen(Approval.__table__, 'after_create', approval_trigger_ddl)
+>>>>>>> origin/development

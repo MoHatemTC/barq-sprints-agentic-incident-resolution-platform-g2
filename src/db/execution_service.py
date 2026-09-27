@@ -41,7 +41,25 @@ def create_execution(
 
     return execution
 
+def get_execution(
+    db: Session,
+    execution_identifier: str,
+):
+    """
+    Return an execution by its identifier.
 
+    Returns:
+        Execution object if found
+        None otherwise
+    """
+
+    return (
+        db.query(Execution)
+        .filter(
+            Execution.execution_identifier == execution_identifier
+        )
+        .first()
+    )
 def update_execution_status(
     db: Session,
     execution_identifier: str,
