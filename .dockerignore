@@ -3,3 +3,6 @@ __pycache__
 *.pyc
 .git
 .env
+venv/
+data/backup/
+data/servicenow_kb_mapping*.json

@@ -12,7 +12,11 @@ from sqlalchemy import (
     UniqueConstraint,
     DDL,
     event,
+<<<<<<< HEAD
     JSON,
+=======
+    false,
+>>>>>>> origin/development
 )
 
 from src.db.database import Base
@@ -133,7 +137,8 @@ class Execution(Base):
     __table_args__ = (
         CheckConstraint(
             "status IN "
-            "('started', 'succeeded', 'failed', 'blocked', 'abandoned')",
+            "('started', 'succeeded', 'failed', 'blocked', 'abandoned', "
+            "'awaiting_approval')",
             name="ck_executions_status",
         ),
         CheckConstraint(
@@ -274,6 +279,13 @@ class Approval(Base):
         nullable=False
     )
 
+    consumed = Column(
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default=false(),
+    )
+
 
 class Failure(Base):
     __tablename__ = "failures"
@@ -348,9 +360,10 @@ class RetryState(Base):
 # Database Triggers & DDL
 # ==========================================
 
-approval_trigger_ddl = DDL("""
+approval_trigger_function_ddl = DDL("""
 CREATE OR REPLACE FUNCTION prevent_approval_modification() RETURNS TRIGGER AS $$
 BEGIN
+<<<<<<< HEAD
     IF TG_OP = 'DELETE' THEN
         RAISE EXCEPTION 'approval records are immutable';
     END IF;
@@ -378,14 +391,37 @@ BEGIN
     END IF;
 
     RETURN NEW;
+=======
+    IF NEW.consumed = true AND OLD.consumed = false AND
+       NEW.execution_reference IS NOT DISTINCT FROM OLD.execution_reference AND
+       NEW.evidence_presented IS NOT DISTINCT FROM OLD.evidence_presented AND
+       NEW.reviewer_decision IS NOT DISTINCT FROM OLD.reviewer_decision AND
+       NEW.decision_timestamp IS NOT DISTINCT FROM OLD.decision_timestamp AND
+       NEW.reviewer_identity IS NOT DISTINCT FROM OLD.reviewer_identity
+    THEN
+        RETURN NEW;
+    END IF;
+    RAISE EXCEPTION 'approval records are immutable';
+>>>>>>> origin/development
 END;
 $$ LANGUAGE plpgsql;
+""")
 
+drop_approval_trigger_ddl = DDL("""
 DROP TRIGGER IF EXISTS approval_immutable ON approvals;
+""")
 
+approval_trigger_ddl = DDL("""
 CREATE TRIGGER approval_immutable
 BEFORE UPDATE OR DELETE ON approvals
 FOR EACH ROW EXECUTE FUNCTION prevent_approval_modification();
 """)
 
+<<<<<<< HEAD
 event.listen(Approval.__table__, "after_create", approval_trigger_ddl)
+=======
+# Tell SQLAlchemy to run this SQL immediately after creating the 'approvals' table
+event.listen(Approval.__table__, 'after_create', approval_trigger_function_ddl)
+event.listen(Approval.__table__, 'after_create', drop_approval_trigger_ddl)
+event.listen(Approval.__table__, 'after_create', approval_trigger_ddl)
+>>>>>>> origin/development

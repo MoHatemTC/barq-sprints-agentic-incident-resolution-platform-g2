@@ -1,6 +1,5 @@
 # tests/test_app_wiring.py — full corrected version
 
-import pytest
 from unittest.mock import patch, AsyncMock, MagicMock
 from fastapi.testclient import TestClient
 

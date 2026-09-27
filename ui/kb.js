@@ -33,6 +33,8 @@
     cat: '',
     open: new Set(),
     firstLoad: true,
+    sourceAvailable: true,
+    sourceError: '',
   };
   const pageSize = () => (state.size === 'all' ? Infinity : parseInt(state.size, 10));
 
@@ -118,7 +120,10 @@
 
     list.innerHTML = shown.map((a, i) => rowHtml(a, i, animate)).join('');
 
-    if (!articles.length) {
+    if (!state.sourceAvailable) {
+      empty.innerHTML = `<strong>ServiceNow unavailable</strong>${escapeHtml(state.sourceError || 'Check ServiceNow OAuth settings, then refresh.')}`;
+      empty.hidden = false;
+    } else if (!articles.length) {
       empty.innerHTML = '<strong>No published articles yet</strong>Add the first one, or publish the corpus with publish_kb.';
       empty.hidden = false;
     } else if (!rows.length) {
@@ -153,8 +158,11 @@
     try {
       const data = await api('/api/v1/kb/articles');
       articles = data.articles || [];
+      state.sourceAvailable = data.source_available !== false;
+      state.sourceError = data.source_error || '';
       if (data.options) options = data.options;
-      setConn(data.index_available ? 'ok' : 'err', data.index_available ? 'Connected' : 'Vector DB unreachable');
+      if (!state.sourceAvailable) setConn('err', 'ServiceNow unavailable');
+      else setConn(data.index_available ? 'ok' : 'err', data.index_available ? 'Connected' : 'Vector DB unreachable');
       fillOptions();
       renderMetrics(data.summary, data.count);
       resetVisible();

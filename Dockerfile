@@ -1,10 +1,11 @@
+# syntax=docker/dockerfile:1.7
 FROM python:3.12-slim
 
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir torch==2.14.0 --index-url https://download.pytorch.org/whl/cpu
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --no-compile --retries 5 --timeout 60 -r requirements.txt
 
 COPY . .
 

@@ -157,6 +157,7 @@
         <nav class="nav" aria-label="Main">
           <a href="dashboard.html" ${active === 'pipeline' ? 'aria-current="page"' : ''}>Pipeline</a>
           <a href="kb.html" ${active === 'kb' ? 'aria-current="page"' : ''}>Knowledge base</a>
+          <a href="approvals.html" ${active === 'approvals' ? 'aria-current="page"' : ''}>Approvals <span class="badge" id="approvalCount" hidden></span></a>
         </nav>
         <div class="topbar-right">
           <span class="conn" id="conn" data-state="idle"><i></i><span id="connText">Connecting</span></span>
@@ -168,6 +169,13 @@
           </button>
         </div>
       </div>`;
+
+    // how many runs wait for a human decision (S3.4)
+    api('/api/v1/approvals').then((data) => {
+      const badge = $('approvalCount');
+      badge.textContent = String(data.total || 0);
+      badge.hidden = !data.total;
+    }).catch(() => {});
 
     $('themeBtn').addEventListener('click', () => {
       store.set('barq.theme', resolveTheme() === 'dark' ? 'light' : 'dark');

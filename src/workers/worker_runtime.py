@@ -21,7 +21,11 @@ from src.workers.runtime_integration import establish_execution_context
 from src.workers.tasks import (
     ProductionIntegrationSeams,
     register_process_accepted_incident_task,
+<<<<<<< HEAD
     register_resume_incident_graph_task,
+=======
+    register_resume_incident_task,
+>>>>>>> origin/development
 )
 
 
@@ -80,7 +84,12 @@ def create_integrated_worker(
         ),
         app=celery_app,
     )
+<<<<<<< HEAD
 
     register_resume_incident_graph_task(app=celery_app)
 
+=======
+    # S3.4 resumes paused executions after an approval decision
+    register_resume_incident_task(retry_policy, celery_app)
+>>>>>>> origin/development
     return IntegratedWorker(redis_client, process_task)

@@ -37,11 +37,19 @@
   function pipelineStages(exec) {
     const status = exec.status;
     const result = exec.latest_result || {};
+    const out = result.outputs || {};
+    // A finished run only marks the stages that really ran: a high-risk run
+    // goes to a human before retrieve/diagnose/generate, so those stay grey
+    if (status === 'succeeded' && result.action_taken) {
+      const ran = [true, !!result.classification, !!(result.retrieved_evidence || []).length,
+        !!out.diagnosis, !!out.resolution, !!out.resolution && result.action_taken !== 'rejected_by_human'];
+      return ran.map((r) => (r ? 'done' : 'pending'));
+    }
     let reached = 0;
     if (result.retrieved_evidence) reached = 2;
     if (result.classification) reached = 1;
-    if (result.outputs && result.outputs.diagnosis) reached = 3;
-    if (result.outputs && result.outputs.resolution) reached = 4;
+    if (out.diagnosis) reached = 3;
+    if (out.resolution) reached = 4;
     if (status === 'succeeded') reached = 5;
 
     return STAGES.map((_, i) => {
@@ -95,11 +103,17 @@
       fact('Risk', result.risk) +
       fact('Confidence', result.confidence) +
       fact('Eligibility', out.eligibility) +
+      fact('Stopped at gate', result.gate) +
+      fact('Outcome', result.action_taken) +
+      fact('ServiceNow write', result.servicenow_write) +
       fact('Node reached', exec.node_reached) +
       fact('Retry attempts', exec.retry_attempt_count) +
       '</dl>';
     if (out.diagnosis || out.resolution) {
       html += `<div class="result"><b>Diagnosis</b><span>${escapeHtml(out.diagnosis || '\u2014')}</span><b>Resolution</b><span>${escapeHtml(out.resolution || '\u2014')}</span></div>`;
+    }
+    if (exec.status === 'awaiting_approval') {
+      html += `<div class="dialog-actions"><div class="right"><a class="btn btn-primary btn-sm" href="approvals.html#${encodeURIComponent(exec.execution_id)}">Review →</a></div></div>`;
     }
     (exec.failures || []).forEach((f) => {
       html += `<div class="fail"><strong>${escapeHtml(f.failing_node)}</strong> \u2014 ${escapeHtml(f.error_class)}: ${escapeHtml(f.message)}</div>`;

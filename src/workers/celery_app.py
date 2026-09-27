@@ -23,5 +23,6 @@ def create_celery_app(config: WorkerConfig | None = None) -> Celery:
         task_soft_time_limit=worker_config.task_soft_time_limit_seconds,
         task_time_limit=worker_config.task_time_limit_seconds,
         worker_soft_shutdown_timeout=worker_config.worker_shutdown_timeout_seconds,
+        broker_transport_options={"visibility_timeout": worker_config.visibility_timeout_seconds},
     )
     return app

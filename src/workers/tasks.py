@@ -1,10 +1,17 @@
 """S2.3 Celery task orchestration — retry, DLQ, and integration seams."""
 
+import json
+import logging
 import os
 
 from dataclasses import dataclass
+<<<<<<< HEAD
 
 from typing import Protocol
+=======
+from datetime import datetime, timezone
+from typing import Callable, Protocol
+>>>>>>> origin/development
 
 from celery import Celery, Task
 
@@ -13,9 +20,13 @@ from celery.exceptions import SoftTimeLimitExceeded
 from langgraph.types import Command
 
 from src.agent.graph import compile_graph
+<<<<<<< HEAD
 
 from src.agent.checkpointer import get_checkpointer
 
+=======
+from src.agent.checkpointer import get_checkpointer, get_run_state, is_paused, thread_config
+>>>>>>> origin/development
 from src.observability.tracing import trace_execution
 
 from src.workers.celery_app import create_celery_app
@@ -33,9 +44,58 @@ from src.workers.runtime_integration import (
     StateManagerTaskRecorder,
 
     context_from_task_headers,
+<<<<<<< HEAD
 
 )
 
+=======
+    execution_status_for,
+    load_s2_2_state_manager,
+)
+
+logger = logging.getLogger(__name__)
+
+RESUME_TASK_NAME = "resume_incident_graph"
+
+# workflow_state.node_name values that tell the audit trail how a run continued
+AUDIT_INTERRUPT = "interrupt"
+AUDIT_RESUME_HUMAN = "resume:human"
+AUDIT_RESUME_CRASH = "resume:crash_recovery"
+AUDIT_RESULT = "result"
+
+
+def record_audit(execution_id: str, node_name: str, data: dict) -> None:
+    """Append a workflow_state audit row; never breaks the run if Postgres is down."""
+    try:
+        state_manager, close = load_s2_2_state_manager()
+        try:
+            state_manager.save_checkpoint(execution_id, node_name, json.dumps(data, default=str))
+        finally:
+            close()
+    except Exception as exc:
+        logger.warning(f"Audit row {node_name} not written for {execution_id}: {exc}")
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def continue_run(graph, execution_id: str, decision: dict | None = None) -> dict:
+    """Continue a checkpointed run: resume a paused one with the human decision, or finish one a crash stopped mid-way. Safe to call again on retry."""
+    snapshot = get_run_state(graph, execution_id)
+    if snapshot is None:
+        raise ValueError(f"no checkpoint for execution {execution_id}")
+    config = thread_config(execution_id)
+    if is_paused(snapshot):
+        if decision is None:
+            return {**snapshot.values, "__interrupt__": snapshot.interrupts}
+        return graph.invoke(Command(resume=decision), config=config)
+    if snapshot.next:
+        return graph.invoke(None, config=config)
+    return snapshot.values
+
+
+>>>>>>> origin/development
 class GraphAgentExecutor:
 
     """
@@ -46,6 +106,53 @@ class GraphAgentExecutor:
 
     """
 
+<<<<<<< HEAD
+=======
+    def __init__(self, audit: Callable[[str, str, dict], None] = record_audit):
+        self._audit = audit
+
+    def _continue(self, graph, execution_id: str, decision: dict | None = None) -> dict:
+        """Continue an existing checkpoint and record how it continued."""
+        snapshot = get_run_state(graph, execution_id)
+        ran = False
+        if is_paused(snapshot):
+            if decision is not None:
+                ran = True
+                self._audit(execution_id, AUDIT_RESUME_HUMAN, {**decision, "resumed_at": _now()})
+        elif snapshot is not None and snapshot.next:
+            ran = True
+            self._audit(execution_id, AUDIT_RESUME_CRASH, {
+                "from_node": list(snapshot.next),
+                "human_decision": snapshot.values.get("human_decision"),
+                "recovered_at": _now(),
+            })
+        result = continue_run(graph, execution_id, decision)
+        if ran:
+            self._audit_outcome(execution_id, result)
+        return result
+
+    def _audit_outcome(self, execution_id: str, result: dict) -> None:
+        """Paused: the raw payload (NFR-07). Finished: the outcome the dashboard shows."""
+        if execution_status_for(result) == "awaiting_approval":
+            self._audit(execution_id, AUDIT_INTERRUPT, {
+                "payload": result.get("interrupt_payload"),
+                "brief": result.get("approval_brief"),
+                "paused_at": _now(),
+            })
+            return
+        self._audit(execution_id, AUDIT_RESULT, {
+            "classification": result.get("classification"),
+            "risk": result.get("risk"),
+            "confidence": result.get("confidence"),
+            "gate": result.get("gate"),
+            "outputs": result.get("outputs"),
+            "retrieved_evidence": [e.get("id") for e in result.get("retrieved_evidence") or []],
+            "action_taken": result.get("action_taken"),
+            "servicenow_write": result.get("servicenow_write"),
+            "finished_at": _now(),
+        })
+
+>>>>>>> origin/development
     @trace_execution(name="execute_incident_graph")
 
     def execute(
@@ -97,6 +204,7 @@ class GraphAgentExecutor:
             "incident_payload": accepted_incident,
 
         }
+<<<<<<< HEAD
 
         config = {
 
@@ -183,6 +291,28 @@ def register_resume_incident_graph_task(
         )
 
     return resume_task
+=======
+        
+        config = {"configurable": {"thread_id": exec_id}}
+
+        # A retry or redelivery (worker killed, task retried) finds the checkpoint: continue from the last completed node instead of starting again 
+        snapshot = get_run_state(graph, exec_id)
+        if snapshot is not None:
+            if is_paused(snapshot):
+                return continue_run(graph, exec_id)
+            return self._continue(graph, exec_id)
+
+        # Run the graph
+        result = graph.invoke(initial_state, config=config)
+        self._audit_outcome(exec_id, result)
+        return result
+
+    @trace_execution(name="resume_incident_graph")
+    def resume(self, execution_id: str = None, decision: dict = None) -> dict:
+        """Continue the SAME checkpointed execution after a human decision"""
+        graph = compile_graph(checkpointer=get_checkpointer())
+        return self._continue(graph, execution_id, decision)
+>>>>>>> origin/development
 
 
 class AgentExecutor(Protocol):
@@ -603,6 +733,60 @@ def register_process_accepted_incident_task(
 
     return process_accepted_incident
 
+<<<<<<< HEAD
+=======
+
+def _set_execution_status(state_manager_factory, execution_id: str, status: str,
+                          error: BaseException | None = None, retries: int = 0) -> None:
+    state_manager, close = state_manager_factory()
+    try:
+        if error is not None:
+            state_manager.record_failure(
+                execution_reference=execution_id,
+                failing_node="resume",
+                error_class=type(error).__name__,
+                message=str(error),
+                retry_count=retries,
+            )
+        state_manager.update_execution_status(execution_id, status)
+    finally:
+        close()
+
+
+def register_resume_incident_task(
+    retry_policy: RetryPolicy,
+    app: Celery,
+    agent: object | None = None,
+    state_manager_factory=load_s2_2_state_manager,
+) -> Task:
+    """S3.4 REQ resume a paused execution with the reviewer's decision."""
+
+    @app.task(bind=True, name=RESUME_TASK_NAME, shared=False)
+    def resume_incident_graph(task: Task, execution_id: str, decision: dict) -> dict:
+        executor = agent or GraphAgentExecutor()
+        retries = task.request.retries
+        try:
+            result = executor.resume(execution_id=execution_id, decision=decision)
+        except Exception as error:
+            if retry_policy.decide(error, retries) is RetryDecision.RETRY:
+                raise task.retry(
+                    exc=error,
+                    countdown=retry_policy.delay_for_retry(retries + 1),
+                    max_retries=retry_policy.max_retries,
+                )
+            _set_execution_status(state_manager_factory, execution_id, "failed", error, retries)
+            raise
+        _set_execution_status(state_manager_factory, execution_id, execution_status_for(result))
+        return {
+            "execution_id": execution_id,
+            "action_taken": result.get("action_taken"),
+            "servicenow_write": result.get("servicenow_write"),
+        }
+
+    return resume_incident_graph
+
+
+>>>>>>> origin/development
 # ---------------------------------------------------------------------------
 
 # Temporary standalone task for local use until S2.3 branch is fully merged

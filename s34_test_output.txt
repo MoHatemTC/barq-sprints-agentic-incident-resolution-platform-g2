@@ -1,0 +1,98 @@
+============================= test session starts =============================
+platform win32 -- Python 3.13.14, pytest-9.1.1, pluggy-1.6.0 -- D:\Barq systems internhsip\barq-sprints-agentic-incident-resolution-platform-g2\venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: D:\Barq systems internhsip\barq-sprints-agentic-incident-resolution-platform-g2
+plugins: anyio-4.15.1, langsmith-0.13.0
+collecting ... collected 71 items
+
+tests/test_interrupt_resume.py::test_high_risk_pauses_at_interrupt_with_payload PASSED [  1%]
+tests/test_interrupt_resume.py::test_normal_incident_does_not_pause PASSED [  2%]
+tests/test_interrupt_resume.py::test_approve_resumes_same_run_to_act PASSED [  4%]
+tests/test_interrupt_resume.py::test_reject_resumes_to_rejection PASSED  [  5%]
+tests/test_interrupt_resume.py::test_payload_is_built_once_across_pause_and_resume PASSED [  7%]
+tests/test_interrupt_resume.py::test_detect_gate[state0-critic_exhausted] PASSED [  8%]
+tests/test_interrupt_resume.py::test_detect_gate[state1-safety_blocked] PASSED [  9%]
+tests/test_interrupt_resume.py::test_detect_gate[state2-high_risk] PASSED [ 11%]
+tests/test_interrupt_resume.py::test_detect_gate[state3-retrieval_failed] PASSED [ 12%]
+tests/test_interrupt_resume.py::test_detect_gate[state4-no_evidence] PASSED [ 14%]
+tests/test_interrupt_resume.py::test_detect_gate[state5-low_confidence] PASSED [ 15%]
+tests/test_interrupt_resume.py::test_confidence_router_sends_human_cases_to_review[state0] PASSED [ 16%]
+tests/test_interrupt_resume.py::test_confidence_router_sends_human_cases_to_review[state1] PASSED [ 18%]
+tests/test_interrupt_resume.py::test_confidence_router_sends_human_cases_to_review[state2] PASSED [ 19%]
+tests/test_interrupt_resume.py::test_confidence_router_lets_confident_runs_act PASSED [ 21%]
+tests/test_interrupt_resume.py::test_unclear_decision_counts_as_reject[None] PASSED [ 22%]
+tests/test_interrupt_resume.py::test_unclear_decision_counts_as_reject[approve] PASSED [ 23%]
+tests/test_interrupt_resume.py::test_unclear_decision_counts_as_reject[value2] PASSED [ 25%]
+tests/test_interrupt_resume.py::test_unclear_decision_counts_as_reject[value3] PASSED [ 26%]
+tests/test_interrupt_resume.py::test_unclear_decision_counts_as_reject[value4] PASSED [ 28%]
+tests/test_crash_recovery.py::test_automatic_run_writes_once PASSED      [ 29%]
+tests/test_crash_recovery.py::test_no_write_while_paused PASSED          [ 30%]
+tests/test_crash_recovery.py::test_approve_writes_resolution PASSED      [ 32%]
+tests/test_crash_recovery.py::test_reject_writes_escalation PASSED       [ 33%]
+tests/test_crash_recovery.py::test_missing_sys_id_skips_write PASSED     [ 35%]
+tests/test_crash_recovery.py::test_automatic_run_recovers_without_duplicate[before_patch-1-written] PASSED [ 36%]
+tests/test_crash_recovery.py::test_automatic_run_recovers_without_duplicate[after_patch-2-written] PASSED [ 38%]
+tests/test_crash_recovery.py::test_automatic_run_recovers_without_duplicate[after_log-1-already_done] PASSED [ 39%]
+tests/test_crash_recovery.py::test_approved_run_recovers_without_duplicate[before_patch] PASSED [ 40%]
+tests/test_crash_recovery.py::test_approved_run_recovers_without_duplicate[after_log] PASSED [ 42%]
+tests/test_crash_recovery.py::test_failed_receipt_is_retried PASSED      [ 43%]
+tests/test_crash_recovery.py::test_redelivered_task_continues_from_checkpoint PASSED [ 45%]
+tests/test_crash_recovery.py::test_killed_after_write_recovers_without_second_write PASSED [ 46%]
+tests/test_crash_recovery.py::test_pause_is_audited_once_even_if_redelivered PASSED [ 47%]
+tests/test_crash_recovery.py::test_human_resume_and_crash_recovery_are_audited_differently PASSED [ 49%]
+tests/test_crash_recovery.py::test_finished_run_redelivered_does_nothing PASSED [ 50%]
+tests/test_crash_recovery.py::test_demo_crash_is_off_by_default PASSED   [ 52%]
+tests/test_crash_recovery.py::test_demo_crash_fires_once_at_its_point PASSED [ 53%]
+tests/test_crash_recovery.py::test_demo_crash_without_redis_never_kills PASSED [ 54%]
+tests/test_crash_recovery.py::test_graph_pause_is_not_traced_as_error PASSED [ 56%]
+tests/test_crash_recovery.py::test_visibility_timeout_default_and_override PASSED [ 57%]
+tests/test_approval_brief.py::test_good_reply_gives_brief PASSED         [ 59%]
+tests/test_approval_brief.py::test_reply_wrapped_in_code_fence_is_parsed PASSED [ 60%]
+tests/test_approval_brief.py::test_unusable_reply_gives_none[Mocked LLM Response] PASSED [ 61%]
+tests/test_approval_brief.py::test_unusable_reply_gives_none[{not valid json}] PASSED [ 63%]
+tests/test_approval_brief.py::test_unusable_reply_gives_none[{"what_happened": "The production database is down.", "proposed_action": "No action was drafted.", "reviewer_question": "Should the agent be allowed to proceed on a production outage?"}] PASSED [ 64%]
+tests/test_approval_brief.py::test_unusable_reply_gives_none[{"what_happened": "The production database is down.", "why_stopped": "The incident was classified as high risk.", "proposed_action": "No action was drafted.", "reviewer_question": ""}] PASSED [ 66%]
+tests/test_approval_brief.py::test_unusable_reply_gives_none[{"what_happened": "The production database is down.", "why_stopped": "The incident was classified as high risk.", "proposed_action": ["step 1"], "reviewer_question": "Should the agent be allowed to proceed on a production outage?"}] PASSED [ 67%]
+tests/test_approval_brief.py::test_unusable_reply_gives_none[[1, 2, 3]] PASSED [ 69%]
+tests/test_approval_brief.py::test_llm_error_gives_none PASSED           [ 70%]
+tests/test_approval_brief.py::test_prompt_is_trimmed_and_marks_payload_untrusted PASSED [ 71%]
+tests/test_approval_brief.py::test_brief_does_not_change_the_payload PASSED [ 73%]
+tests/test_approval_brief.py::test_pause_carries_brief_next_to_raw_payload PASSED [ 74%]
+tests/test_approval_brief.py::test_failed_brief_still_pauses_with_raw_payload PASSED [ 76%]
+tests/test_approval_brief.py::test_brief_is_generated_once_across_pause_and_resume PASSED [ 77%]
+tests/test_approval_brief.py::test_brief_never_affects_routing PASSED    [ 78%]
+tests/test_approvals_api.py::test_list_shows_only_paused_runs PASSED     [ 80%]
+tests/test_approvals_api.py::test_detail_has_brief_and_raw_payload PASSED [ 81%]
+tests/test_approvals_api.py::test_detail_without_brief_still_returns_raw_payload PASSED [ 83%]
+tests/test_approvals_api.py::test_detail_unknown_is_404_and_finished_is_409 PASSED [ 84%]
+tests/test_approvals_api.py::test_approve_persists_then_resumes_same_run PASSED [ 85%]
+tests/test_approvals_api.py::test_reject_resumes_to_rejection PASSED     [ 87%]
+tests/test_approvals_api.py::test_second_decision_is_refused PASSED      [ 88%]
+tests/test_approvals_api.py::test_decide_on_finished_run_is_409 PASSED   [ 90%]
+tests/test_approvals_api.py::test_decide_unknown_is_404_and_bad_action_is_422 PASSED [ 91%]
+tests/test_approvals_api.py::test_dispatch_failure_is_503_but_decision_is_kept PASSED [ 92%]
+tests/test_approvals_api.py::test_status_for_paused_and_finished_results PASSED [ 94%]
+tests/test_approvals_api.py::test_continue_run_finishes_a_run_stopped_before_act PASSED [ 95%]
+tests/test_approvals_api.py::test_resume_task_name_matches_api PASSED    [ 97%]
+tests/test_approvals_api.py::test_resume_task_records_final_status PASSED [ 98%]
+tests/test_approvals_api.py::test_resume_task_marks_failure PASSED       [100%]
+
+============================== warnings summary ===============================
+venv\Lib\site-packages\starlette\testclient.py:53
+  D:\Barq systems internhsip\barq-sprints-agentic-incident-resolution-platform-g2\venv\Lib\site-packages\starlette\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.
+    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]
+
+venv\Lib\site-packages\pythonjsonlogger\jsonlogger.py:11
+  D:\Barq systems internhsip\barq-sprints-agentic-incident-resolution-platform-g2\venv\Lib\site-packages\pythonjsonlogger\jsonlogger.py:11: DeprecationWarning: pythonjsonlogger.jsonlogger has been moved to pythonjsonlogger.json
+    warnings.warn(
+
+tests/test_approvals_api.py::test_list_shows_only_paused_runs
+  D:\Barq systems internhsip\barq-sprints-agentic-incident-resolution-platform-g2\venv\Lib\site-packages\psycopg_pool\pool.py:134: DeprecationWarning: the default for the ConnectionPool 'open' parameter will become 'False' in a future release. Please use open={True|False} explicitly, or use the pool as context manager using: `with ConnectionPool(...) as pool: ...`
+    warnings.warn(
+
+tests/test_approvals_api.py: 10 warnings
+  D:\Barq systems internhsip\barq-sprints-agentic-incident-resolution-platform-g2\src\api\app.py:51: DeprecationWarning: Call to deprecated close. (Use aclose() instead) -- Deprecated since version 5.0.1.
+    await app.state.redis.close()  # cleanup on shutdown
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================= 71 passed, 13 warnings in 340.73s (0:05:40) =================

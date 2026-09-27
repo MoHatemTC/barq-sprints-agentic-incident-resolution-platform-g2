@@ -12,11 +12,10 @@ from qdrant_client.models import (
     Filter, FieldCondition, MatchValue, FilterSelector
 )
 
-from ..config import QDRANT, PATHS
+from ..config import QDRANT
 from .embedding import embed_dense, embed_sparse, get_model_fingerprint, get_dense_dimension
 from .chunking import chunk_article
 from .schema import Article
-from .sources.local_json_source import load_articles_from_json
 
 
 # Qdrant point IDs must be unsigned integers or UUIDs.
@@ -86,11 +85,106 @@ def _build_points(articles: list[Article]) -> list[PointStruct]:
     return points
 
 
+def load_stressors(base_dir: str = "data/corpus/stressors") -> list[Article]:
+    """Load stressor documents using the available extractors."""
+    import os
+    import glob
+    
+    articles = []
+    
+    # 1. OCR
+    ocr_dir = os.path.join(base_dir, "ocr")
+    if os.path.exists(ocr_dir):
+        try:
+            from .extractors.ocr import extract_ocr
+            for file_path in glob.glob(os.path.join(ocr_dir, "*.*")):
+                if not os.path.isfile(file_path):
+                    continue
+                try:
+                    res = extract_ocr(file_path)
+                    # Embed provenance metadata into the text to preserve the payload schema
+                    # or just keep it simple. Let's append provenance to the body.
+                    prov_str = "\n\n--- OCR PROVENANCE ---\n" + "\n".join(f"{k}: {v}" for k, v in res.provenance.items())
+                    body_with_prov = res.text + prov_str
+                    
+                    articles.append(Article(
+                        sys_id=f"stressor_ocr_{os.path.basename(file_path)}",
+                        number=f"STR-OCR-{os.path.basename(file_path)[:10]}",
+                        article_id=f"STR-OCR-{os.path.basename(file_path)[:10]}",
+                        title=f"OCR Stressor: {os.path.basename(file_path)}",
+                        body=body_with_prov,
+                        category="stressor",
+                        service="infrastructure",
+                        workflow_state="published",
+                        version=1,
+                        security_level="internal"
+                    ))
+                except Exception as e:
+                    print(f"Failed to extract OCR stressor {file_path}: {e}")
+        except ImportError:
+            pass
+
+    # 2. Tables
+    tables_dir = os.path.join(base_dir, "tables")
+    if os.path.exists(tables_dir):
+        try:
+            from .extractors.tables import extract_tables
+            for file_path in glob.glob(os.path.join(tables_dir, "*.*")):
+                if not os.path.isfile(file_path):
+                    continue
+                try:
+                    res = extract_tables(file_path)
+                    articles.append(Article(
+                        sys_id=f"stressor_tbl_{os.path.basename(file_path)}",
+                        number=f"STR-TBL-{os.path.basename(file_path)[:10]}",
+                        article_id=f"STR-TBL-{os.path.basename(file_path)[:10]}",
+                        title=f"Table Stressor: {os.path.basename(file_path)}",
+                        body=res.text,
+                        category="stressor",
+                        service="infrastructure",
+                        workflow_state="published",
+                        version=1,
+                        security_level="internal"
+                    ))
+                except Exception as e:
+                    print(f"Failed to extract table stressor {file_path}: {e}")
+        except ImportError:
+            pass
+
+    # 3. Layouts
+    layouts_dir = os.path.join(base_dir, "layouts")
+    if os.path.exists(layouts_dir):
+        try:
+            from .extractors.layout import extract_layout
+            for file_path in glob.glob(os.path.join(layouts_dir, "*.*")):
+                if not os.path.isfile(file_path):
+                    continue
+                try:
+                    res = extract_layout(file_path)
+                    articles.append(Article(
+                        sys_id=f"stressor_lay_{os.path.basename(file_path)}",
+                        number=f"STR-LAY-{os.path.basename(file_path)[:10]}",
+                        article_id=f"STR-LAY-{os.path.basename(file_path)[:10]}",
+                        title=f"Layout Stressor: {os.path.basename(file_path)}",
+                        body=res.text,
+                        category="stressor",
+                        service="infrastructure",
+                        workflow_state="published",
+                        version=1,
+                        security_level="internal"
+                    ))
+                except Exception as e:
+                    print(f"Failed to extract layout stressor {file_path}: {e}")
+        except ImportError:
+            pass
+            
+    return articles
+
+
 def ingest_articles(source: str = "local", json_path: str = None) -> dict:
     """
-    source: "local" (test path, reads json_path or PATHS.corpus_json) or
-    "servicenow" (final path, reads from ServiceNow via S1.5's client --
-    not yet wired up).
+    source: "servicenow" (published kb_knowledge records via S1.5's client).
+    The BARQ manual PDF is indexed separately by ingest_manual.py.
     """
     start = time.time()
     client = QdrantClient(url=QDRANT.url, check_compatibility=False)
@@ -98,6 +192,10 @@ def ingest_articles(source: str = "local", json_path: str = None) -> dict:
 
     if source == "local":
         articles = load_articles_from_json(json_path or PATHS.corpus_json)
+        # S2.6 RAG Corpus Hardening: Include stressors during local ingest
+        stressors = load_stressors()
+        articles.extend(stressors)
+        print(f"Loaded {len(articles) - len(stressors)} baseline articles and {len(stressors)} stressors.")
     elif source == "servicenow":
         from .sources.servicenow_source import load_articles_from_servicenow
         articles = load_articles_from_servicenow()
@@ -125,18 +223,24 @@ def _content_hash(article: Article) -> str:
 
 
 def _stored_hashes(client: QdrantClient) -> dict[str, str]:
-    """article_id -> content_hash for everything currently in Qdrant."""
+    """article_id -> content_hash for every KB article currently in Qdrant.
+
+    Stressor points (S2.6) live in this collection too and carry an article_id,
+    but they are not ServiceNow articles and have no content_hash.  They are
+    skipped: without this, sync_kb would see them as articles that have
+    disappeared from ServiceNow and delete every one of them on its next run.
+    """
     stored, offset = {}, None
     while True:
         points, offset = client.scroll(
             QDRANT.collection_name,
             limit=256,
             offset=offset,
-            with_payload=["article_id", "content_hash", "_is_marker"],
+            with_payload=["article_id", "content_hash", "_is_marker", "is_stressor"],
             with_vectors=False,
         )
         for p in points:
-            if p.payload.get("_is_marker"):
+            if p.payload.get("_is_marker") or p.payload.get("is_stressor"):
                 continue
             stored[p.payload.get("article_id")] = p.payload.get("content_hash", "")
         if offset is None:
@@ -144,11 +248,18 @@ def _stored_hashes(client: QdrantClient) -> dict[str, str]:
 
 
 def _delete_article(client: QdrantClient, article_id: str):
+    """Drop every chunk of one KB article, and only KB articles.
+
+    The must_not keeps a stressor point alive if a manual section ever carries an
+    article_id equal to a KB article's: the two are indexed from different sources
+    and one must not be able to delete the other.
+    """
     client.delete(
         QDRANT.collection_name,
-        points_selector=FilterSelector(filter=Filter(must=[
-            FieldCondition(key="article_id", match=MatchValue(value=article_id))
-        ])),
+        points_selector=FilterSelector(filter=Filter(
+            must=[FieldCondition(key="article_id", match=MatchValue(value=article_id))],
+            must_not=[FieldCondition(key="is_stressor", match=MatchValue(value=True))],
+        )),
     )
 
 
@@ -256,4 +367,76 @@ def sync_kb() -> dict:
 
     print(f"KB sync complete: {result}")
 
+<<<<<<< HEAD
     return result
+=======
+
+def ingest_stressors(source: str = "manual", client: QdrantClient | None = None) -> dict:
+    """
+    S2.6: index the BARQ manual's extracted pages into the same collection as the
+    KB articles.
+
+    This is the entry point for stressor ingestion, alongside ingest_articles()
+    and sync_kb().  The manual is read twice: once as a column of lines by
+    ingest_manual.py, and once here through the table, form and layout
+    extractors.  The second reading goes into QDRANT.collection_name rather than a
+    collection of its own, because a live query sees one corpus -- a manual
+    section and a KB article compete for the same top-k slots, and a no-regression
+    check against a separate collection would pass whether or not the extractors
+    were any good.
+
+    source: "manual" (the only value today; kept for symmetry with
+    ingest_articles so a second stressor source can be added without changing the
+    signature).
+
+    Returns the per-artifact counts from the routing pass, the number of points
+    written, and the shared collection's new total.
+    """
+    if source != "manual":
+        raise ValueError(f"Unknown stressor source: {source}")
+
+    from .ingest_stressors import build_stressor_points, count_stressor_points, upsert_stressor_points
+
+    start = time.time()
+    client = client or QdrantClient(url=QDRANT.url, check_compatibility=False)
+
+    points, stats = build_stressor_points()
+    stats.update(upsert_stressor_points(client, points))
+    stats["stressor_points_in_collection"] = count_stressor_points(client)
+    stats["elapsed_seconds"] = round(time.time() - start, 2)
+    print(f"Stressor ingestion complete: {stats}")
+    return stats
+
+
+def drop_stressors(client: QdrantClient | None = None) -> dict:
+    """
+    S2.6: remove the manual's extracted pages from the shared collection, leaving
+    the KB articles in place.
+
+    The rollback for a bad extraction run, and half of the no-regression check:
+    score the baseline queries with the manual mixed in, drop it, score them
+    again, and compare.  It is not sync_kb()'s job -- sync_kb reconciles against
+    ServiceNow and does not know the manual exists.
+    """
+    from .ingest_stressors import drop_stressor_points
+
+    client = client or QdrantClient(url=QDRANT.url, check_compatibility=False)
+    dropped = drop_stressor_points(client)
+    result = {"dropped": dropped, "collection": QDRANT.collection_name}
+    print(f"Stressor points dropped: {result}")
+    return result
+
+
+if __name__ == "__main__":
+    import sys
+
+    verb = sys.argv[1] if len(sys.argv) > 1 else "sync"
+    if verb == "sync":
+        sync_kb()
+    elif verb == "stressors":
+        ingest_stressors()
+    elif verb == "drop-stressors":
+        drop_stressors()
+    else:
+        ingest_articles(source="servicenow")
+>>>>>>> origin/development

@@ -1,9 +1,8 @@
-import os
 import time
 import logging
 import contextvars
 from functools import wraps
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Optional
 
 # Ensure .env is loaded before Langfuse reads LANGFUSE_PUBLIC_KEY etc.
 try:
@@ -22,6 +21,14 @@ except ImportError:
     get_client = None
 
 logger = logging.getLogger(__name__)
+
+# interrupt() pauses a graph by raising GraphInterrupt (a GraphBubbleUp)
+from langgraph.errors import GraphBubbleUp
+
+
+def _is_graph_pause(error: BaseException) -> bool:
+    """A LangGraph pause for human review is control flow, not a failure."""
+    return isinstance(error, GraphBubbleUp)
 
 # ---------------------------------------------------------------------------
 # Context variable to propagate the root trace_id across nodes
@@ -232,10 +239,13 @@ def trace_node(name: str, observation_type: str = "span"):
                 # Record error — never let tracing crash execution
                 if span:
                     try:
-                        span.update(
-                            level="ERROR",
-                            status_message=f"{type(e).__name__}: {e}",
-                        )
+                        if _is_graph_pause(e):
+                            span.update(level="DEFAULT", status_message="paused for human approval")
+                        else:
+                            span.update(
+                                level="ERROR",
+                                status_message=f"{type(e).__name__}: {e}",
+                            )
                         span.end()
                     except Exception:
                         pass

@@ -44,19 +44,24 @@ def list_articles():
     from qdrant_client import QdrantClient
 
     from src.config import QDRANT
-    from src.retrieval.ingest import _content_hash, _stored_hashes
+    from src.retrieval.ingest import _content_hash, _ensure_collection, _stored_hashes
     from src.retrieval.sources.servicenow_source import load_articles_from_servicenow
 
+    source_available = True
+    source_error = None
     try:
         articles = load_articles_from_servicenow()
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Could not read articles from ServiceNow: {exc}"
-        ) from exc
+        logger.warning("ServiceNow unavailable while listing KB articles: %s", exc)
+        source_available = False
+        source_error = str(exc)
+        articles = []
 
     stored: dict[str, str] | None
     try:
-        stored = _stored_hashes(QdrantClient(url=QDRANT.url, check_compatibility=False))
+        client = QdrantClient(url=QDRANT.url, check_compatibility=False)
+        _ensure_collection(client)
+        stored = _stored_hashes(client)
     except Exception as exc:
         logger.warning("Qdrant unavailable while listing KB articles: %s", exc)
         stored = None
@@ -97,6 +102,8 @@ def list_articles():
         "count": len(rows),
         "summary": {**summary, "to_delete": to_delete},
         "index_available": stored is not None,
+        "source_available": source_available,
+        "source_error": source_error,
         "options": {"categories": CATEGORIES, "security_levels": SECURITY_LEVELS},
     }
 

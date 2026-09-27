@@ -72,6 +72,7 @@ class ServiceNowConfig:
     oauth_client_secret: str = os.environ.get("SERVICENOW_OAUTH_CLIENT_SECRET", "")
     oauth_username: str = os.environ.get("SERVICENOW_OAUTH_USERNAME", "")
     oauth_password: str = os.environ.get("SERVICENOW_OAUTH_PASSWORD", "")
+    oauth_scope: str = os.environ.get("SERVICENOW_OAUTH_SCOPE", "x_2215689_ai_inc_0")
 
 
 @dataclass(frozen=True)
@@ -237,6 +238,7 @@ class WorkerConfig:
     task_acks_late: bool
     task_reject_on_worker_lost: bool
     worker_shutdown_timeout_seconds: int
+    visibility_timeout_seconds: int = 120
 
     @classmethod
     def from_environment(
@@ -278,6 +280,11 @@ class WorkerConfig:
             ),
             worker_shutdown_timeout_seconds=_required_worker_positive_int(
                 env, "CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS"
+            ),
+            visibility_timeout_seconds=(
+                _required_worker_positive_int(env, "CELERY_VISIBILITY_TIMEOUT_SECONDS")
+                if env.get("CELERY_VISIBILITY_TIMEOUT_SECONDS", "").strip()
+                else 120
             ),
         )
         if config.task_time_limit_seconds <= config.task_soft_time_limit_seconds:
@@ -339,3 +346,27 @@ SERVICENOW = ServiceNowConfig()
 PATHS = PathsConfig()
 CHUNKING = ChunkingConfig()
 RETRIEVAL = RetrievalConfig()
+
+
+# ---------------------------------------------------------------------------
+# S3.1 Agent configuration
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class AgentConfig:
+    """Configuration for the multi-agent diagnosis & resolution loop (S3.1)."""
+
+    # Maximum number of Resolution Agent revision cycles allowed after an initial
+    # generation. With the default of 2:
+    #   initial generation → revision 1 → revision 2 → exhausted → act
+    critic_max_retries: int = int(os.environ.get("CRITIC_MAX_RETRIES", "2"))
+
+    def __post_init__(self):
+        if self.critic_max_retries < 0:
+            raise ValueError(
+                f"CRITIC_MAX_RETRIES must be a non-negative integer, "
+                f"got {self.critic_max_retries}"
+            )
+
+
+AGENT = AgentConfig()

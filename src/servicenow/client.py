@@ -48,7 +48,7 @@ class ServiceNowClient:
             **kwargs,
         )
 
-    def _request(self, method, url, **kwargs):
+    def _response(self, method, url, **kwargs):
         # Send a request, refreshing the token once on 401
         response = self._send(method, url, **kwargs)
 
@@ -57,7 +57,10 @@ class ServiceNowClient:
             response = self._send(method, url, **kwargs)
 
         raise_for_status(response)
-        return response.json().get("result")
+        return response
+
+    def _request(self, method, url, **kwargs):
+        return self._response(method, url, **kwargs).json().get("result")
 
     def get_incident(self, sys_id):
         # Read one incident by sys_id
@@ -75,23 +78,30 @@ class ServiceNowClient:
         return self._request("POST", url, json=payload)
 
     def get_published_kb_articles(self, page_size=100):
-        # Read all published KB articles, page by page
+        # Read all published articles of our KB (SERVICENOW_KB_SYS_ID), page by page.
+        # ServiceNow drops rows hidden by ACLs *after* applying the limit, so a
+        # short page is not the last page: stop on X-Total-Count instead.
         url = f"{config.TABLE_API}/kb_knowledge"
+        query = "workflow_state=published"
+        if config.KB_SYS_ID:
+            query += f"^kb_knowledge_base={config.KB_SYS_ID}"
         articles, offset = [], 0
         while True:
-            batch = self._request(
+            response = self._response(
                 "GET",
                 url,
                 params={
-                    "sysparm_query": "workflow_state=published^ORDERBYsys_id",
+                    "sysparm_query": f"{query}^ORDERBYsys_id",
                     "sysparm_limit": page_size,
                     "sysparm_offset": offset,
                 },
-            ) or []
+            )
+            batch = response.json().get("result") or []
             articles.extend(batch)
-            if len(batch) < page_size:
-                return articles
             offset += page_size
+            total = response.headers.get("X-Total-Count")
+            if (int(total) <= offset) if total is not None else not batch:
+                return articles
 
     def update_incident(self, sys_id, fields):
         # Write AI fields, keys are logical names from config file
@@ -133,6 +143,21 @@ class ServiceNowClient:
             raise ServiceNowWriteNotAppliedError(200, "Work note not applied")
         return result
 
+    def find_execution_log(self, execution_id, action):
+        # Existing log row for this execution + action, or None.
+        # act writes its log row last, so this row doubles as the "write done" receipt.
+        url = f"{config.TABLE_API}/{config.EXECUTION_LOG_TABLE}"
+        rows = self._request(
+            "GET",
+            url,
+            params={
+                "sysparm_query": f"{config.LOG_FIELDS['execution_id']}={execution_id}"
+                                 f"^{config.LOG_FIELDS['action']}={action}",
+                "sysparm_limit": "1",
+            },
+        )
+        return rows[0] if rows else None
+
     # audit logs one record per attempt, including failures
     def write_execution_log(self, incident_sys_id, execution_id, action,
                             status, agent=None, result=None, error=None):
@@ -165,3 +190,59 @@ class ServiceNowClient:
                 "Execution log write failed for %s: %s", execution_id, type(exc).__name__
             )
             return None
+
+
+class IncidentGateway:
+    """Server-side tool boundary for the agent's ServiceNow actions.
+
+    Each method maps one registered tool to the underlying ServiceNowClient
+    Table API operations. Handlers are only ever invoked through the
+    ToolRegistry (registry.py) after the registration and permission checks
+    pass; direct call sites outside the registry are rejected by the
+    import-boundary test.
+
+    Every handler accepts ``execution_id``. ``ToolRegistry.dispatch`` passes it
+    on every call so the execution a write belongs to is available to the
+    handler for audit, and so a handler's signature matches the one calling
+    convention the registry uses. It is optional with a default because the
+    registry supplies it, not the caller.
+    """
+
+    def __init__(self, client=None):
+        self._client = client if client is not None else ServiceNowClient()
+
+    def read_incident(self, sys_id, execution_id=None):
+        return self._client.get_incident(sys_id)
+
+    def find_execution_log(self, execution_id, action, incident_sys_id=None):
+        """Return the prior receipt row for this (execution_id, action), if any.
+
+        This is the idempotency probe act_node uses to avoid writing the
+        outcome to ServiceNow twice, so it is a READ and needs no approval.
+        S3.4 depends on it: without it a retried execution re-patches the
+        incident and writes a second receipt row.
+        """
+        return self._client.find_execution_log(execution_id, action)
+
+    def write_execution_log(self, incident_sys_id, execution_id, action, status,
+                            agent=None, result=None, error=None):
+        return self._client.write_execution_log(
+            incident_sys_id,
+            execution_id,
+            action,
+            status,
+            agent=agent,
+            result=result,
+            error=error,
+        )
+
+    def write_ai_fields(self, sys_id, fields, execution_id=None):
+        return self._client.update_incident(sys_id, fields)
+
+    def write_work_note(self, sys_id, note, execution_id=None):
+        return self._client.add_work_note(sys_id, note)
+
+    def kb_write_back(self, corpus_path=None, dry_run=False, execution_id=None):
+        from src.retrieval.publish_kb import publish
+
+        return publish(corpus_path, dry_run=dry_run)

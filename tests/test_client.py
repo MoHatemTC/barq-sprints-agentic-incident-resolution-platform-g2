@@ -51,3 +51,29 @@ def test_dropped_field_raises(client):
 def test_invalid_log_status_raises(client):
     with pytest.raises(ValueError):
         client.write_execution_log("sys", "eid", "act", "not_a_status")
+
+def _page(rows, total):
+    r = _response(200)
+    r.json.return_value = {"result": rows}
+    r.headers = {"X-Total-Count": str(total)}
+    return r
+
+
+def test_published_kb_articles_keeps_paging_past_acl_short_pages(client):
+    # 5 rows in total, page_size 2; ServiceNow hid one row on the first page
+    pages = [_page([{"sys_id": "a"}], 5), _page([{"sys_id": "b"}, {"sys_id": "c"}], 5),
+             _page([{"sys_id": "d"}], 5)]
+    with patch("src.servicenow.client.requests.request", side_effect=pages) as req:
+        articles = client.get_published_kb_articles(page_size=2)
+
+    assert [a["sys_id"] for a in articles] == ["a", "b", "c", "d"]
+    assert [c.kwargs["params"]["sysparm_offset"] for c in req.call_args_list] == [0, 2, 4]
+
+
+def test_published_kb_articles_are_limited_to_our_knowledge_base(client, monkeypatch):
+    monkeypatch.setattr("src.servicenow.client.config.KB_SYS_ID", "kb123")
+    with patch("src.servicenow.client.requests.request", return_value=_page([], 0)) as req:
+        client.get_published_kb_articles()
+
+    query = req.call_args.kwargs["params"]["sysparm_query"]
+    assert query == "workflow_state=published^kb_knowledge_base=kb123^ORDERBYsys_id"

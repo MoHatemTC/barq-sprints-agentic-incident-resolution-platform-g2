@@ -1,5 +1,6 @@
 import redis.asyncio as redis
 import logging
+import threading
 
 
 from pythonjsonlogger import jsonlogger
@@ -39,10 +40,10 @@ async def lifespan(app: FastAPI):
     max_overflow=20,
     )
 
-    #delete later
-    async with app.state.engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # Tables are created by Alembic ("alembic upgrade head"; the api container runs it
+    # before starting). Not here: each uvicorn worker would race to create them.
     app.state.async_session = async_sessionmaker(app.state.engine, expire_on_commit=False) # Create an async session maker for database sessions
+    threading.Thread(target=approvals.warm_up, daemon=True).start()
 
     yield
 

@@ -25,6 +25,7 @@ class TokenManager:
                 "client_secret": config.CLIENT_SECRET,
                 "username": config.USERNAME,
                 "password": config.PASSWORD,
+                "scope": config.OAUTH_SCOPE,
             },
             timeout=config.TIMEOUT,
         )
