@@ -51,9 +51,10 @@ class SqlApprovalStore:
         with SessionLocal() as db:
             return check_and_create_idempotency_key(db, f"approval:{execution_id}")
 
-    def record_decision(self, execution_id: str, evidence: str, decision: str, reviewer: str) -> None:
+    def record_decision(self, execution_id: str, evidence: str, decision: str, reviewer: str,
+                        human_solution: str | None = None) -> None:
         with SessionLocal() as db:
-            create_approval(db, execution_id, evidence, decision, reviewer)
+            create_approval(db, execution_id, evidence, decision, reviewer, human_solution=human_solution)
             # Resumed and running again until the worker records the final outcome
             update_execution_status(db, execution_id, "started")
 
@@ -72,6 +73,7 @@ class SqlApprovalStore:
                 "status": row.reviewer_decision,
                 "reviewer": row.reviewer_identity,
                 "rationale": rationale,
+                "human_solution": row.human_solution,
                 "decided_at": row.decision_timestamp,
             }
 
@@ -183,9 +185,11 @@ def get_approval(approval_id: str, graph=Depends(get_approval_graph)):
     )
 
 
-def _send_resume(dispatch, execution_id: str, action: str, reviewer: str, comment) -> None:
+def _send_resume(dispatch, execution_id: str, action: str, reviewer: str, comment,
+                 human_solution=None) -> None:
     try:
-        dispatch(execution_id, {"decision": action, "reviewer": reviewer, "comment": comment})
+        dispatch(execution_id, {"decision": action, "reviewer": reviewer, "comment": comment,
+                                "human_solution": human_solution})
     except Exception as exc:
         raise HTTPException(
             status_code=503,
@@ -203,6 +207,9 @@ def decide_approval(
 ):
     if decision.action not in VALID_ACTIONS:
         raise HTTPException(status_code=422, detail="action must be 'approve' or 'reject'")
+    human_solution = (decision.human_solution or "").strip() or None
+    if decision.action != "approve":
+        human_solution = None
 
     values = _paused_values(graph, approval_id)
     status = "approved" if decision.action == "approve" else "rejected"
@@ -211,7 +218,8 @@ def decide_approval(
         recorded = store.recorded_decision(approval_id)
         if not recorded or (recorded["status"], recorded["reviewer"]) != (status, decision.reviewer):
             raise HTTPException(status_code=409, detail="A decision was already recorded for this execution")
-        _send_resume(dispatch, approval_id, decision.action, recorded["reviewer"], recorded["rationale"])
+        _send_resume(dispatch, approval_id, decision.action, recorded["reviewer"],
+                     recorded["rationale"], recorded["human_solution"])
         return ApprovalDecisionResponse(
             approval_id=approval_id,
             status=recorded["status"],
@@ -228,8 +236,9 @@ def decide_approval(
         },
         default=str,
     )
-    store.record_decision(approval_id, evidence, status, decision.reviewer)
-    _send_resume(dispatch, approval_id, decision.action, decision.reviewer, decision.rationale)
+    store.record_decision(approval_id, evidence, status, decision.reviewer, human_solution)
+    _send_resume(dispatch, approval_id, decision.action, decision.reviewer,
+                 decision.rationale, human_solution)
 
     return ApprovalDecisionResponse(
         approval_id=approval_id,

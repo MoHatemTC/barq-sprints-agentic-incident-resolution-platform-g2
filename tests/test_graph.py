@@ -1,4 +1,4 @@
-﻿import json
+import json
 from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
 
@@ -88,7 +88,7 @@ def test_graph_routing_normal_risk(mock_search):
         })
 
     assert result["action_taken"] == "resolved_automatically"
-    assert result["risk"] == "low"  # Kept from incoming branch
+    assert result["risk"] == "low"
 
 
 @patch("src.agent.nodes.retrieve.search", return_value=[])
@@ -108,7 +108,10 @@ def test_graph_routes_to_interrupt_when_no_evidence(mock_search):
     assert result["failure_reason"] == "no_evidence"
 
 
-@patch("src.agent.nodes.retrieve.search", side_effect=RuntimeError("qdrant down"))
+@patch(
+    "src.agent.nodes.retrieve.search",
+    side_effect=RuntimeError("qdrant down"),
+)
 def test_graph_routes_to_interrupt_when_retrieval_fails(mock_search):
     """Retrieval exception -> human review with retrieval_failed reason."""
     with _mock_routing_agents():
@@ -147,7 +150,7 @@ def test_graph_routing_high_risk():
 def test_compiled_graph_nodes_match_baseline():
     """
     The compiled graph must contain exactly the 11 baseline nodes + prepare_review (S3.4)
-    + interrupt + __start__ + __end__.
+    + interrupt + knowledge_capture (S3.5) + __start__ + __end__.
     S3.1 must NOT add or remove any external node (e.g. no check_exhaustion
     or route_after_validate outside the internal multi-agent boundary).
     """
@@ -167,6 +170,7 @@ def test_compiled_graph_nodes_match_baseline():
         "prepare_review",
         "interrupt",
         "act",
+        "knowledge_capture",
     }
     compiled = create_graph().compile()
     actual_nodes = set(compiled.get_graph().nodes.keys())

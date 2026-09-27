@@ -396,3 +396,40 @@ def test_template_placeholders_are_escaped_and_read_back_as_equal(monkeypatch, p
     assert publish_kb._mismatched_fields(payload, stored) == []
     stripped = {**payload, "text": "Hello ,\nBARQ Service Desk ·  & more"}
     assert publish_kb._mismatched_fields(payload, stripped) == ["text"]
+
+
+def test_publish_article_creates_and_verifies_article(
+    monkeypatch,
+    publish_env,
+):
+    fake_client = _FakeClient(
+        write_result={"sys_id": "human-resolution-sys-id"},
+        read_results=[_matching_read_back()],
+    )
+
+    _install_client(monkeypatch, fake_client)
+
+    monkeypatch.setattr(
+        publish_kb,
+        "load_mapping",
+        lambda: {},
+    )
+
+    result = publish_kb.publish_article(_article())
+
+    assert result == {
+        "status": "created",
+        "article_number": "KB0010",
+        "sys_id": "human-resolution-sys-id",
+    }
+
+    # ServiceNow write happened.
+    assert len(fake_client.posts) == 1
+
+    # Critical: fresh read-back verification happened.
+    assert len(fake_client.gets) == 1
+
+    # The new sys_id is saved once, right after the create, so a retry updates it instead of duplicating.
+    assert publish_env == [
+        {"KB0010": "human-resolution-sys-id"}
+    ]

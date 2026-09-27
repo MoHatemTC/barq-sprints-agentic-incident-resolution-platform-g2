@@ -6,18 +6,25 @@ from src.db.models import (
     Approval,
     Execution,
     Failure,
+    KnowledgeCaptureAudit,
     WorkflowState,
 )
 from src.db.audit_service import get_execution_audit
 
 
 def cleanup(execution_identifier):
-
     db = SessionLocal()
 
     try:
         # Approval records are immutable.
         # They are intentionally not deleted here.
+
+        db.query(KnowledgeCaptureAudit).filter(
+            KnowledgeCaptureAudit.execution_reference
+            == execution_identifier
+        ).delete(
+            synchronize_session=False
+        )
 
         db.query(Failure).filter(
             Failure.execution_reference == execution_identifier
@@ -38,7 +45,6 @@ def cleanup(execution_identifier):
 
 
 def test_execution_audit_returns_complete_audit_trail():
-
     execution_identifier = (
         f"audit-test-execution-{uuid.uuid4()}"
     )
@@ -136,6 +142,70 @@ def test_execution_audit_returns_complete_audit_trail():
         assert audit["approvals"][0]["reviewer_identity"] == (
             "test-reviewer"
         )
+
+        assert audit["knowledge_captures"] == []
+
+    finally:
+        db.close()
+        cleanup(execution_identifier)
+
+
+def test_execution_audit_includes_knowledge_capture():
+    execution_identifier = (
+        f"audit-kb-test-{uuid.uuid4()}"
+    )
+
+    db = SessionLocal()
+
+    try:
+        execution = Execution(
+            execution_identifier=execution_identifier,
+            incident_reference="INC-KB-001",
+            status="succeeded",
+            agent_version="v1",
+            model_name="test-model",
+            started_at=datetime.now(timezone.utc),
+            ended_at=datetime.now(timezone.utc),
+        )
+
+        db.add(execution)
+        db.commit()
+
+        db.add(
+            KnowledgeCaptureAudit(
+                execution_reference=execution_identifier,
+                article_number="KB0200",
+                article_sys_id="sn-789",
+                qdrant_point_ids=[
+                    "point-101",
+                    "point-102",
+                ],
+                status="completed",
+                error=None,
+            )
+        )
+
+        db.commit()
+
+        audit = get_execution_audit(
+            db,
+            execution_identifier,
+        )
+
+        assert audit is not None
+
+        assert len(audit["knowledge_captures"]) == 1
+
+        knowledge_capture = audit["knowledge_captures"][0]
+
+        assert knowledge_capture["article_number"] == "KB0200"
+        assert knowledge_capture["article_sys_id"] == "sn-789"
+        assert knowledge_capture["qdrant_point_ids"] == [
+            "point-101",
+            "point-102",
+        ]
+        assert knowledge_capture["status"] == "completed"
+        assert knowledge_capture["error"] is None
 
     finally:
         db.close()

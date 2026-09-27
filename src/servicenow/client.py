@@ -190,3 +190,41 @@ class ServiceNowClient:
                 "Execution log write failed for %s: %s", execution_id, type(exc).__name__
             )
             return None
+
+
+class IncidentGateway:
+    """Server-side tool boundary for the agent's ServiceNow actions."""
+
+    def __init__(self, client=None):
+        self._client = client if client is not None else ServiceNowClient()
+
+    def read_incident(self, sys_id, execution_id=None):
+        return self._client.get_incident(sys_id)
+
+    def find_execution_log(self, execution_id, action, incident_sys_id=None):
+        """Return the prior receipt row for this (execution_id, action), if any"""
+        return self._client.find_execution_log(execution_id, action)
+
+    def write_execution_log(self, incident_sys_id, execution_id, action, status,
+                            agent=None, result=None, error=None):
+        return self._client.write_execution_log(
+            incident_sys_id,
+            execution_id,
+            action,
+            status,
+            agent=agent,
+            result=result,
+            error=error,
+        )
+
+    def write_ai_fields(self, sys_id, fields, execution_id=None):
+        return self._client.update_incident(sys_id, fields)
+
+    def write_work_note(self, sys_id, note, execution_id=None):
+        return self._client.add_work_note(sys_id, note)
+
+    def kb_write_back(self, execution_id=None, **capture):
+        """publish an approved human resolution as a KB article"""
+        from src.agent.knowledge_capture import capture_human_resolution
+
+        return capture_human_resolution(execution_identifier=execution_id, **capture)

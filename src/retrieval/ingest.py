@@ -223,18 +223,24 @@ def _content_hash(article: Article) -> str:
 
 
 def _stored_hashes(client: QdrantClient) -> dict[str, str]:
-    """article_id -> content_hash for everything currently in Qdrant."""
+    """article_id -> content_hash for every KB article currently in Qdrant.
+
+    Stressor points (S2.6) live in this collection too and carry an article_id,
+    but they are not ServiceNow articles and have no content_hash.  They are
+    skipped: without this, sync_kb would see them as articles that have
+    disappeared from ServiceNow and delete every one of them on its next run.
+    """
     stored, offset = {}, None
     while True:
         points, offset = client.scroll(
             QDRANT.collection_name,
             limit=256,
             offset=offset,
-            with_payload=["article_id", "content_hash", "_is_marker"],
+            with_payload=["article_id", "content_hash", "_is_marker", "is_stressor"],
             with_vectors=False,
         )
         for p in points:
-            if p.payload.get("_is_marker"):
+            if p.payload.get("_is_marker") or p.payload.get("is_stressor"):
                 continue
             stored[p.payload.get("article_id")] = p.payload.get("content_hash", "")
         if offset is None:
@@ -242,66 +248,192 @@ def _stored_hashes(client: QdrantClient) -> dict[str, str]:
 
 
 def _delete_article(client: QdrantClient, article_id: str):
+    """Drop every chunk of one KB article, and only KB articles.
+
+    The must_not keeps a stressor point alive if a manual section ever carries an
+    article_id equal to a KB article's: the two are indexed from different sources
+    and one must not be able to delete the other.
+    """
     client.delete(
         QDRANT.collection_name,
-        points_selector=FilterSelector(filter=Filter(must=[
-            FieldCondition(key="article_id", match=MatchValue(value=article_id))
-        ])),
+        points_selector=FilterSelector(filter=Filter(
+            must=[FieldCondition(key="article_id", match=MatchValue(value=article_id))],
+            must_not=[FieldCondition(key="is_stressor", match=MatchValue(value=True))],
+        )),
     )
 
 
 def sync_kb() -> dict:
     """
-    Manual KB sync from ServiceNow. Only touches articles that changed.
-    Returns {"status", "added", "updated", "deleted", "unchanged"}.
+    Manual KB sync from ServiceNow.
+
+    Only articles that are new or changed are embedded and upserted.
+
+    Returns:
+        status
+        added
+        updated
+        deleted
+        unchanged
+        point_ids
+
+    point_ids contains the deterministic Qdrant point IDs created
+    or refreshed during this synchronization.
     """
     start = time.time()
-    client = QdrantClient(url=QDRANT.url, check_compatibility=False)
+
+    client = QdrantClient(
+        url=QDRANT.url,
+        check_compatibility=False,
+    )
+
     _ensure_collection(client)
 
     from .sources.servicenow_source import load_articles_from_servicenow
+
     articles = load_articles_from_servicenow()
-    current = {a.article_id: a for a in articles}
+
+    current = {
+        article.article_id: article
+        for article in articles
+    }
+
     stored = _stored_hashes(client)
 
-    added = updated = unchanged = 0
+    added = 0
+    updated = 0
+    unchanged = 0
+    point_ids = []
+
     for article_id, article in current.items():
         new_hash = _content_hash(article)
+
         if article_id not in stored:
             added += 1
+
         elif stored[article_id] != new_hash:
             updated += 1
-            _delete_article(client, article_id)   # drop old chunks
+
+            # Remove old chunks before inserting the new version.
+            _delete_article(client, article_id)
+
         else:
             unchanged += 1
-            continue                              # nothing to embed
+            continue
 
         points = _build_points([article])
-        for p in points:
-            p.payload["content_hash"] = new_hash
-        if points:
-            client.upsert(QDRANT.collection_name, points=points)
 
-    # articles that disappeared from ServiceNow / are no longer published
-    removed = [a for a in stored if a not in current]
+        for point in points:
+            point.payload["content_hash"] = new_hash
+
+        if points:
+            client.upsert(
+                collection_name=QDRANT.collection_name,
+                points=points,
+            )
+
+            # Capture the deterministic Qdrant IDs.
+            point_ids.extend(
+                str(point.id)
+                for point in points
+            )
+
+    # Articles that disappeared from ServiceNow / are no longer published.
+    removed = [
+        article_id
+        for article_id in stored
+        if article_id not in current
+    ]
+
     for article_id in removed:
         _delete_article(client, article_id)
 
     result = {
-        "status": "up_to_date" if not (added or updated or removed) else "synced",
+        "status": (
+            "up_to_date"
+            if not (added or updated or removed)
+            else "synced"
+        ),
         "added": added,
         "updated": updated,
         "deleted": len(removed),
         "unchanged": unchanged,
-        "elapsed_seconds": round(time.time() - start, 2),
+        "point_ids": point_ids,
+        "elapsed_seconds": round(
+            time.time() - start,
+            2,
+        ),
     }
+
     print(f"KB sync complete: {result}")
+
+    return result
+
+def ingest_stressors(source: str = "manual", client: QdrantClient | None = None) -> dict:
+    """
+    S2.6: index the BARQ manual's extracted pages into the same collection as the
+    KB articles.
+
+    This is the entry point for stressor ingestion, alongside ingest_articles()
+    and sync_kb().  The manual is read twice: once as a column of lines by
+    ingest_manual.py, and once here through the table, form and layout
+    extractors.  The second reading goes into QDRANT.collection_name rather than a
+    collection of its own, because a live query sees one corpus -- a manual
+    section and a KB article compete for the same top-k slots, and a no-regression
+    check against a separate collection would pass whether or not the extractors
+    were any good.
+
+    source: "manual" (the only value today; kept for symmetry with
+    ingest_articles so a second stressor source can be added without changing the
+    signature).
+
+    Returns the per-artifact counts from the routing pass, the number of points
+    written, and the shared collection's new total.
+    """
+    if source != "manual":
+        raise ValueError(f"Unknown stressor source: {source}")
+
+    from .ingest_stressors import build_stressor_points, count_stressor_points, upsert_stressor_points
+
+    start = time.time()
+    client = client or QdrantClient(url=QDRANT.url, check_compatibility=False)
+
+    points, stats = build_stressor_points()
+    stats.update(upsert_stressor_points(client, points))
+    stats["stressor_points_in_collection"] = count_stressor_points(client)
+    stats["elapsed_seconds"] = round(time.time() - start, 2)
+    print(f"Stressor ingestion complete: {stats}")
+    return stats
+
+
+def drop_stressors(client: QdrantClient | None = None) -> dict:
+    """
+    S2.6: remove the manual's extracted pages from the shared collection, leaving
+    the KB articles in place.
+
+    The rollback for a bad extraction run, and half of the no-regression check:
+    score the baseline queries with the manual mixed in, drop it, score them
+    again, and compare.  It is not sync_kb()'s job -- sync_kb reconciles against
+    ServiceNow and does not know the manual exists.
+    """
+    from .ingest_stressors import drop_stressor_points
+
+    client = client or QdrantClient(url=QDRANT.url, check_compatibility=False)
+    dropped = drop_stressor_points(client)
+    result = {"dropped": dropped, "collection": QDRANT.collection_name}
+    print(f"Stressor points dropped: {result}")
     return result
 
 
 if __name__ == "__main__":
     import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "sync":
+
+    verb = sys.argv[1] if len(sys.argv) > 1 else "sync"
+    if verb == "sync":
         sync_kb()
+    elif verb == "stressors":
+        ingest_stressors()
+    elif verb == "drop-stressors":
+        drop_stressors()
     else:
         ingest_articles(source="servicenow")

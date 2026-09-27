@@ -18,7 +18,9 @@ INCIDENT_NUMBER = "INC0010096"
 
 
 def get_servicenow_logs(client):
-    query = f"incident={INCIDENT_SYS_ID}"
+    # Newest first: every run adds rows to this real incident (126 by 27 Sep), so an
+    # unordered first page can leave out the rows this run just wrote.
+    query = f"incident={INCIDENT_SYS_ID}^ORDERBYDESCsys_created_on"
 
     return client._request(
         "GET",
@@ -29,7 +31,7 @@ def get_servicenow_logs(client):
                 "sys_id,execution_id,action,status,"
                 "agent,result,error"
             ),
-            "sysparm_limit": "100",
+            "sysparm_limit": "1000",
         },
     )
 

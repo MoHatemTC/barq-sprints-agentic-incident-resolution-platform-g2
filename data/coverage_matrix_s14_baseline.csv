@@ -1,0 +1,28 @@
+incident_id,incident_summary,resolving_article_ids,is_answerable,requires_multi_doc,resolution_status
+INC0010023,Cannot connect to VPN since password reset this morning,KB0001,true,false,Resolved
+INC0010047,"Grinding noise from meeting room printer, queue is empty, mechanical fault",,false,false,Intentionally unanswerable
+INC0010064,"No email, shared drive gone, and Teams repeatedly asking to sign in -- three symptoms one morning",KB0005,true,false,Resolved
+INC0010052,"Order service returning 500s under load, pool saturation on dashboard",KB0010,true,false,Resolved
+INC1006,"Outlook shows Disconnected, no mail since 08:00, webmail also down for whole floor",KB0002,true,false,Resolved
+INC1007,New employee cannot see finance shared folder after onboarding,KB0020,true,false,Resolved
+INC1008,External monitor flickers and drops signal intermittently at docking station,"KB0013,KB0021",true,true,Resolved
+INC1009,SAP GUI times out with RFC_ERROR_COMMUNICATION from office network,KB0008,true,false,Resolved
+INC1010,Wi-Fi keeps dropping on 5GHz while walking between floors 3 and 4,KB0009,true,false,Resolved
+INC1011,User locked out and also cannot connect VPN after password change this morning,"KB0005,KB0001",true,true,Resolved
+INC1012,"Lost phone, cannot approve MFA prompts for any system",KB0006,true,false,Resolved
+INC1013,2FA codes never arrive via SMS during login,KB0023,true,false,Resolved
+INC1014,Laptop battery drains from 100% to 20% in under two hours,KB0015,true,false,Resolved
+INC1015,Please order me a second monitor for my desk,,false,false,Intentionally unanswerable
+INC1016,When will my expense claim be paid this month,,false,false,Intentionally unanswerable
+INC1017,Zoom shows no audio device during client call,,false,false,Intentionally unanswerable
+INC1018,"Legacy timesheet portal login not working, need to submit hours",,false,false,Intentionally unanswerable
+INC1019,Teams calls drop every 15 minutes while connected to VPN,KB0019,true,false,Resolved
+INC1020,Shared mailbox for the support team no longer shows in Outlook folder list,KB0025,true,false,Resolved
+INC1021,"New laptop VPN client installer fails halfway through, error code shown",KB0026,true,false,Resolved
+INC1022,"Laptop screen stays black after closing and reopening the lid, requires hard reset",KB0024,true,false,Resolved
+INC1023,"Print jobs stuck in queue on 3rd floor printer, no error shown on device",KB0004,true,false,Resolved
+INC1024,Mapped H: drive missing after login but path works when typed manually,KB0003,true,false,Resolved
+INC1025,Employee requests VPN access and email account setup on first day,"KB0001,KB0018",true,true,Resolved
+INC1026,Docked laptop won't wake from sleep and external monitor also shows no signal,"KB0024,KB0021",true,true,Resolved
+INC1027,New starter locked out on day one and also cannot see the finance shared folder,"KB0005,KB0020",true,true,Resolved
+INC1028,SAP GUI still points to APPSRV-OLD-04 after the 2025 migration,KB0022,true,false,Resolved

@@ -132,5 +132,6 @@ def test_api_resumes_with_reviewer_decision_not_brief(setup, graph):  # noqa: F8
 
     assert response.status_code == 200
     assert response.json()["status"] == "rejected"
-    assert dispatcher.calls == [("adv-api", {"decision": "reject", "reviewer": "bob", "comment": None})]
+    assert dispatcher.calls == [("adv-api", {"decision": "reject", "reviewer": "bob", "comment": None,
+                                             "human_solution": None})]
     assert graph.get_state(thread_config("adv-api")).values["action_taken"] == "rejected_by_human"

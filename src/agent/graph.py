@@ -1,4 +1,6 @@
-﻿from langgraph.graph import StateGraph, END
+import logging
+
+from langgraph.graph import StateGraph, END
 from src.agent.state import AgentState
 
 from src.agent.nodes.load import load_node
@@ -15,6 +17,16 @@ from src.agent.nodes.prepare_review import prepare_review_node
 from src.agent.nodes.interrupt import interrupt_node
 from src.agent.nodes.act import act_node
 
+from src.agent.tools.registry import (
+    DEFAULT_TOOL_REGISTRY,
+    ToolRefusal,
+)
+from src.db.database import SessionLocal
+from src.observability.tracing import trace_node
+
+logger = logging.getLogger(__name__)
+
+
 CONFIDENCE_FLOOR = 0.6
 
 def route_after_validate(state: AgentState) -> str:
@@ -30,11 +42,13 @@ def route_after_risk(state: AgentState) -> str:
         return "prepare_review"
     return "retrieve"
 
+
 def route_after_retrieve(state: AgentState) -> str:
     """Missing evidence (empty or retrieval failed) -> human review before diagnosis begins."""
     if not state.get("retrieved_evidence"):
         return "prepare_review"
     return "diagnose"
+
 
 def route_after_confidence(state: AgentState) -> str:
     """Low confidence, a guardrail block (S3.3) or an exhausted critic (S3.1)
@@ -42,6 +56,7 @@ def route_after_confidence(state: AgentState) -> str:
     if state.get("critic_exhausted") or state.get("action_taken") == "blocked_by_guardrail":
         return "prepare_review"
     confidence = state.get("confidence", 0.0)
+
     if confidence < CONFIDENCE_FLOOR:
         return "prepare_review"
     return "act"
@@ -62,6 +77,115 @@ def route_after_critic(state: AgentState) -> str:
     return "generate"
 
 
+def route_after_act(state: AgentState) -> str:
+
+    decision = state.get("human_decision") or {}
+    if decision.get("decision") == "approve" and state.get("human_solution"):
+        return "knowledge_capture"
+    return "end"
+
+
+@trace_node(name="knowledge_capture")
+def knowledge_capture_node(state: AgentState) -> AgentState:
+    """
+    Capture an approved human resolution as knowledge.
+
+    The KB write-back MUST go through ToolRegistry so the HIGH_RISK
+    approval gate is enforced before the existing pipeline runs.
+
+    Flow:
+        ToolRegistry.dispatch("kb_write_back")
+            -> HIGH_RISK approval check / consumption
+            -> Article Composer
+            -> canonical Article
+            -> ServiceNow publish + verification
+            -> Qdrant synchronization
+            -> audit
+    """
+
+    human_solution = state.get("human_solution")
+
+    if not human_solution:
+        raise ValueError(
+            "Cannot perform knowledge capture without human_solution"
+        )
+
+    execution_id = state.get("execution_id")
+
+    if not execution_id:
+        raise ValueError(
+            "Cannot perform knowledge capture without execution_id"
+        )
+
+    incident_payload = state.get("incident_payload") or {}
+
+    # Reuse the existing classification when available.
+    category = (
+        state.get("classification")
+        or incident_payload.get("category")
+        or "general"
+    )
+
+    service = (
+        incident_payload.get("service")
+        or incident_payload.get("business_service")
+        or "general"
+    )
+
+    # Use a deterministic article number tied to this execution.
+    article_number = f"KBHR-{execution_id}"
+
+    db = SessionLocal()
+
+
+    try:
+        result = DEFAULT_TOOL_REGISTRY.dispatch(
+            "kb_write_back",
+            execution_id=execution_id,
+            incident_snapshot=incident_payload,
+            human_solution=human_solution,
+            article_number=article_number,
+            category=category,
+            service=service,
+            # The instance's security_level choice list has no "human_resolution"
+            # (ServiceNow silently drops it, seen live on KB0010596); "internal" is what
+            # the curated KB uses. Provenance stays in the KBHR- number and the audit table.
+            security_level="internal",
+            db=db,
+        )
+        if isinstance(result, ToolRefusal):
+            error = f"KB write-back refused: {result.reason}: {result.message}"
+        else:
+            return {"action_taken": "knowledge_captured", "knowledge_capture_result": result}
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+    finally:
+        db.close()
+
+    logger.error("Knowledge capture failed for %s: %s", execution_id, error)
+    _record_failed_capture(execution_id, article_number, error)
+    return {"knowledge_capture_result": {"status": "failed", "article_number": article_number, "error": error}}
+
+
+def _record_failed_capture(execution_id: str, article_number: str, error: str) -> None:
+    """knowledge_capture_audit row for a failed capture; never breaks the run."""
+    from src.db.knowledge_capture_service import record_knowledge_capture
+
+    db = SessionLocal()
+    try:
+        record_knowledge_capture(
+            db=db,
+            execution_reference=execution_id,
+            status="failed",
+            article_number=article_number,
+            error=error[:2000],
+        )
+    except Exception as exc:
+        logger.warning("Knowledge capture audit not written for %s: %s", execution_id, exc)
+    finally:
+        db.close()
+
+
 def create_graph():
     workflow = StateGraph(AgentState)
 
@@ -77,10 +201,20 @@ def create_graph():
     workflow.add_node("confidence_check", confidence_check_node)
     workflow.add_node("prepare_review", prepare_review_node)
     workflow.add_node("interrupt", interrupt_node)
+
+    # Automated action
     workflow.add_node("act", act_node)
 
+    # S3.5 knowledge capture
+    workflow.add_node(
+        "knowledge_capture",
+        knowledge_capture_node,
+    )
+
+    # Entry point
     workflow.set_entry_point("load")
 
+    # Standard path
     workflow.add_edge("load", "validate")
     workflow.add_conditional_edges(
         "validate",
@@ -89,12 +223,14 @@ def create_graph():
     )
     workflow.add_edge("classify", "determine_risk")
 
+    # Risk routing
     workflow.add_conditional_edges(
         "determine_risk",
         route_after_risk,
         {"retrieve": "retrieve", "prepare_review": "prepare_review"},
     )
 
+    # Retrieval routing
     workflow.add_conditional_edges(
         "retrieve",
         route_after_retrieve,
@@ -129,13 +265,22 @@ def create_graph():
     # S3.4: human path pauses at interrupt() and resumes into act
     workflow.add_edge("prepare_review", "interrupt")
     workflow.add_edge("interrupt", "act")
-    workflow.add_edge("act", END)
+
+    # act has written the outcome exactly once; an approved human
+    # solution then becomes a KB article (ServiceNow + Qdrant)
+    workflow.add_conditional_edges(
+        "act",
+        route_after_act,
+        {"knowledge_capture": "knowledge_capture", "end": END},
+    )
+    workflow.add_edge("knowledge_capture", END)
 
     return workflow
 
 
 def compile_graph(checkpointer=None):
     workflow = create_graph()
+
     if checkpointer:
         return workflow.compile(checkpointer=checkpointer)
     return workflow.compile()
