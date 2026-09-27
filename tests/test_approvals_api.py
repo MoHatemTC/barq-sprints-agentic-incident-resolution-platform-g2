@@ -67,6 +67,7 @@ class FakeStore:
         self.awaiting = list(awaiting)
         self.claimed = set()
         self.records = []
+        self.solutions = {}
 
     def awaiting_execution_ids(self):
         return list(self.awaiting)
@@ -77,8 +78,9 @@ class FakeStore:
         self.claimed.add(execution_id)
         return True
 
-    def record_decision(self, execution_id, evidence, decision, reviewer):
+    def record_decision(self, execution_id, evidence, decision, reviewer, human_solution=None):
         self.records.append((execution_id, json.loads(evidence), decision, reviewer))
+        self.solutions[execution_id] = human_solution
 
     def recorded_decision(self, execution_id):
         for eid, evidence, decision, reviewer in reversed(self.records):
@@ -87,6 +89,7 @@ class FakeStore:
                     "status": decision,
                     "reviewer": reviewer,
                     "rationale": evidence["rationale"],
+                    "human_solution": self.solutions.get(eid),
                     "decided_at": datetime(2026, 9, 26, 10, 0, tzinfo=timezone.utc),
                 }
         return None
@@ -202,7 +205,8 @@ def test_approve_persists_then_resumes_same_run(setup, graph):
     assert evidence["payload"] == _payload("a-1")
     assert evidence["brief"] == BRIEF
 
-    assert dispatcher.calls == [("a-1", {"decision": "approve", "reviewer": "sarah", "comment": "safe"})]
+    assert dispatcher.calls == [("a-1", {"decision": "approve", "reviewer": "sarah", "comment": "safe",
+                                         "human_solution": None})]
 
     # the SAME thread finished through act
     snapshot = graph.get_state(thread_config("a-1"))
@@ -279,7 +283,8 @@ def test_retry_after_dispatch_failure_resends_and_resumes(setup, graph):
     assert retry.status_code == 200
     assert retry.json()["status"] == "approved" and retry.json()["resumed"] is True
     assert len(store.records) == 1  # the decision is not recorded twice
-    assert dispatcher.calls[-1] == ("down-2", {"decision": "approve", "reviewer": "sarah", "comment": "safe"})
+    assert dispatcher.calls[-1] == ("down-2", {"decision": "approve", "reviewer": "sarah", "comment": "safe",
+                                               "human_solution": None})
     assert graph.get_state(thread_config("down-2")).values["action_taken"] == "approved_by_human"
 
 
@@ -380,3 +385,34 @@ def test_resume_task_marks_failure():
     assert outcome.failed()
     assert manager.statuses == [("e-2", "failed")]
     assert manager.failures[0]["failing_node"] == "resume"
+
+
+def test_approve_carries_human_solution_to_store_and_worker(setup, graph):
+    """S3.5: an approve's written resolution is stored and sent with the resume."""
+    client, store, dispatcher = setup
+    _pause(graph, "hs-1")
+    dispatcher.resume = False  # only check what would be queued
+
+    response = client.post("/api/v1/approvals/hs-1/decide", json={
+        "action": "approve", "reviewer": "sarah", "rationale": "safe",
+        "human_solution": "  Restart the VPN concentrator.  ",
+    })
+
+    assert response.status_code == 200
+    assert store.solutions["hs-1"] == "Restart the VPN concentrator."
+    assert dispatcher.calls[-1][1]["human_solution"] == "Restart the VPN concentrator."
+
+
+def test_reject_drops_human_solution(setup, graph):
+    """S3.5: a reject never carries text into knowledge capture."""
+    client, store, dispatcher = setup
+    _pause(graph, "hs-2")
+    dispatcher.resume = False
+
+    response = client.post("/api/v1/approvals/hs-2/decide", json={
+        "action": "reject", "reviewer": "sarah", "human_solution": "some text",
+    })
+
+    assert response.status_code == 200
+    assert store.solutions["hs-2"] is None
+    assert dispatcher.calls[-1][1]["human_solution"] is None
