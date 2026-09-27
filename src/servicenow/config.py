@@ -51,6 +51,12 @@ AI_FIELDS = {
     "retry_count":      f"{SCOPE}_ai_retry_count",          # Integer, default 0
     "max_retries":      f"{SCOPE}_ai_max_retries",          # Integer, default 3
     "retry_time_out":   f"{SCOPE}_ai_retry_time_out",       # Date,Time
+    # Standard ServiceNow Resolution Information fields (populate Resolution Information tab)
+    "close_code":       "close_code",                        # Choice (e.g. "Solved (Permanently)")
+    "close_notes":      "close_notes",                       # String - resolution notes shown in tab
+    "resolved_by":      "resolved_by",                       # Reference (sys_id of resolver user)
+    "resolved_at":      "resolved_at",                       # Date,Time
+    "state":            "state",                             # Integer (6=Resolved, 7=Closed)
 }
 
 # execution log columns

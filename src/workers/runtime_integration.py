@@ -344,6 +344,9 @@ def _servicenow_completion_fields(
     outputs = checkpoint.get("outputs")
     outputs = outputs if isinstance(outputs, Mapping) else {}
     is_awaiting_approval = checkpoint.get("__interrupt__") or checkpoint.get("human_review_required")
+    action_taken = checkpoint.get("action_taken", "")
+    is_resolved = not is_awaiting_approval and action_taken not in ("", None, "failed")
+
     fields: dict[str, object] = {
         "processing_state": "awaiting_approval" if is_awaiting_approval else "complete",
         "processing_start": execution_metadata.get("processing_start"),
@@ -360,6 +363,21 @@ def _servicenow_completion_fields(
         "human_review": checkpoint.get("human_review_required") is True,
         "failure_reason": None,
     }
+
+    # Populate Resolution Information tab when ticket is resolved
+    if is_resolved:
+        resolution_text = _field_text(outputs.get("resolution"), 4_000)
+        is_human_resolved = action_taken in ("approved_by_human", "knowledge_captured")
+        fields["close_code"] = "Solved (Permanently)"
+        fields["close_notes"] = (
+            f"[AI Resolution]\n{resolution_text}"
+            if resolution_text
+            else "Resolved by AI Incident Orchestrator"
+        )
+        fields["resolved_at"] = execution_metadata.get("processing_end")
+        # State 6 = Resolved in ServiceNow
+        fields["state"] = "6"
+
     failure_reason = _field_text(checkpoint.get("failure_reason"), 1_000)
     if failure_reason:
         fields["failure_reason"] = failure_reason

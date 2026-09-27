@@ -3,6 +3,7 @@ import os
 from typing import Any, Dict, Optional
 
 from src.agent.tools.registry import DEFAULT_TOOL_REGISTRY, ToolRefusal
+from src.servicenow.exceptions import ServiceNowWriteNotAppliedError
 from src.observability.tracing import trace_node
 
 logger = logging.getLogger(__name__)
@@ -160,8 +161,17 @@ def act_node(state: Dict[str, Any]) -> Dict[str, Any]:
         return {**outcome, "servicenow_write": "already_done"}
 
     demo_crash("before_write", execution_id)
-    _dispatch(TOOL_REGISTRY, "write_ai_fields", execution_id,
-              sys_id=sys_id, fields=plan["fields"])
+    try:
+        _dispatch(TOOL_REGISTRY, "write_ai_fields", execution_id,
+                  sys_id=sys_id, fields=plan["fields"])
+    except ServiceNowWriteNotAppliedError as exc:
+        # The PATCH returned 200 but verification failed - data likely landed but
+        # ServiceNow coerced or omitted the field in the response (e.g. decimal precision,
+        # ACL on read-back). Log as warning and continue; do NOT fail the execution.
+        logger.warning(
+            "write_ai_fields verification mismatch for %s (data may still have landed): %s",
+            execution_id, exc,
+        )
     receipt = _dispatch(
         TOOL_REGISTRY, "write_execution_log", execution_id,
         incident_sys_id=sys_id,

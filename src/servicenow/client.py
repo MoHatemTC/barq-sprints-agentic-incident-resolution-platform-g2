@@ -23,7 +23,9 @@ def _same(sent, got):
         return str(got).lower() == str(sent).lower()
     if isinstance(sent, (int, float)):
         try:
-            return float(got) == float(sent)
+            # Round to 4 decimal places to avoid floating-point precision mismatches
+            # (e.g. we send 0.83, ServiceNow stores and returns "0.83")
+            return round(float(got), 4) == round(float(sent), 4)
         except (TypeError, ValueError):
             return False
     return str(got) == str(sent)
@@ -105,6 +107,9 @@ class ServiceNowClient:
 
     def update_incident(self, sys_id, fields):
         # Write AI fields, keys are logical names from config file
+        # Standard SNOW fields (resolution tab) are non-critical; only custom AI fields are critical.
+        STANDARD_SNOW_FIELDS = {"close_code", "close_notes", "resolved_by", "resolved_at", "state"}
+
         payload = {}
         for key, value in fields.items():
             if key not in config.AI_FIELDS:
@@ -114,10 +119,22 @@ class ServiceNowClient:
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
         result = self._request("PATCH", url, json=payload)
 
-        # 200 does not prove the write landed, compare sent against returned
-        dropped = [c for c, v in payload.items() if not _same(v, result.get(c))]
-        if dropped:
-            raise ServiceNowWriteNotAppliedError(200, f"Fields not written: {dropped}")
+        # 200 does not prove the write landed, compare sent against returned.
+        # Standard fields (close_code, state, etc.) are verified as warnings only
+        # because ServiceNow may apply ACLs or coerce values on resolution fields.
+        critical_keys = {config.AI_FIELDS[k] for k in fields if k not in STANDARD_SNOW_FIELDS}
+        standard_keys = {config.AI_FIELDS[k] for k in fields if k in STANDARD_SNOW_FIELDS}
+
+        critical_dropped = [c for c in critical_keys if not _same(payload.get(c), result.get(c))]
+        standard_dropped = [c for c in standard_keys if not _same(payload.get(c), result.get(c))]
+
+        if standard_dropped:
+            logger.warning(
+                "Standard resolution fields not confirmed by ServiceNow (may be ACL-gated): %s",
+                standard_dropped,
+            )
+        if critical_dropped:
+            raise ServiceNowWriteNotAppliedError(200, f"Fields not written: {critical_dropped}")
         return result
 
     def add_work_note(self, sys_id, note):

@@ -172,8 +172,20 @@ class GraphAgentExecutor:
     @trace_execution(name="resume_incident_graph")
     def resume(self, execution_id: str = None, decision: dict = None) -> dict:
         """Continue the SAME checkpointed execution after a human decision"""
-        graph = compile_graph(checkpointer=get_checkpointer())
-        return self._continue(graph, execution_id, decision)
+        checkpointer = get_checkpointer()
+        graph = compile_graph(checkpointer=checkpointer)
+
+        # Capture the full state BEFORE resume so we don't lose fields from the first run
+        # (classification, risk, confidence, etc. are in the checkpoint but not in the resume delta)
+        snapshot_before = get_run_state(graph, execution_id)
+        full_state_before = snapshot_before.values if snapshot_before else {}
+
+        result = self._continue(graph, execution_id, decision)
+
+        # Merge: full pre-resume state provides the context fields,
+        # the resume result provides action_taken / servicenow_write / outputs delta.
+        merged = {**full_state_before, **result}
+        return merged
 
 
 class AgentExecutor(Protocol):
