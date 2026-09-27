@@ -200,6 +200,27 @@ _REDACTION_PATTERNS: List[Tuple[re.Pattern, str, str]] = [
         r"(?i)(?:password|passwd|pwd)(?:\s+is)?\s*[=:]\s*['\"]?(\S{4,})['\"]?"
     ), "[REDACTED_PASSWORD]", "password"),
 
+    # Natural-language password disclosure: "my password is X", "the password is X"
+    # Catches the pattern that the key=value regex misses (BUG-03).
+    (re.compile(
+        r"(?i)(?:my|the|our|your|current|old|new)?\s*"
+        r"(?:password|passwd|passphrase|pin|passcode)\s+"
+        r"(?:is|are|was|will\s+be)\s+(\S{4,})"
+    ), "[REDACTED_PASSWORD]", "password"),
+
+    # Natural-language username/credential disclosure: "my username is X", "login is X"
+    (re.compile(
+        r"(?i)(?:my|the|our|your)?\s*"
+        r"(?:username|user\s*name|login|user\s*id|account)\s+"
+        r"(?:is|are|was)\s+(\S{3,})"
+    ), "[REDACTED_USERNAME]", "username"),
+
+    # Natural-language credential pairs: "credentials are X / Y", "login details: X Y"
+    (re.compile(
+        r"(?i)(?:credentials?|login\s+details?|access\s+details?)\s*"
+        r"(?:are|is|:)\s+(\S{3,}(?:\s*/\s*\S{3,})?)"
+    ), "[REDACTED_CREDENTIALS]", "credentials"),
+
     # --- PII ---
     # US Social Security Number  (XXX-XX-XXXX)
     (re.compile(

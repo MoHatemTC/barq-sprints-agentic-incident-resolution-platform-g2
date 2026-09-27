@@ -31,10 +31,15 @@ def _is_graph_pause(error: BaseException) -> bool:
     return isinstance(error, GraphBubbleUp)
 
 # ---------------------------------------------------------------------------
-# Context variable to propagate the root trace_id across nodes
+# Context variables to propagate the root trace_id and current span_id
+# across nodes and LLM calls, enabling proper parent-child span hierarchy:
+#   trace → node span → LLM generation
 # ---------------------------------------------------------------------------
 _current_trace_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
     "_current_trace_id", default=None
+)
+_current_span_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "_current_span_id", default=None
 )
 
 # ---------------------------------------------------------------------------
@@ -207,6 +212,7 @@ def trace_node(name: str, observation_type: str = "span"):
 
             # Create span via the v4 API
             span = None
+            span_token = None
             try:
                 span = client.start_observation(
                     name=name,
@@ -214,6 +220,10 @@ def trace_node(name: str, observation_type: str = "span"):
                     trace_context=trace_context,
                     input={"args": [str(a)[:500] for a in clean_args], "kwargs": clean_kwargs},
                 )
+                # Propagate this span's ID so get_llm_callback() can nest
+                # LLM calls as children of this node span (fixes BUG-16).
+                if span and hasattr(span, "id"):
+                    span_token = _current_span_id.set(span.id)
             except Exception:
                 pass
 
@@ -253,6 +263,9 @@ def trace_node(name: str, observation_type: str = "span"):
             finally:
                 elapsed = time.perf_counter() - start
                 logger.debug(f"[tracing] node={name} latency={elapsed:.3f}s")
+                # Reset span context so sibling nodes don't inherit this span
+                if span_token is not None:
+                    _current_span_id.reset(span_token)
 
         return wrapper
     return decorator
@@ -263,16 +276,34 @@ except ImportError:
     CallbackHandler = None
 def get_llm_callback():
     """
-    Returns a LangChain CallbackHandler tied to the current trace.
-    Pass this to llm.invoke(..., config={"callbacks": [get_llm_callback()]})
+    Returns a LangChain CallbackHandler tied to the current node span.
+
+    Links the handler to both the root trace_id AND the current node's
+    span_id (parent_observation_id), so LLM generations appear nested
+    under their node span in Langfuse:
+        trace → node span → LLM generation
+
+    This restores proper parent-child hierarchy (fixes BUG-16) and makes
+    the Critic → Revision → Critic loop clearly visible in Langfuse.
     """
     if not LANGFUSE_AVAILABLE or CallbackHandler is None:
         return []
-        
+
     parent_trace_id = _current_trace_id.get()
-    
-    # Initialize the handler and link it to the existing trace tree
-    trace_context = {"trace_id": parent_trace_id} if parent_trace_id else None
-    handler = CallbackHandler(trace_context=trace_context)
-    
-    return [handler]
+    parent_span_id = _current_span_id.get()
+
+    # Build trace_context with both trace and parent span so LLM calls
+    # nest under the current node span, not at the root trace level.
+    trace_context = {}
+    if parent_trace_id:
+        trace_context["trace_id"] = parent_trace_id
+    if parent_span_id:
+        trace_context["parent_observation_id"] = parent_span_id
+
+    try:
+        handler = CallbackHandler(
+            trace_context=trace_context if trace_context else None
+        )
+        return [handler]
+    except Exception:
+        return []
