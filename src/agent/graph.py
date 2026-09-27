@@ -15,7 +15,10 @@ from src.agent.nodes.confidence_check import confidence_check_node
 from src.agent.nodes.interrupt import interrupt_node
 from src.agent.nodes.act import act_node
 
-from src.agent.knowledge_capture import capture_human_resolution
+from src.agent.tools.registry import (
+    DEFAULT_TOOL_REGISTRY,
+    ToolRefusal,
+)
 from src.db.database import SessionLocal
 
 
@@ -51,6 +54,9 @@ def route_after_interrupt(state: AgentState) -> str:
     Approved human resolution -> knowledge capture.
 
     Rejected/manual decisions do not create a KB article.
+
+    The actual HIGH_RISK authorization is enforced by ToolRegistry.dispatch
+    inside knowledge_capture_node.
     """
     human_decision = state.get("human_decision")
 
@@ -64,12 +70,17 @@ def knowledge_capture_node(state: AgentState) -> AgentState:
     """
     Capture an approved human resolution as knowledge.
 
-    Reuses the existing S3.5 knowledge-capture pipeline:
-        Article Composer
-        -> canonical Article
-        -> ServiceNow publish + verification
-        -> Qdrant synchronization
-        -> audit
+    The KB write-back MUST go through ToolRegistry so the HIGH_RISK
+    approval gate is enforced before the existing S3.5 pipeline runs.
+
+    Flow:
+        ToolRegistry.dispatch("kb_write_back")
+            -> HIGH_RISK approval check / consumption
+            -> Article Composer
+            -> canonical Article
+            -> ServiceNow publish + verification
+            -> Qdrant synchronization
+            -> audit
     """
 
     human_solution = state.get("human_solution")
@@ -87,7 +98,6 @@ def knowledge_capture_node(state: AgentState) -> AgentState:
         )
 
     incident_payload = state.get("incident_payload") or {}
-    incident_number = state.get("incident_number") or "UNKNOWN"
 
     # Reuse the existing classification when available.
     category = (
@@ -108,16 +118,22 @@ def knowledge_capture_node(state: AgentState) -> AgentState:
     db = SessionLocal()
 
     try:
-        result = capture_human_resolution(
+        result = DEFAULT_TOOL_REGISTRY.dispatch(
+            "kb_write_back",
+            execution_id=execution_id,
             incident_snapshot=incident_payload,
             human_solution=human_solution,
             article_number=article_number,
             category=category,
             service=service,
-            security_level="internal",
-            execution_identifier=execution_id,
+            security_level="human_resolution",
             db=db,
         )
+
+        if isinstance(result, ToolRefusal):
+            raise PermissionError(
+                f"KB write-back refused: {result.reason}: {result.message}"
+            )
 
     finally:
         db.close()
@@ -206,6 +222,10 @@ def create_graph():
     # approved + human_solution
     #    ↓
     # knowledge_capture
+    #    ↓
+    # ToolRegistry HIGH_RISK gate
+    #    ↓
+    # existing knowledge-capture pipeline
     #    ↓
     # END
     #

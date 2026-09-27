@@ -41,6 +41,11 @@ def compose_article(
         raise ValueError("Article Composer returned invalid JSON") from exc
 
     _validate_article(article)
+    _validate_faithfulness(
+        article,
+        incident_snapshot,
+        human_solution,
+    )
 
     return article
 
@@ -64,3 +69,52 @@ def _validate_article(article: Dict[str, Any]) -> None:
 
     if not all(isinstance(step, str) and step.strip() for step in steps):
         raise ValueError("Every article step must be a non-empty string")
+
+
+def _validate_faithfulness(
+    article: Dict[str, Any],
+    incident_snapshot: Dict[str, Any],
+    human_solution: str,
+) -> None:
+    """Reject clearly unsupported technical details in generated content."""
+
+    source_text = " ".join(
+        str(value)
+        for value in incident_snapshot.values()
+    )
+    source_text = f"{source_text} {human_solution}".lower()
+
+    generated_text = " ".join(
+        [
+            article["title"],
+            article["summary"],
+            *article["steps"],
+        ]
+    ).lower()
+
+    technical_terms = {
+        "database",
+        "server",
+        "configuration",
+        "command",
+        "sql",
+        "firewall",
+        "endpoint",
+        "credential",
+        "password",
+        "port",
+        "hostname",
+        "production",
+    }
+
+    unsupported = {
+        term
+        for term in technical_terms
+        if term in generated_text and term not in source_text
+    }
+
+    if unsupported:
+        raise ValueError(
+            "Article contains unsupported technical details: "
+            + ", ".join(sorted(unsupported))
+        )

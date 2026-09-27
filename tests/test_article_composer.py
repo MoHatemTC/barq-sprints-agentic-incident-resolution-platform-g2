@@ -112,14 +112,20 @@ def test_article_composer_rejects_missing_steps(monkeypatch):
             },
             "Restart the service.",
         )
-def test_article_composer_prompt_enforces_faithfulness_on_sparse_input(
+
+
+def test_article_composer_rejects_fabricated_details_on_sparse_input(
     monkeypatch,
 ):
     response = {
         "title": "Restart the service",
-        "summary": "The service was unavailable.",
+        "summary": (
+            "The database server was unavailable because of a "
+            "configuration problem."
+        ),
         "steps": [
             "Restart the service.",
+            "Check the database server configuration.",
         ],
     }
 
@@ -139,13 +145,14 @@ def test_article_composer_prompt_enforces_faithfulness_on_sparse_input(
 
     human_solution = "Restart the service."
 
-    result = article_composer.compose_article(
-        incident_snapshot,
-        human_solution,
-    )
-
-    assert result["title"] == "Restart the service"
-    assert result["steps"] == ["Restart the service."]
+    with pytest.raises(
+        ValueError,
+        match="unsupported technical details",
+    ):
+        article_composer.compose_article(
+            incident_snapshot,
+            human_solution,
+        )
 
     prompt = fake_llm.last_prompt
 
@@ -153,17 +160,20 @@ def test_article_composer_prompt_enforces_faithfulness_on_sparse_input(
     assert "Service unavailable" in prompt
     assert human_solution in prompt
 
-    # The prompt must explicitly prevent unsupported technical invention.
+    # The Composer prompt must explicitly prevent unsupported invention.
     assert (
         "Do not invent technical details, commands, causes, systems, "
         "or configuration."
     ) in prompt
 
-    assert (
-        "do not guess it"
-    ) in prompt.lower()
+    assert "do not guess it" in prompt.lower()
 
-    # Sparse input must not introduce technical facts that were not supplied.
-    assert "database" not in prompt.lower()
-    assert "server" not in prompt.lower()
-    assert "configuration" in prompt.lower()
+    # The sparse input itself must not contain the fabricated terms.
+    assert "database" not in (
+        json.dumps(incident_snapshot).lower()
+        + human_solution.lower()
+    )
+    assert "server" not in (
+        json.dumps(incident_snapshot).lower()
+        + human_solution.lower()
+    )

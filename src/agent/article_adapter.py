@@ -46,6 +46,6 @@ def composer_result_to_article(
         service=service,
         workflow_state="published",
         version=1,
-        security_level="human_resolution",
+        security_level=security_level,
         section=HUMAN_RESOLUTION_SECTION,
     )

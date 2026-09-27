@@ -1,11 +1,14 @@
 import pytest
+from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock
+
 from fastapi.testclient import TestClient
 
 from src.api.app import create_app
-from src.api.dependencies import get_settings, get_redis, get_db_session
+from src.api.dependencies import get_settings, get_redis, get_sync_db
 from src.api.auth import require_operator_role
 from src.api.schemas import Settings
+from src.api.routers import approvals
 
 
 TEST_TOKEN = "test-token-123"
@@ -25,18 +28,48 @@ def get_test_settings() -> Settings:
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
     app = create_app()
     app.dependency_overrides[get_settings] = get_test_settings
     app.dependency_overrides[get_redis] = lambda: AsyncMock()
 
-    async def override_db():
-        yield AsyncMock()
+    def override_db():
+        yield MagicMock()
 
-    app.dependency_overrides[get_db_session] = override_db
+    app.dependency_overrides[get_sync_db] = override_db
     app.dependency_overrides[require_operator_role] = lambda: {
         "role": "operator"
     }
+
+    # Keep approval endpoint contract tests independent of the real database
+    # and Celery broker.
+    monkeypatch.setattr(
+        approvals,
+        "get_execution",
+        lambda db, execution_id: object(),
+    )
+    monkeypatch.setattr(
+        approvals,
+        "check_and_create_idempotency_key",
+        lambda db, key: True,
+    )
+    monkeypatch.setattr(
+        approvals,
+        "create_approval",
+        lambda **kwargs: MagicMock(
+            decision_timestamp=datetime.now(timezone.utc)
+        ),
+    )
+    monkeypatch.setattr(
+        approvals,
+        "update_execution_status",
+        lambda db, execution_id, status: None,
+    )
+    monkeypatch.setattr(
+        approvals.celery_app,
+        "send_task",
+        lambda *args, **kwargs: MagicMock(),
+    )
 
     with TestClient(app) as c:
         yield c
@@ -140,6 +173,7 @@ def test_decide_approval_accepts_valid_action(client):
         json={
             "action": "approve",
             "reviewer": "sarah",
+            "human_solution": "Restart the affected service.",
         },
     )
 
@@ -181,10 +215,10 @@ def test_replay_dlq_requires_operator_role(client):
         lambda: AsyncMock()
     )
 
-    async def override_db():
-        yield AsyncMock()
+    def override_db():
+        yield MagicMock()
 
-    app.dependency_overrides[get_db_session] = (
+    app.dependency_overrides[get_sync_db] = (
         override_db
     )
 

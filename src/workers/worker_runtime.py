@@ -18,7 +18,11 @@ from src.workers.redis_consumer import (
 )
 from src.workers.retry_policy import RetryPolicy
 from src.workers.runtime_integration import establish_execution_context
-from src.workers.tasks import ProductionIntegrationSeams, register_process_accepted_incident_task
+from src.workers.tasks import (
+    ProductionIntegrationSeams,
+    register_process_accepted_incident_task,
+    register_resume_incident_graph_task,
+)
 
 
 class RedisWorkerClient(RedisListClient, RedisListPublisher, Protocol):
@@ -40,7 +44,12 @@ class IntegratedWorker:
             block_timeout_seconds=block_timeout_seconds,
         )
 
-    def run(self, should_stop: Callable[[], bool], *, block_timeout_seconds: int = 5) -> None:
+    def run(
+        self,
+        should_stop: Callable[[], bool],
+        *,
+        block_timeout_seconds: int = 5,
+    ) -> None:
         run_incident_consumer_for_celery(
             self.redis_client,
             self.process_task,
@@ -57,11 +66,13 @@ def create_integrated_worker(
     """Build the one S2.3 execution path without a second Celery app."""
     worker_config = config or WorkerConfig.from_environment()
     celery_app = create_celery_app(worker_config)
+
     retry_policy = RetryPolicy(
         base_delay_seconds=worker_config.retry_base_delay_seconds,
         max_delay_seconds=worker_config.retry_max_delay_seconds,
         max_retries=worker_config.task_max_retries,
     )
+
     process_task = register_process_accepted_incident_task(
         retry_policy,
         ProductionIntegrationSeams(
@@ -69,4 +80,7 @@ def create_integrated_worker(
         ),
         app=celery_app,
     )
+
+    register_resume_incident_graph_task(app=celery_app)
+
     return IntegratedWorker(redis_client, process_task)
