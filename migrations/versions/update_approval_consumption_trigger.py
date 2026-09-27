@@ -1,7 +1,7 @@
 """allow one-time approval consumption
 
 Revision ID: update_approval_consumption_trigger
-Revises: add_consumed_approvals
+Revises: add_knowledge_capture_audit
 """
 
 from typing import Sequence, Union
@@ -11,7 +11,7 @@ from alembic import op
 
 revision: str = "a91f4c7e2b10"
 
-down_revision: Union[str, Sequence[str], None] = "add_consumed_approvals"
+down_revision: Union[str, Sequence[str], None] = "add_knowledge_capture_audit"
 
 branch_labels = None
 depends_on = None

@@ -1,9 +1,4 @@
-<<<<<<< HEAD
 from langgraph.graph import StateGraph, END
-
-=======
-﻿from langgraph.graph import StateGraph, END
->>>>>>> origin/development
 from src.agent.state import AgentState
 
 from src.agent.nodes.load import load_node
@@ -25,6 +20,7 @@ from src.agent.tools.registry import (
     ToolRefusal,
 )
 from src.db.database import SessionLocal
+from src.observability.tracing import trace_node
 
 
 CONFIDENCE_FLOOR = 0.6
@@ -58,12 +54,7 @@ def route_after_confidence(state: AgentState) -> str:
     confidence = state.get("confidence", 0.0)
 
     if confidence < CONFIDENCE_FLOOR:
-<<<<<<< HEAD
-        return "interrupt"
-
-=======
         return "prepare_review"
->>>>>>> origin/development
     return "act"
 
 def route_after_critic(state: AgentState) -> str:
@@ -82,29 +73,21 @@ def route_after_critic(state: AgentState) -> str:
     return "generate"
 
 
-def route_after_interrupt(state: AgentState) -> str:
-    """
-    Approved human resolution -> knowledge capture.
+def route_after_act(state: AgentState) -> str:
 
-    Rejected/manual decisions do not create a KB article.
-
-    The actual HIGH_RISK authorization is enforced by ToolRegistry.dispatch
-    inside knowledge_capture_node.
-    """
-    human_decision = state.get("human_decision")
-
-    if human_decision == "approve" and state.get("human_solution"):
+    decision = state.get("human_decision") or {}
+    if decision.get("decision") == "approve" and state.get("human_solution"):
         return "knowledge_capture"
-
     return "end"
 
 
+@trace_node(name="knowledge_capture")
 def knowledge_capture_node(state: AgentState) -> AgentState:
     """
     Capture an approved human resolution as knowledge.
 
     The KB write-back MUST go through ToolRegistry so the HIGH_RISK
-    approval gate is enforced before the existing S3.5 pipeline runs.
+    approval gate is enforced before the existing pipeline runs.
 
     Flow:
         ToolRegistry.dispatch("kb_write_back")
@@ -180,10 +163,6 @@ def knowledge_capture_node(state: AgentState) -> AgentState:
 def create_graph():
     workflow = StateGraph(AgentState)
 
-<<<<<<< HEAD
-    # Core agent nodes
-=======
->>>>>>> origin/development
     workflow.add_node("load", load_node)
     workflow.add_node("validate", validate_node)
     workflow.add_node("classify", classify_node)
@@ -194,18 +173,12 @@ def create_graph():
     workflow.add_node("verify_evidence", verify_evidence_node)
     workflow.add_node("safety_check", safety_check_node)
     workflow.add_node("confidence_check", confidence_check_node)
-<<<<<<< HEAD
-
-    # Human escalation
-=======
     workflow.add_node("prepare_review", prepare_review_node)
->>>>>>> origin/development
     workflow.add_node("interrupt", interrupt_node)
 
     # Automated action
     workflow.add_node("act", act_node)
 
-<<<<<<< HEAD
     # S3.5 knowledge capture
     workflow.add_node(
         "knowledge_capture",
@@ -216,10 +189,6 @@ def create_graph():
     workflow.set_entry_point("load")
 
     # Standard path
-=======
-    workflow.set_entry_point("load")
-
->>>>>>> origin/development
     workflow.add_edge("load", "validate")
     workflow.add_conditional_edges(
         "validate",
@@ -232,33 +201,16 @@ def create_graph():
     workflow.add_conditional_edges(
         "determine_risk",
         route_after_risk,
-<<<<<<< HEAD
-        {
-            "retrieve": "retrieve",
-            "interrupt": "interrupt",
-        },
-=======
         {"retrieve": "retrieve", "prepare_review": "prepare_review"},
->>>>>>> origin/development
     )
 
     # Retrieval routing
     workflow.add_conditional_edges(
         "retrieve",
         route_after_retrieve,
-<<<<<<< HEAD
-        {
-            "diagnose": "diagnose",
-            "interrupt": "interrupt",
-        },
-    )
-
-    # Diagnosis path
-=======
         {"diagnose": "diagnose", "prepare_review": "prepare_review"},
     )
 
->>>>>>> origin/development
     workflow.add_edge("diagnose", "generate")
     workflow.add_edge("generate", "verify_evidence")
 
@@ -274,11 +226,7 @@ def create_graph():
 
     workflow.add_edge("safety_check", "confidence_check")
 
-<<<<<<< HEAD
-    # Confidence routing
-=======
     # Conditional edge after confidence: needs a human -> prepare_review, else act
->>>>>>> origin/development
     workflow.add_conditional_edges(
         "confidence_check",
         route_after_confidence,
@@ -288,42 +236,18 @@ def create_graph():
         },
     )
 
-<<<<<<< HEAD
-    # Human approval path:
-    #
-    # interrupt
-    #    ↓
-    # approved + human_solution
-    #    ↓
-    # knowledge_capture
-    #    ↓
-    # ToolRegistry HIGH_RISK gate
-    #    ↓
-    # existing knowledge-capture pipeline
-    #    ↓
-    # END
-    #
-    # rejected / missing solution
-    #    ↓
-    # END
-    workflow.add_conditional_edges(
-        "interrupt",
-        route_after_interrupt,
-        {
-            "knowledge_capture": "knowledge_capture",
-            "end": END,
-        },
-    )
-
-    workflow.add_edge("knowledge_capture", END)
-
-    # Normal automated path
-=======
     # S3.4: human path pauses at interrupt() and resumes into act
     workflow.add_edge("prepare_review", "interrupt")
     workflow.add_edge("interrupt", "act")
->>>>>>> origin/development
-    workflow.add_edge("act", END)
+
+    # act has written the outcome exactly once; an approved human
+    # solution then becomes a KB article (ServiceNow + Qdrant)
+    workflow.add_conditional_edges(
+        "act",
+        route_after_act,
+        {"knowledge_capture": "knowledge_capture", "end": END},
+    )
+    workflow.add_edge("knowledge_capture", END)
 
     return workflow
 
@@ -332,13 +256,5 @@ def compile_graph(checkpointer=None):
     workflow = create_graph()
 
     if checkpointer:
-<<<<<<< HEAD
-        return workflow.compile(
-            checkpointer=checkpointer
-        )
-
-    return workflow.compile()
-=======
         return workflow.compile(checkpointer=checkpointer)
     return workflow.compile()
->>>>>>> origin/development
