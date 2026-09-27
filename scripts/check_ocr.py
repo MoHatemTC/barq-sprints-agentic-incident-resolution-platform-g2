@@ -14,13 +14,29 @@ if sys.platform == 'win32':
     if os.path.exists(default_path):
         pytesseract.pytesseract.tesseract_cmd = default_path
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python check_ocr.py <path_to_image_or_pdf>")
-        print("Example: python check_ocr.py my_test_image.png")
-        sys.exit(1)
+USAGE = """Usage: python check_ocr.py <path_to_image_or_pdf> [--preprocess]
 
-    file_path = [arg for arg in sys.argv[1:] if not arg.startswith('--')][0]
+  --preprocess   grayscale + contrast boost + upscale before reading; helps on
+                 low-quality screenshots, costs a little speed
+  --help         this message
+
+Example: python check_ocr.py my_test_image.png --preprocess
+
+Note: needs the tesseract *binary* on PATH, not just the pytesseract binding.
+Poppler is additionally required for PDFs (pdf2image drives pdftoppm).
+"""
+
+def main():
+    if len(sys.argv) < 2 or '-h' in sys.argv or '--help' in sys.argv:
+        print(USAGE)
+        sys.exit(0 if len(sys.argv) > 1 else 1)
+
+    positional = [arg for arg in sys.argv[1:] if not arg.startswith('--')]
+    if not positional:
+        print("Error: no file given.\n")
+        print(USAGE)
+        sys.exit(1)
+    file_path = positional[0]
     use_preprocess = '--preprocess' in sys.argv
     
     if not os.path.exists(file_path):
@@ -43,8 +59,12 @@ def main():
         
     except Exception as e:
         print(f"\nError during OCR extraction: {e}")
-        print("\nNote: Please ensure pytesseract and Pillow are installed.")
-        print("Run: pip install pytesseract==0.3.13 Pillow")
+        print("\nTroubleshooting:")
+        print("  1. pip install pytesseract==0.3.13 Pillow")
+        print("  2. the tesseract BINARY must be on PATH:")
+        print("       sudo apt-get install -y tesseract-ocr   (Debian/Ubuntu)")
+        print("       brew install tesseract                 (macOS)")
+        print("  3. PDFs also need Poppler: sudo apt-get install -y poppler-utils")
         sys.exit(1)
 
 if __name__ == "__main__":

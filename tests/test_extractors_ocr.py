@@ -57,9 +57,15 @@ def test_extract_ocr_preprocess(mock_exists, mock_image, mock_pytesseract, mock_
     assert result.provenance["preprocess_applied"] is True
 
 
+@patch("src.retrieval.extractors.ocr.Image")
+@patch("src.retrieval.extractors.ocr.pytesseract")
 @patch("src.retrieval.extractors.ocr.os.path.exists")
-def test_extract_ocr_file_not_found(mock_exists):
+def test_extract_ocr_file_not_found(mock_exists, mock_tess, mock_image):
     mock_exists.return_value = False
-    
+
+    # pytesseract/Image are patched too: extract_ocr() guards on importability
+    # before it looks at the path, so without them this test only passes on a
+    # machine that happens to have OCR installed. The subject here is the
+    # missing-file path, and that should hold everywhere.
     with pytest.raises(FileNotFoundError):
         extract_ocr("missing.png")
