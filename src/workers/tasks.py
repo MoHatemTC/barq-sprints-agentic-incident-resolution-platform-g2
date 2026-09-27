@@ -55,6 +55,20 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _capture_summary(capture: dict | None) -> dict | None:
+    """The part of a knowledge-capture result worth auditing (not the whole article)."""
+    if not capture:
+        return None
+    servicenow = capture.get("servicenow") or {}
+    return {
+        "status": capture.get("status"),
+        "article_number": servicenow.get("article_number") or capture.get("article_number"),
+        "article_sys_id": servicenow.get("sys_id"),
+        "consistency": capture.get("consistency"),
+        "error": capture.get("error"),
+    }
+
+
 def continue_run(graph, execution_id: str, decision: dict | None = None) -> dict:
     """Continue a checkpointed run: resume a paused one with the human decision, or finish one a crash stopped mid-way. Safe to call again on retry."""
     snapshot = get_run_state(graph, execution_id)
@@ -117,6 +131,8 @@ class GraphAgentExecutor:
             "retrieved_evidence": [e.get("id") for e in result.get("retrieved_evidence") or []],
             "action_taken": result.get("action_taken"),
             "servicenow_write": result.get("servicenow_write"),
+            # S3.5: status / article_number / error of the KB write-back, if one ran
+            "knowledge_capture": _capture_summary(result.get("knowledge_capture_result")),
             "finished_at": _now(),
         })
 

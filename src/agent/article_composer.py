@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Any, Dict
 
 from src.agent.llm import get_llm
@@ -35,7 +36,7 @@ def compose_article(
     content = response.content if hasattr(response, "content") else str(response)
 
     try:
-        article = json.loads(content)
+        article = json.loads(_json_object_text(content))
     except json.JSONDecodeError as exc:
         logger.error("Article Composer returned invalid JSON: %s", content)
         raise ValueError("Article Composer returned invalid JSON") from exc
@@ -48,6 +49,14 @@ def compose_article(
     )
 
     return article
+
+
+def _json_object_text(content: str) -> str:
+    """The JSON object in an LLM reply; real models often wrap it in ```json fences."""
+    start, end = content.find("{"), content.rfind("}")
+    if start == -1 or end <= start:
+        return content
+    return content[start:end + 1]
 
 
 def _validate_article(article: Dict[str, Any]) -> None:
@@ -107,10 +116,14 @@ def _validate_faithfulness(
         "production",
     }
 
+    # Whole words only: a substring test flags "reported" as "port" and "mysql" as "sql"
+    def mentions(text: str, term: str) -> bool:
+        return re.search(rf"\b{re.escape(term)}\b", text) is not None
+
     unsupported = {
         term
         for term in technical_terms
-        if term in generated_text and term not in source_text
+        if mentions(generated_text, term) and not mentions(source_text, term)
     }
 
     if unsupported:

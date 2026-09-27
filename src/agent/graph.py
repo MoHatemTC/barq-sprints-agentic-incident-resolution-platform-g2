@@ -1,3 +1,5 @@
+import logging
+
 from langgraph.graph import StateGraph, END
 from src.agent.state import AgentState
 
@@ -21,6 +23,8 @@ from src.agent.tools.registry import (
 )
 from src.db.database import SessionLocal
 from src.observability.tracing import trace_node
+
+logger = logging.getLogger(__name__)
 
 
 CONFIDENCE_FLOOR = 0.6
@@ -133,6 +137,7 @@ def knowledge_capture_node(state: AgentState) -> AgentState:
 
     db = SessionLocal()
 
+
     try:
         result = DEFAULT_TOOL_REGISTRY.dispatch(
             "kb_write_back",
@@ -142,22 +147,43 @@ def knowledge_capture_node(state: AgentState) -> AgentState:
             article_number=article_number,
             category=category,
             service=service,
-            security_level="human_resolution",
+            # The instance's security_level choice list has no "human_resolution"
+            # (ServiceNow silently drops it, seen live on KB0010596); "internal" is what
+            # the curated KB uses. Provenance stays in the KBHR- number and the audit table.
+            security_level="internal",
             db=db,
         )
-
         if isinstance(result, ToolRefusal):
-            raise PermissionError(
-                f"KB write-back refused: {result.reason}: {result.message}"
-            )
-
+            error = f"KB write-back refused: {result.reason}: {result.message}"
+        else:
+            return {"action_taken": "knowledge_captured", "knowledge_capture_result": result}
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
     finally:
         db.close()
 
-    return {
-        "action_taken": "knowledge_captured",
-        "knowledge_capture_result": result,
-    }
+    logger.error("Knowledge capture failed for %s: %s", execution_id, error)
+    _record_failed_capture(execution_id, article_number, error)
+    return {"knowledge_capture_result": {"status": "failed", "article_number": article_number, "error": error}}
+
+
+def _record_failed_capture(execution_id: str, article_number: str, error: str) -> None:
+    """knowledge_capture_audit row for a failed capture; never breaks the run."""
+    from src.db.knowledge_capture_service import record_knowledge_capture
+
+    db = SessionLocal()
+    try:
+        record_knowledge_capture(
+            db=db,
+            execution_reference=execution_id,
+            status="failed",
+            article_number=article_number,
+            error=error[:2000],
+        )
+    except Exception as exc:
+        logger.warning("Knowledge capture audit not written for %s: %s", execution_id, exc)
+    finally:
+        db.close()
 
 
 def create_graph():

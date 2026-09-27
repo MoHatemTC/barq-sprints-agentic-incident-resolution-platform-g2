@@ -177,3 +177,41 @@ def test_article_composer_rejects_fabricated_details_on_sparse_input(
         json.dumps(incident_snapshot).lower()
         + human_solution.lower()
     )
+
+
+def test_article_composer_accepts_json_wrapped_in_code_fences(monkeypatch):
+    """Real LLMs often answer with ```json fences (seen live on INC0010171)."""
+    response = {
+        "title": "Restart the email service",
+        "summary": "Users could not access the email service; it was reported down.",
+        "steps": ["Restart the email service.", "Verify that users can access email again."],
+    }
+    fence = "`" * 3
+    fake_llm = FakeLLM(f"{fence}json\n{json.dumps(response, indent=2)}\n{fence}")
+    monkeypatch.setattr(article_composer, "get_llm", lambda: fake_llm)
+
+    article = article_composer.compose_article(
+        {"number": "INC-FENCE-001", "short_description": "Email service unavailable"},
+        "Restart the email service and verify that users can access email again.",
+    )
+
+    assert article["title"] == "Restart the email service"
+    assert len(article["steps"]) == 2
+
+
+def test_faithfulness_matches_whole_words_only(monkeypatch):
+    """'reported' must not count as the technical term 'port'."""
+    response = {
+        "title": "Restore the payroll service",
+        "summary": "The payroll service was reported down and support restarted it.",
+        "steps": ["Restart the payroll service."],
+    }
+    monkeypatch.setattr(article_composer, "get_llm", lambda: FakeLLM(json.dumps(response)))
+
+    article = article_composer.compose_article(
+        {"number": "INC-WORD-001", "short_description": "Payroll service down"},
+        "Restart the payroll service.",
+    )
+
+    assert article["title"] == "Restore the payroll service"
+
