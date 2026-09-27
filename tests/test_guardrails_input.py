@@ -1,13 +1,3 @@
-"""
-Comprehensive tests for src/agent/guardrails/input_screening.py
-
-Covers:
-  - Prompt-injection detection (instruction override, role-play, delimiter, prompt leak)
-  - PII / credential redaction (API keys, bearer tokens, passwords, SSNs, credit cards, emails, phones)
-  - Composite screening via screen_incident_payload
-  - Edge cases (empty text, clean text, multi-field payloads)
-  - Metadata integrity (no raw sensitive strings leak into metadata)
-"""
 
 import pytest
 from dataclasses import asdict

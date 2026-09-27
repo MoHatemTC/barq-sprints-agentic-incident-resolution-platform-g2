@@ -41,7 +41,7 @@ def _preprocess_image(img):
     
     return img
 
-def extract_ocr(file_path: str, dpi: int = 300, preprocess: bool = False, psm: int = 3) -> OCRExtractionResult:
+def extract_ocr(file_path: str, dpi: int = 300, preprocess: bool = True, psm: int = 3) -> OCRExtractionResult:
     """
     Extract text from an image or PDF using OCR.
     
@@ -105,19 +105,18 @@ def extract_ocr(file_path: str, dpi: int = 300, preprocess: bool = False, psm: i
         if preprocess:
             img = _preprocess_image(img)
             
-        # Extract data (including confidence)
+        # Extract data to calculate confidence
         data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT, config=custom_config)
-        page_text = []
         
-        for j, word in enumerate(data.get('text', [])):
-            if word.strip():
-                page_text.append(word)
-                conf = float(data['conf'][j])
-                if conf >= 0:  # pytesseract returns -1 for empty blocks
-                    total_conf += conf
-                    valid_conf_blocks += 1
-                    
-        full_text.append(" ".join(page_text))
+        for conf in data.get('conf', []):
+            conf = float(conf)
+            if conf >= 0:
+                total_conf += conf
+                valid_conf_blocks += 1
+                
+        # Extract formatted text to preserve layout
+        page_text = pytesseract.image_to_string(img, config=custom_config)
+        full_text.append(page_text.strip())
         
     avg_confidence = (total_conf / valid_conf_blocks) if valid_conf_blocks > 0 else 0.0
 
