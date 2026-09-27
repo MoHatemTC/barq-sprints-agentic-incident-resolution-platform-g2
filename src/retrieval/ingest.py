@@ -367,9 +367,7 @@ def sync_kb() -> dict:
 
     print(f"KB sync complete: {result}")
 
-<<<<<<< HEAD
     return result
-=======
 
 def ingest_stressors(source: str = "manual", client: QdrantClient | None = None) -> dict:
     """
@@ -439,4 +437,3 @@ if __name__ == "__main__":
         drop_stressors()
     else:
         ingest_articles(source="servicenow")
->>>>>>> origin/development

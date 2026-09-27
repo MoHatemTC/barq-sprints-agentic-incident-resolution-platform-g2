@@ -193,20 +193,7 @@ class ServiceNowClient:
 
 
 class IncidentGateway:
-    """Server-side tool boundary for the agent's ServiceNow actions.
-
-    Each method maps one registered tool to the underlying ServiceNowClient
-    Table API operations. Handlers are only ever invoked through the
-    ToolRegistry (registry.py) after the registration and permission checks
-    pass; direct call sites outside the registry are rejected by the
-    import-boundary test.
-
-    Every handler accepts ``execution_id``. ``ToolRegistry.dispatch`` passes it
-    on every call so the execution a write belongs to is available to the
-    handler for audit, and so a handler's signature matches the one calling
-    convention the registry uses. It is optional with a default because the
-    registry supplies it, not the caller.
-    """
+    """Server-side tool boundary for the agent's ServiceNow actions."""
 
     def __init__(self, client=None):
         self._client = client if client is not None else ServiceNowClient()
@@ -215,13 +202,7 @@ class IncidentGateway:
         return self._client.get_incident(sys_id)
 
     def find_execution_log(self, execution_id, action, incident_sys_id=None):
-        """Return the prior receipt row for this (execution_id, action), if any.
-
-        This is the idempotency probe act_node uses to avoid writing the
-        outcome to ServiceNow twice, so it is a READ and needs no approval.
-        S3.4 depends on it: without it a retried execution re-patches the
-        incident and writes a second receipt row.
-        """
+        """Return the prior receipt row for this (execution_id, action), if any"""
         return self._client.find_execution_log(execution_id, action)
 
     def write_execution_log(self, incident_sys_id, execution_id, action, status,
@@ -242,7 +223,8 @@ class IncidentGateway:
     def write_work_note(self, sys_id, note, execution_id=None):
         return self._client.add_work_note(sys_id, note)
 
-    def kb_write_back(self, corpus_path=None, dry_run=False, execution_id=None):
-        from src.retrieval.publish_kb import publish
+    def kb_write_back(self, execution_id=None, **capture):
+        """publish an approved human resolution as a KB article"""
+        from src.agent.knowledge_capture import capture_human_resolution
 
-        return publish(corpus_path, dry_run=dry_run)
+        return capture_human_resolution(execution_identifier=execution_id, **capture)

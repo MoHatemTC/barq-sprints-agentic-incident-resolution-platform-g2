@@ -16,9 +16,9 @@ def composer_result_to_article(
     """
     Convert an Article Composer result into the canonical Article model.
 
-    Human-resolution articles remain published for retrieval, but use
-    security_level="human_resolution" to distinguish operator-derived
-    knowledge from the curated corpus.
+    Human-resolution articles are published for retrieval at the curated
+    corpus's security level ("internal"); they are told apart by their
+    KBHR-<execution_id> article number and the knowledge_capture_audit table.
     """
 
     title = composed["title"].strip()

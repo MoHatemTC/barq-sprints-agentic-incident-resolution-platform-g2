@@ -1,25 +1,3 @@
-<<<<<<< HEAD
-import json
-
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-
-from src.api.dependencies import get_sync_db
-from src.api.schemas import (
-    ApprovalListResponse,
-    ApprovalDecision,
-    ApprovalDecisionResponse,
-)
-from src.db.approval_service import create_approval
-from src.db.execution_service import get_execution, update_execution_status
-from src.db.idempotency import check_and_create_idempotency_key
-from src.config import WorkerConfig
-from src.workers.celery_app import create_celery_app
-
-
-celery_app = create_celery_app(WorkerConfig.from_environment())
-
-=======
 """S3.4 approvals: list paused executions, show brief + raw payload, and resume
 the SAME checkpointed execution with the reviewer's decision
 """
@@ -47,7 +25,6 @@ from src.api.schemas import (
     ApprovalListResponse,
     ApprovalResponse,
 )
->>>>>>> origin/development
 
 router = APIRouter()
 
@@ -74,9 +51,10 @@ class SqlApprovalStore:
         with SessionLocal() as db:
             return check_and_create_idempotency_key(db, f"approval:{execution_id}")
 
-    def record_decision(self, execution_id: str, evidence: str, decision: str, reviewer: str) -> None:
+    def record_decision(self, execution_id: str, evidence: str, decision: str, reviewer: str,
+                        human_solution: str | None = None) -> None:
         with SessionLocal() as db:
-            create_approval(db, execution_id, evidence, decision, reviewer)
+            create_approval(db, execution_id, evidence, decision, reviewer, human_solution=human_solution)
             # Resumed and running again until the worker records the final outcome
             update_execution_status(db, execution_id, "started")
 
@@ -95,6 +73,7 @@ class SqlApprovalStore:
                 "status": row.reviewer_decision,
                 "reviewer": row.reviewer_identity,
                 "rationale": rationale,
+                "human_solution": row.human_solution,
                 "decided_at": row.decision_timestamp,
             }
 
@@ -178,33 +157,6 @@ def _paused_values(graph, execution_id: str) -> dict:
     return snapshot.values
 
 
-<<<<<<< HEAD
-
-@router.get(
-    "/api/v1/approvals",
-    response_model=ApprovalListResponse,
-)
-async def list_approvals(
-    page: int = 1,
-    page_size: int = 20,
-):
-    return ApprovalListResponse(
-        items=[],
-        page=page,
-        page_size=page_size,
-        total=0,
-    )
-
-
-@router.post(
-    "/api/v1/approvals/{approval_id}/decide",
-    response_model=ApprovalDecisionResponse,
-)
-async def decide_approval(
-    approval_id: str,
-    decision: ApprovalDecision,
-    db: Session = Depends(get_sync_db),
-=======
 @router.get("/api/v1/approvals", response_model=ApprovalListResponse)
 def list_approvals(
     page: int = 1,
@@ -233,9 +185,11 @@ def get_approval(approval_id: str, graph=Depends(get_approval_graph)):
     )
 
 
-def _send_resume(dispatch, execution_id: str, action: str, reviewer: str, comment) -> None:
+def _send_resume(dispatch, execution_id: str, action: str, reviewer: str, comment,
+                 human_solution=None) -> None:
     try:
-        dispatch(execution_id, {"decision": action, "reviewer": reviewer, "comment": comment})
+        dispatch(execution_id, {"decision": action, "reviewer": reviewer, "comment": comment,
+                                "human_solution": human_solution})
     except Exception as exc:
         raise HTTPException(
             status_code=503,
@@ -250,92 +204,13 @@ def decide_approval(
     store=Depends(get_approval_store),
     graph=Depends(get_approval_graph),
     dispatch=Depends(get_resume_dispatcher),
->>>>>>> origin/development
 ):
     if decision.action not in VALID_ACTIONS:
-        raise HTTPException(
-            status_code=422,
-            detail="action must be 'approve' or 'reject'",
-        )
+        raise HTTPException(status_code=422, detail="action must be 'approve' or 'reject'")
+    human_solution = (decision.human_solution or "").strip() or None
+    if decision.action != "approve":
+        human_solution = None
 
-    if decision.action == "approve":
-        if not decision.human_solution or not decision.human_solution.strip():
-            raise HTTPException(
-                status_code=422,
-                detail="human_solution is required when approving an escalation",
-            )
-
-    # approval_id is the execution identifier / LangGraph thread ID.
-    execution = get_execution(
-        db,
-        approval_id,
-    )
-
-    if execution is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Execution '{approval_id}' not found",
-        )
-
-    # Prevent the same approval decision from being processed twice.
-    first_decision = check_and_create_idempotency_key(
-        db,
-        f"approval:{approval_id}",
-    )
-
-    if not first_decision:
-        raise HTTPException(
-            status_code=409,
-            detail="Approval decision has already been processed",
-        )
-
-    status = (
-        "approved"
-        if decision.action == "approve"
-        else "rejected"
-    )
-
-    evidence = json.dumps(
-        {
-            "incident_payload": None,
-            "rationale": decision.rationale,
-        },
-        ensure_ascii=False,
-    )
-
-    approval = create_approval(
-        db=db,
-        execution_reference=approval_id,
-        evidence_presented=evidence,
-        reviewer_decision=status,
-        reviewer_identity=decision.reviewer,
-        human_solution=decision.human_solution,
-    )
-
-    # The approval has been recorded. Resume the SAME execution.
-    update_execution_status(
-        db,
-        approval_id,
-        "started",
-    )
-
-    resume_payload = {
-        "decision": decision.action,
-        "reviewer": decision.reviewer,
-        "comment": decision.rationale,
-        "human_solution": decision.human_solution,
-    }
-
-    # Queue the resume operation on the production Celery worker.
-    # The HTTP request never executes the LangGraph/LLM/
-    # ServiceNow/Qdrant chain synchronously.
-    celery_app.send_task(
-        "resume_incident_graph",
-        args=[approval_id, resume_payload],
-    )
-
-<<<<<<< HEAD
-=======
     values = _paused_values(graph, approval_id)
     status = "approved" if decision.action == "approve" else "rejected"
 
@@ -343,7 +218,8 @@ def decide_approval(
         recorded = store.recorded_decision(approval_id)
         if not recorded or (recorded["status"], recorded["reviewer"]) != (status, decision.reviewer):
             raise HTTPException(status_code=409, detail="A decision was already recorded for this execution")
-        _send_resume(dispatch, approval_id, decision.action, recorded["reviewer"], recorded["rationale"])
+        _send_resume(dispatch, approval_id, decision.action, recorded["reviewer"],
+                     recorded["rationale"], recorded["human_solution"])
         return ApprovalDecisionResponse(
             approval_id=approval_id,
             status=recorded["status"],
@@ -360,19 +236,14 @@ def decide_approval(
         },
         default=str,
     )
-    store.record_decision(approval_id, evidence, status, decision.reviewer)
-    _send_resume(dispatch, approval_id, decision.action, decision.reviewer, decision.rationale)
+    store.record_decision(approval_id, evidence, status, decision.reviewer, human_solution)
+    _send_resume(dispatch, approval_id, decision.action, decision.reviewer,
+                 decision.rationale, human_solution)
 
->>>>>>> origin/development
     return ApprovalDecisionResponse(
         approval_id=approval_id,
         status=status,
         reviewer=decision.reviewer,
-<<<<<<< HEAD
-        decided_at=approval.decision_timestamp,
-    )
-=======
         decided_at=datetime.now(timezone.utc),
         resumed=True,
     )
->>>>>>> origin/development

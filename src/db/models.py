@@ -12,11 +12,8 @@ from sqlalchemy import (
     UniqueConstraint,
     DDL,
     event,
-<<<<<<< HEAD
     JSON,
-=======
     false,
->>>>>>> origin/development
 )
 
 from src.db.database import Base
@@ -255,14 +252,6 @@ class Approval(Base):
         nullable=True
     )
 
-    # Single-use approval grant for HIGH_RISK tools.
-    # It is consumed atomically by permissions.is_approved().
-    consumed = Column(
-        Boolean,
-        nullable=False,
-        default=False,
-    )
-
     reviewer_decision = Column(
         String(50),
         nullable=False
@@ -363,7 +352,6 @@ class RetryState(Base):
 approval_trigger_function_ddl = DDL("""
 CREATE OR REPLACE FUNCTION prevent_approval_modification() RETURNS TRIGGER AS $$
 BEGIN
-<<<<<<< HEAD
     IF TG_OP = 'DELETE' THEN
         RAISE EXCEPTION 'approval records are immutable';
     END IF;
@@ -391,18 +379,6 @@ BEGIN
     END IF;
 
     RETURN NEW;
-=======
-    IF NEW.consumed = true AND OLD.consumed = false AND
-       NEW.execution_reference IS NOT DISTINCT FROM OLD.execution_reference AND
-       NEW.evidence_presented IS NOT DISTINCT FROM OLD.evidence_presented AND
-       NEW.reviewer_decision IS NOT DISTINCT FROM OLD.reviewer_decision AND
-       NEW.decision_timestamp IS NOT DISTINCT FROM OLD.decision_timestamp AND
-       NEW.reviewer_identity IS NOT DISTINCT FROM OLD.reviewer_identity
-    THEN
-        RETURN NEW;
-    END IF;
-    RAISE EXCEPTION 'approval records are immutable';
->>>>>>> origin/development
 END;
 $$ LANGUAGE plpgsql;
 """)
@@ -417,11 +393,7 @@ BEFORE UPDATE OR DELETE ON approvals
 FOR EACH ROW EXECUTE FUNCTION prevent_approval_modification();
 """)
 
-<<<<<<< HEAD
-event.listen(Approval.__table__, "after_create", approval_trigger_ddl)
-=======
 # Tell SQLAlchemy to run this SQL immediately after creating the 'approvals' table
 event.listen(Approval.__table__, 'after_create', approval_trigger_function_ddl)
 event.listen(Approval.__table__, 'after_create', drop_approval_trigger_ddl)
 event.listen(Approval.__table__, 'after_create', approval_trigger_ddl)
->>>>>>> origin/development

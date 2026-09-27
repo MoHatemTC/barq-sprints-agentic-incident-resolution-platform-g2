@@ -13,9 +13,6 @@ class AgentState(TypedDict, total=False):
     action_taken: Optional[str]
     human_review_required: bool
     failure_reason: Optional[str]
-<<<<<<< HEAD
-    human_solution: Optional[str]
-=======
 
     # --- S3.1 additions ---
     # Structured verdict produced by the Critic/Verifier Agent.
@@ -42,4 +39,9 @@ class AgentState(TypedDict, total=False):
     human_decision: Optional[Dict[str, Any]]
     # ServiceNow write outcome from act: written | already_done | skipped_no_sys_id
     servicenow_write: Optional[str]
->>>>>>> origin/development
+
+    # S3.5 knowledge capture
+    # Reviewer-written resolution, kept only on an approve
+    human_solution: Optional[str]
+    # Result of publishing that resolution as a KB article (ServiceNow + Qdrant)
+    knowledge_capture_result: Optional[Dict[str, Any]]

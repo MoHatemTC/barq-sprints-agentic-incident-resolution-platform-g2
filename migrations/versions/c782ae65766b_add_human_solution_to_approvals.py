@@ -1,7 +1,7 @@
 """add human solution to approvals
 
 Revision ID: c782ae65766b
-Revises: 416136e54c32
+Revises: beb8ca5659be
 Create Date: 2026-09-24 16:26:13.140593
 
 """
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'c782ae65766b'
-down_revision: Union[str, Sequence[str], None] = '416136e54c32'
+down_revision: Union[str, Sequence[str], None] = 'beb8ca5659be'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -22,14 +22,6 @@ def _value(value):
 @lru_cache(maxsize=1)
 def _category_names() -> dict[str, str]:
     """sys_id -> category name (reverse of kb_category_mapping.json)."""
-<<<<<<< HEAD
-    with open(PATHS.servicenow_kb_category_mapping, encoding="utf-8") as f:
-        name_to_id = json.load(f)
-
-    return {
-        sys_id: name
-        for name, sys_id in name_to_id.items()
-=======
     try:
         with open(PATHS.servicenow_kb_category_mapping, encoding="utf-8") as f:
             name_to_id = json.load(f)
@@ -41,7 +33,6 @@ def _category_names() -> dict[str, str]:
         sys_id: name
         for name, sys_id in name_to_id.items()
         if isinstance(sys_id, str) and sys_id
->>>>>>> origin/development
     }
 
 
