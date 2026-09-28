@@ -47,3 +47,5 @@ data/kb_category_mapping.json
 data/backup/
 data/servicenow_kb_mapping.bak-*.json
 
+#claude code memory
+CLAUDE.local.md
