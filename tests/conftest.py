@@ -21,6 +21,7 @@ _INTEGRATION_MODULES = {
     "test_approval_service",
     "test_approvals_api",
     "test_audit_service",
+    "test_dashboard_incident_list",
     "test_database",
     "test_embedding",
     "test_endpoints_contract",
