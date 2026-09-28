@@ -23,6 +23,7 @@ _INTEGRATION_MODULES = {
     "test_audit_service",
     "test_dashboard_incident_list",
     "test_database",
+    "test_delivery_sweep",
     "test_embedding",
     "test_endpoints_contract",
     "test_event_service",
