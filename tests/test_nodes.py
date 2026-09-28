@@ -645,7 +645,7 @@ def test_safety_check_node_valid():
     state = {
         "outputs": {
             "resolution": "Restart the router.",
-            "proposed_action": "update_incident"
+            "proposed_action": "write_work_note"
         },
         "confidence": 0.95
     }
@@ -670,7 +670,7 @@ def test_safety_check_node_invalid_content():
     state = {
         "outputs": {
             "resolution": "Use password=admin123 to login.",
-            "proposed_action": "update_incident"
+            "proposed_action": "write_work_note"
         },
         "confidence": 0.95
     }

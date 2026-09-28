@@ -120,6 +120,14 @@ class ToolRegistry:
                     pass
             raise
 
+    def permission_class_of(self, name: str) -> Optional[PermissionClass]:
+        """Return the PermissionClass for a registered tool, or None if unregistered.
+
+        Does not expose _tools directly.
+        """
+        entry = self._tools.get(name)
+        return entry[0] if entry else None
+
 
 def build_default_registry() -> ToolRegistry:
     from src.servicenow.client import IncidentGateway

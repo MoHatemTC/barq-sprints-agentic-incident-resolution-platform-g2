@@ -6,83 +6,72 @@ from src.agent.guardrails.output_validation import (
     screen_output_content,
     validate_output_schema,
     validate_agent_output,
-    ALLOWED_ACTIONS,
-    DENIED_ACTIONS,
 )
 
 
-# ── Action Allowlist ──────────────────────────────────────────────────────────
+# ── Action Allowlist (ToolRegistry-backed) ─────────────────────────────────────
 
 class TestActionValidation:
 
-    # --- Allowed actions ---
-    def test_update_incident_allowed(self):
-        result = validate_action("update_incident")
+    # --- Registered LOW_RISK_WRITE tools (allowed) ---
+    def test_write_ai_fields_allowed(self):
+        result = validate_action("write_ai_fields")
         assert result.is_allowed is True
+        assert "LOW_RISK_WRITE" in result.reason
 
-    def test_add_comment_allowed(self):
-        result = validate_action("add_comment")
+    def test_write_work_note_allowed(self):
+        result = validate_action("write_work_note")
         assert result.is_allowed is True
+        assert "LOW_RISK_WRITE" in result.reason
 
-    def test_resolve_incident_allowed(self):
-        result = validate_action("resolve_incident")
+    def test_write_execution_log_allowed(self):
+        result = validate_action("write_execution_log")
         assert result.is_allowed is True
+        assert "LOW_RISK_WRITE" in result.reason
 
-    def test_reassign_incident_allowed(self):
-        result = validate_action("reassign_incident")
+    # --- Registered READ tools (allowed) ---
+    def test_read_incident_allowed(self):
+        result = validate_action("read_incident")
         assert result.is_allowed is True
+        assert "READ" in result.reason
 
-    def test_escalate_incident_allowed(self):
-        result = validate_action("escalate_incident")
+    def test_find_execution_log_allowed(self):
+        result = validate_action("find_execution_log")
         assert result.is_allowed is True
+        assert "READ" in result.reason
 
-    # --- Explicitly denied actions ---
-    def test_delete_incident_denied(self):
-        result = validate_action("delete_incident")
+    # --- Registered HIGH_RISK tools (blocked - requires human approval) ---
+    def test_kb_write_back_blocked_requires_approval(self):
+        result = validate_action("kb_write_back")
         assert result.is_allowed is False
-        assert "denied" in result.reason.lower()
+        assert "HIGH_RISK" in result.reason or "requires_human_approval" in result.reason.lower()
 
-    def test_drop_table_denied(self):
-        result = validate_action("drop_table")
-        assert result.is_allowed is False
-
-    def test_execute_script_denied(self):
-        result = validate_action("execute_script")
-        assert result.is_allowed is False
-
-    def test_run_command_denied(self):
-        result = validate_action("run_command")
-        assert result.is_allowed is False
-
-    def test_create_admin_denied(self):
-        result = validate_action("create_admin")
-        assert result.is_allowed is False
-
-    # --- Unknown actions (not on allowlist) ---
-    def test_unknown_action_blocked(self):
+    # --- Unregistered tools (blocked) ---
+    def test_unregistered_tool_blocked(self):
         result = validate_action("reboot_server")
         assert result.is_allowed is False
-        assert "allowlist" in result.reason.lower()
+        assert "unregistered_tool" in result.reason
 
     def test_empty_action_blocked(self):
         result = validate_action("")
         assert result.is_allowed is False
+        assert "unregistered_tool" in result.reason
 
     # --- Normalisation ---
     def test_action_with_dashes_normalised(self):
-        result = validate_action("update-incident")
+        result = validate_action("write-ai-fields")
         assert result.is_allowed is True
 
     def test_action_with_spaces_normalised(self):
-        result = validate_action("update incident")
+        result = validate_action("write ai fields")
         assert result.is_allowed is True
 
     def test_action_case_insensitive(self):
-        result = validate_action("Update_Incident")
+        result = validate_action("Write_AI_Fields")
         assert result.is_allowed is True
 
 
-# ── Output Content Screening ─────────────────────────────────────────────────
+# ── Output Content Screening ──────────────────────────────────────────────────
 
 class TestOutputContentScreening:
 
@@ -212,14 +201,14 @@ class TestValidateAgentOutput:
         state = {
             "outputs": {
                 "resolution": "Please restart the VPN client.",
-                "proposed_action": "update_incident",
+                "proposed_action": "write_ai_fields",
             },
         }
         result = validate_agent_output(state)
         assert result.is_valid is True
         assert result.block_reasons == []
 
-    def test_blocked_action(self):
+    def test_blocked_action_unregistered(self):
         state = {
             "outputs": {
                 "resolution": "Deleting the incident.",
@@ -229,6 +218,30 @@ class TestValidateAgentOutput:
         result = validate_agent_output(state)
         assert result.is_valid is False
         assert any("ACTION_BLOCKED" in r for r in result.block_reasons)
+        assert "unregistered_tool" in result.action_result.reason
+
+    def test_blocked_action_high_risk(self):
+        state = {
+            "outputs": {
+                "resolution": "Publishing KB article.",
+                "proposed_action": "kb_write_back",
+            },
+        }
+        result = validate_agent_output(state)
+        assert result.is_valid is False
+        assert any("ACTION_BLOCKED" in r for r in result.block_reasons)
+        assert "high_risk" in result.action_result.reason.lower()
+
+    def test_allowed_action_low_risk_write(self):
+        state = {
+            "outputs": {
+                "resolution": "Writing work note.",
+                "proposed_action": "write_work_note",
+            },
+        }
+        result = validate_agent_output(state)
+        assert result.is_valid is True
+        assert result.action_result.is_allowed is True
 
     def test_flagged_content(self):
         state = {
@@ -253,10 +266,42 @@ class TestValidateAgentOutput:
         result = validate_agent_output(state)
         assert result.is_valid is False
 
+    def test_outputs_none_does_not_crash(self):
+        """outputs=None should not crash; should be treated as empty dict."""
+        state = {"outputs": None}
+        result = validate_agent_output(state)
+        assert result.is_valid is False  # missing resolution
+        assert any("SCHEMA_INVALID" in r for r in result.block_reasons)
+
+    def test_leftover_action_taken_not_blocked(self):
+        """A state with action_taken from a previous run (e.g. 'resolved_automatically')
+        and no proposed_action must NOT be blocked by the action allowlist."""
+        state = {
+            "action_taken": "resolved_automatically",
+            "outputs": {
+                "resolution": "Issue fixed.",
+            },
+        }
+        result = validate_agent_output(state)
+        # Should pass action check (no proposed_action), only fail on schema if missing keys
+        # Here we have resolution, so should be valid (assuming clean content)
+        assert result.is_valid is True, f"Expected valid, got block_reasons: {result.block_reasons}"
+
+    def test_leftover_action_taken_rejected_by_human_not_blocked(self):
+        state = {
+            "action_taken": "rejected_by_human",
+            "outputs": {
+                "resolution": "Issue rejected.",
+                "proposed_action": "write_work_note",  # legitimate tool
+            },
+        }
+        result = validate_agent_output(state)
+        assert result.is_valid is True
+
     def test_multiple_failures(self):
         state = {
             "outputs": {
-                "proposed_action": "drop_table",
+                "proposed_action": "reboot_server",  # unregistered
             },
         }
         result = validate_agent_output(state)

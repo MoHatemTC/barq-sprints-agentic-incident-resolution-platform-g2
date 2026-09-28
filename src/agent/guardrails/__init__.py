@@ -18,8 +18,6 @@ from src.agent.guardrails.output_validation import (
     ActionValidationResult,
     OutputScreeningResult,
     SchemaValidationResult,
-    ALLOWED_ACTIONS,
-    DENIED_ACTIONS,
 )
 
 __all__ = [
@@ -37,6 +35,4 @@ __all__ = [
     "ActionValidationResult",
     "OutputScreeningResult",
     "SchemaValidationResult",
-    "ALLOWED_ACTIONS",
-    "DENIED_ACTIONS",
 ]

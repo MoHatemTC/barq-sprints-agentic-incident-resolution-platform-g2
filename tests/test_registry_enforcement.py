@@ -115,7 +115,7 @@ def test_forged_permission_downgrade_via_reregistration_is_rejected():
 
 def test_registry_public_surface_offers_no_downgrade_bypass():
     public = {name for name in dir(ToolRegistry) if not name.startswith("_")}
-    assert public == {"dispatch", "register"}
+    assert public == {"dispatch", "register", "permission_class_of"}
 
 
 def test_dispatch_signature_accepts_no_permission_class_override():
@@ -242,6 +242,7 @@ def test_no_agent_module_touches_servicenow_client_directly():
 
     This is the check that would have caught the reported gap, stated against
     the package where the threat model applies rather than the whole tree.
+    Imports from src.servicenow.exceptions (exception classes) are allowed.
     """
     root = Path(__file__).resolve().parents[1]
     agent_root = root / AGENT_ROOT
