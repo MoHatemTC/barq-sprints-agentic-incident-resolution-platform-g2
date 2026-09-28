@@ -8,6 +8,12 @@ from typing import Any, Callable, Dict, Optional, Tuple
 
 from src.agent.tools.permissions import PermissionClass, is_approved
 
+try:
+    from src.observability.tracing import get_client as _get_lf_client, _current_trace_id, _current_span_id
+    _TRACING = True
+except Exception:
+    _TRACING = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,7 +72,53 @@ class ToolRegistry:
             logger.warning("Refused dispatch: %s", refusal)
             return refusal
 
-        return handler(execution_id=execution_id, **kwargs)
+        return self._call_with_span(name, execution_id, handler, **kwargs)
+
+    def _call_with_span(self, name: str, execution_id: str, handler: Callable, **kwargs):
+        """Call handler wrapped in a 'servicenow.<name>' child span for Langfuse tree."""
+        if not _TRACING:
+            return handler(execution_id=execution_id, **kwargs)
+
+        try:
+            client = _get_lf_client()
+            trace_id = _current_trace_id.get()
+            parent_span_id = _current_span_id.get()
+
+            trace_context = None
+            if trace_id:
+                trace_context = {"trace_id": trace_id}
+                if parent_span_id:
+                    trace_context["parent_span_id"] = parent_span_id
+
+            span = client.start_observation(
+                name=f"servicenow.{name}",
+                as_type="span",
+                trace_context=trace_context,
+            ) if trace_id else None
+        except Exception:
+            span = None
+
+        try:
+            result = handler(execution_id=execution_id, **kwargs)
+            if span:
+                try:
+                    span.update(level="DEFAULT", status_message="ok")
+                    span.end()
+                except Exception:
+                    pass
+            return result
+        except BaseException as e:
+            if span:
+                try:
+                    # If it's a known non-fatal write mismatch, mark as WARNING
+                    if type(e).__name__ == "ServiceNowWriteNotAppliedError":
+                        span.update(level="WARNING", status_message=f"Write verification mismatch: {e}")
+                    else:
+                        span.update(level="ERROR", status_message=f"{type(e).__name__}: {e}")
+                    span.end()
+                except Exception:
+                    pass
+            raise
 
 
 def build_default_registry() -> ToolRegistry:

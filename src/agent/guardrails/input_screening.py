@@ -17,9 +17,10 @@ except ImportError:
     get_client = None
 
 try:
-    from src.observability.tracing import _current_trace_id
+    from src.observability.tracing import _current_trace_id, _current_span_id
 except ImportError:
     _current_trace_id = None
+    _current_span_id = None
 
 
 def _emit_guardrail_span(
@@ -35,7 +36,13 @@ def _emit_guardrail_span(
     try:
         client = get_client()
         trace_id = _current_trace_id.get() if _current_trace_id else None
-        trace_context = {"trace_id": trace_id} if trace_id else None
+        parent_span_id = _current_span_id.get() if _current_span_id else None
+
+        trace_context = None
+        if trace_id:
+            trace_context = {"trace_id": trace_id}
+            if parent_span_id:
+                trace_context["parent_span_id"] = parent_span_id
 
         span = client.start_observation(
             name=name,

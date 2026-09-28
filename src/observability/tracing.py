@@ -217,19 +217,22 @@ def trace_node(name: str, observation_type: str = "span"):
             ]
             clean_kwargs = sanitize_payload(kwargs)
 
-            # Build trace_context so this span nests under the root trace
+            # Build trace_context so this span nests under the root span
             trace_context = None
             if parent_trace_id:
                 trace_context = {"trace_id": parent_trace_id}
                 if parent_root_span_id:
                     trace_context["parent_span_id"] = parent_root_span_id
 
+            # Prefix with "node." for clear identification in Langfuse tree
+            span_name = f"node.{name}" if not name.startswith("node.") else name
+
             # Create span via the v4 API
             span = None
             span_token = None
             try:
                 span = client.start_observation(
-                    name=name,
+                    name=span_name,
                     as_type="span",
                     trace_context=trace_context,
                     input={"args": [str(a)[:500] for a in clean_args], "kwargs": clean_kwargs},
