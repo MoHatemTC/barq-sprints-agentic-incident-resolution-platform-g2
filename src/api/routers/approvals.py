@@ -3,6 +3,7 @@ the SAME checkpointed execution with the reviewer's decision
 """
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -27,6 +28,7 @@ from src.api.schemas import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 VALID_ACTIONS = {"approve", "reject"}
 # Must match src.workers.tasks.RESUME_TASK_NAME (not imported: that module builds Celery apps)

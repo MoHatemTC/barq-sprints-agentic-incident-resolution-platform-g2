@@ -433,6 +433,10 @@ def count_stressor_points(client: QdrantClient) -> int:
     ).count
 
 
+def _client() -> QdrantClient:
+    return QdrantClient(url=QDRANT.url, check_compatibility=False)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(message)s")
     import argparse
@@ -447,7 +451,3 @@ if __name__ == "__main__":
         print("dropped", drop_stressor_points(_client()), "stressor point(s)")
     else:
         ingest_stressors()
-
-
-def _client() -> QdrantClient:
-    return QdrantClient(url=QDRANT.url, check_compatibility=False)
