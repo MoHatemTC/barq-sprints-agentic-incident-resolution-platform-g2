@@ -358,16 +358,22 @@ def _servicenow_completion_fields(
         "model_name": execution_metadata.get("model_name", "gemini-3.6-flash"),
         "classification": _field_text(checkpoint.get("classification"), 255),
         "confidence": checkpoint.get("confidence") or 0,
-        "suggestion": _field_text(outputs.get("diagnosis"), 4_000),
-        "resolution": _field_text(outputs.get("resolution"), 4_000),
         "human_review": checkpoint.get("human_review_required") is True,
         "failure_reason": None,
     }
 
+    # Only write AI suggestion/resolution AFTER the ticket is resolved (approved or auto-resolved).
+    # While awaiting approval, only metadata is written so the caller does not see
+    # an unvetted AI draft as if it were an official resolution.
+    if not is_awaiting_approval:
+        fields["suggestion"] = _field_text(outputs.get("diagnosis"), 4_000)
+        final_res = checkpoint.get("human_solution") or outputs.get("resolution")
+        fields["resolution"] = _field_text(final_res, 4_000)
+
     # Populate Resolution Information tab when ticket is resolved
     if is_resolved:
-        resolution_text = _field_text(outputs.get("resolution"), 4_000)
-        is_human_resolved = action_taken in ("approved_by_human", "knowledge_captured")
+        final_res = checkpoint.get("human_solution") or outputs.get("resolution")
+        resolution_text = _field_text(final_res, 4_000)
         fields["close_code"] = "Solved (Permanently)"
         fields["close_notes"] = (
             f"[AI Resolution]\n{resolution_text}"

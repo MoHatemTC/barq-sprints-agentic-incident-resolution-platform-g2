@@ -92,8 +92,14 @@ def _plan_write(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     fields = {"processing_state": "complete", "human_review": False}
-    if outputs.get("resolution"):
-        fields["resolution"] = outputs["resolution"]
+    
+    # Use the human solution as the final resolution if provided, otherwise use the AI's draft
+    final_resolution = state.get("human_solution") or outputs.get("resolution")
+    if final_resolution:
+        fields["resolution"] = final_resolution
+        
+    if outputs.get("diagnosis"):
+        fields["suggestion"] = outputs["diagnosis"]
     if state.get("confidence") is not None:
         fields["confidence"] = state["confidence"]
     if state.get("classification"):
