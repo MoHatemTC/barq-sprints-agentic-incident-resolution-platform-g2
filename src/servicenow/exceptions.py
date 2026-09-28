@@ -44,6 +44,12 @@ class ServiceNowServerError(ServiceNowError):
     # when 5xx — ServiceNow is unavailable or have something wrong 
     retryable = True
 
+
+class ServiceNowNetworkError(ServiceNowError):
+    """A transient DNS, connection, or transport failure reaching ServiceNow."""
+
+    retryable = True
+
     
 # Status map to use for matching :
 _STATUS_MAP = {

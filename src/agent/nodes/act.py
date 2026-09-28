@@ -93,8 +93,14 @@ def _plan_write(state: Dict[str, Any]) -> Dict[str, Any]:
 
     fields = {"processing_state": "complete", "human_review": False}
     
-    # Use the human solution as the final resolution if provided, otherwise use the AI's draft
-    final_resolution = state.get("human_solution") or outputs.get("resolution")
+    # The human solution is an input to generation. Prefer the generated,
+    # evidence-enriched resolution; fall back to the human text only when a
+    # generated resolution is unavailable.
+    final_resolution = (
+        outputs.get("resolution")
+        or state.get("cached_resolution")
+        or state.get("human_solution")
+    )
     if final_resolution:
         fields["resolution"] = final_resolution
         

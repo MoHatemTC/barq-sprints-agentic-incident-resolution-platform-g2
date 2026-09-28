@@ -129,7 +129,7 @@ def test_graph_routes_to_interrupt_when_retrieval_fails(mock_search):
 
 
 def test_graph_routing_high_risk():
-    """High-risk incident should skip retrieval and go to interrupt."""
+    """High-risk incident pauses before retrieval or any write."""
     with _mock_routing_agents(risk="high"):
         graph = create_graph().compile(checkpointer=MemorySaver())
         graph.invoke({
@@ -143,7 +143,7 @@ def test_graph_routing_high_risk():
     assert result["gate"] == "high_risk"
     assert result.get("action_taken") is None
     assert result["risk"] == "high"
-    # Should NOT have retrieved evidence (skipped retrieval entirely)
+    # High-risk incidents stop before the automated resolution path.
     assert result.get("retrieved_evidence") is None
 
 

@@ -14,6 +14,7 @@ from src.agent.graph import (
     route_after_retrieve,
     route_after_risk,
     route_after_validate,
+    route_after_human_review,
 )
 from src.agent.nodes.diagnose import _parse_diagnosis_response
 from src.agent.nodes.retrieve import retrieve_node
@@ -144,6 +145,11 @@ def test_retrieval_outage_routes_to_human_review():
 def test_high_risk_request_skips_automatic_resolution():
     """High-risk requests route directly to the human-review interrupt path."""
     assert route_after_risk({"risk": "high"}) == "prepare_review"
+
+
+def test_approved_high_risk_retrieves_before_acting():
+    assert route_after_human_review({"risk": "high", "human_decision": {"decision": "approve"}, "human_solution": "Restarted the service."}) == "retrieve"
+    assert route_after_human_review({"risk": "high", "human_decision": {"decision": "reject"}}) == "act"
 
 
 def test_malformed_agent_output_and_repeated_critic_failure_are_contained():

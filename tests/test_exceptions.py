@@ -28,6 +28,7 @@ def test_status_maps_to_exception(status, expected):
 def test_retryable_and_log_state():
     assert exc.ServiceNowAuthError(401, "x").retryable is True
     assert exc.ServiceNowServerError(503, "x").retryable is True
+    assert exc.ServiceNowNetworkError(0, "dns").retryable is True
     assert exc.ServiceNowPermissionError(403, "x").log_state == "blocked"
     assert exc.ServiceNowNotFoundError(404, "x").log_state == "failed"
 

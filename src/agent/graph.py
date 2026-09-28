@@ -1,3 +1,4 @@
+import hashlib
 import logging
 
 from langgraph.graph import StateGraph, END
@@ -37,7 +38,7 @@ def route_after_validate(state: AgentState) -> str:
     return "classify"
 
 def route_after_risk(state: AgentState) -> str:
-    """Route high-risk incidents to human review without retrieval."""
+    """Route high-risk incidents to human review before automated action."""
     if state.get("risk") == "high":
         return "prepare_review"
     return "retrieve"
@@ -47,12 +48,21 @@ def route_after_retrieve(state: AgentState) -> str:
     """Missing evidence (empty or retrieval failed) -> human review before diagnosis begins."""
     if not state.get("retrieved_evidence"):
         return "prepare_review"
+    if state.get("retrieval_cache_hit") and state.get("cached_resolution"):
+        return "act"
     return "diagnose"
 
 
 def route_after_confidence(state: AgentState) -> str:
     """Low confidence, a guardrail block (S3.3) or an exhausted critic (S3.1)
     -> human review; otherwise act."""
+    # A human approval is the explicit override for this execution. Do not
+    # reopen the same approval gate because the post-approval AI confidence is
+    # below the normal automation floor; the reviewer already accepted the
+    # human-provided resolution and the enriched result.
+    decision = state.get("human_decision") or {}
+    if decision.get("decision") == "approve":
+        return "act"
     if state.get("critic_exhausted") or state.get("action_taken") == "blocked_by_guardrail":
         return "prepare_review"
     confidence = state.get("confidence", 0.0)
@@ -77,10 +87,28 @@ def route_after_critic(state: AgentState) -> str:
     return "generate"
 
 
+def route_after_human_review(state: AgentState) -> str:
+    """After approval, enrich high-risk work with KB evidence before writing."""
+    decision = state.get("human_decision") or {}
+    if (
+        decision.get("decision") == "approve"
+        and state.get("risk") == "high"
+        and state.get("human_solution")
+    ):
+        return "retrieve"
+    return "act"
+
+
 def route_after_act(state: AgentState) -> str:
 
     decision = state.get("human_decision") or {}
-    if decision.get("decision") == "approve" and state.get("human_solution"):
+    # A strong KB match means this is an existing problem. Reuse the existing
+    # article and do not create another capture for the same incident pattern.
+    if (
+        decision.get("decision") == "approve"
+        and state.get("human_solution")
+        and not state.get("retrieval_cache_hit")
+    ):
         return "knowledge_capture"
     return "end"
 
@@ -132,8 +160,19 @@ def knowledge_capture_node(state: AgentState) -> AgentState:
         or "general"
     )
 
-    # Use a deterministic article number tied to this execution.
-    article_number = f"KBHR-{execution_id}"
+    # Stable identity for the same incident pattern and reviewed resolution.
+    # Using the execution id here created a new KB article for every retry.
+    incident_text = (
+        incident_payload.get("description")
+        or incident_payload.get("short_description")
+        or ""
+    )
+    kb_key = "|".join(
+        part.strip().lower()
+        for part in (incident_text, human_solution)
+    )
+    kb_fingerprint = hashlib.sha256(kb_key.encode("utf-8")).hexdigest()[:16]
+    article_number = f"KBHR-{kb_fingerprint}"
 
     db = SessionLocal()
 
@@ -262,9 +301,14 @@ def create_graph():
         },
     )
 
-    # S3.4: human path pauses at interrupt() and resumes into act
+    # High-risk approval resumes through retrieval and generation so the model
+    # can combine the human solution with matching KB evidence before writing.
     workflow.add_edge("prepare_review", "interrupt")
-    workflow.add_edge("interrupt", "act")
+    workflow.add_conditional_edges(
+        "interrupt",
+        route_after_human_review,
+        {"retrieve": "retrieve", "act": "act"},
+    )
 
     # act has written the outcome exactly once; an approved human
     # solution then becomes a KB article (ServiceNow + Qdrant)

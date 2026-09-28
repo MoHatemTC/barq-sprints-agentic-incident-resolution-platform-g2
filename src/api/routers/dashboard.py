@@ -187,6 +187,24 @@ async def create_incident_via_dashboard(payload: NewIncidentRequest):
     return {"status": "queued", "event_id": event_id, "sys_id": sys_id, "number": number}
 
 
+@router.delete("/incidents/{sys_id}")
+async def delete_incident_via_dashboard(sys_id: str):
+    from src.servicenow.client import ServiceNowClient
+
+    try:
+        ServiceNowClient().delete_incident(sys_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Could not delete incident in ServiceNow: {exc}") from exc
+
+    db = SessionLocal()
+    try:
+        db.query(Event).filter(Event.incident_sys_id == sys_id).delete(synchronize_session=False)
+        db.commit()
+    finally:
+        db.close()
+    return {"status": "deleted", "sys_id": sys_id}
+
+
 @router.post("/kb-sync")
 async def trigger_kb_sync():
     try:
