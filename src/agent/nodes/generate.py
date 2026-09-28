@@ -38,11 +38,19 @@ def _format_evidence(retrieved_evidence: list[Dict[str, Any]]) -> str:
 def _build_initial_user_message(
     diagnosis: str,
     evidence_block: str,
+    human_solution: str = "",
 ) -> str:
+    human_block = (
+        f"HUMAN-PROVIDED RESOLUTION:\n{human_solution}\n\n"
+        "Use it as an input to improve or validate the final procedure.\n\n"
+        if human_solution else ""
+    )
     return (
         f"CONFIRMED DIAGNOSIS:\n{diagnosis}\n\n"
         f"RETRIEVED EVIDENCE:\n{evidence_block}\n\n"
-        "Produce a numbered resolution procedure with citations."
+        f"{human_block}"
+        "Produce a newly written numbered resolution procedure with citations. "
+        "Do not return the HUMAN-PROVIDED RESOLUTION verbatim."
     )
 
 
@@ -87,6 +95,7 @@ def generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     diagnosis = outputs.get("diagnosis", "(diagnosis not available)")
     evidence_block = _format_evidence(retrieved_evidence)
+    human_solution = state.get("human_solution") or ""
 
     is_revision = (
         critic_verdict is not None
@@ -109,7 +118,7 @@ def generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
         )
     else:
         system_prompt = RESOLUTION_SYSTEM_PROMPT
-        user_message = _build_initial_user_message(diagnosis, evidence_block)
+        user_message = _build_initial_user_message(diagnosis, evidence_block, human_solution)
         logger.info("Resolution Agent: INITIAL generation")
 
     llm = get_llm()

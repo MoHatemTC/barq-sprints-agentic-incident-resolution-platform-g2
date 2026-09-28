@@ -8,6 +8,7 @@ from . import config
 from .auth import TokenManager
 from .exceptions import (
     ServiceNowError,
+    ServiceNowNetworkError,
     ServiceNowWriteNotAppliedError,
     raise_for_status,
 )
@@ -42,13 +43,16 @@ class ServiceNowClient:
         return str(uuid.uuid4())  # for logs
 
     def _send(self, method, url, **kwargs):
-        return requests.request(
-            method,
-            url,
-            headers=self._tokens.headers(),
-            timeout=config.TIMEOUT,
-            **kwargs,
-        )
+        try:
+            return requests.request(
+                method,
+                url,
+                headers=self._tokens.headers(),
+                timeout=config.TIMEOUT,
+                **kwargs,
+            )
+        except requests.RequestException as exc:
+            raise ServiceNowNetworkError(0, str(exc)) from exc
 
     def _response(self, method, url, **kwargs):
         # Send a request, refreshing the token once on 401
@@ -78,6 +82,14 @@ class ServiceNowClient:
             payload["caller_id"] = caller_id
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
         return self._request("POST", url, json=payload)
+
+    def delete_incident(self, sys_id):
+        """Delete an incident explicitly requested by the dashboard user."""
+        url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
+        # ServiceNow commonly returns 204 No Content for DELETE, so do not
+        # route this through _request(), which assumes a JSON response body.
+        response = self._response("DELETE", url)
+        return {"status_code": response.status_code}
 
     def get_published_kb_articles(self, page_size=100):
         # Read all published articles of our KB (SERVICENOW_KB_SYS_ID), page by page.

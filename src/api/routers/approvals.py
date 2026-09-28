@@ -3,6 +3,7 @@ the SAME checkpointed execution with the reviewer's decision
 """
 
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -27,6 +28,7 @@ from src.api.schemas import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 VALID_ACTIONS = {"approve", "reject"}
 # Must match src.workers.tasks.RESUME_TASK_NAME (not imported: that module builds Celery apps)
@@ -225,6 +227,12 @@ def decide_approval(
 
     values = _paused_values(graph, approval_id)
     status = "approved" if decision.action == "approve" else "rejected"
+
+    if status == "approved" and values.get("risk") == "high" and not human_solution:
+        raise HTTPException(
+            status_code=422,
+            detail="A human solution is required to approve a high-risk incident",
+        )
 
     if not store.claim_decision(approval_id):
         recorded = store.recorded_decision(approval_id)

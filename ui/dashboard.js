@@ -41,6 +41,7 @@
     
     // Check if it's a HITL completion (early escalation, resolution by human, etc)
     const isHITL = ['approved_by_human', 'rejected_by_human', 'knowledge_captured'].includes(result.action_taken);
+    const awaiting = exec.status === 'awaiting_approval';
 
     // If finished, calculate what actually ran
     if (status === 'succeeded' && result.action_taken) {
@@ -63,8 +64,12 @@
 
     // In-progress logic
     let reached = 0;
-    if (result.retrieved_evidence) reached = 2;
     if (result.classification) reached = 1;
+    // Keep the original pipeline template. A high-risk pause is represented
+    // by the classify stage remaining active; approval is a gate state, not a
+    // new pipeline stage.
+    if (awaiting) return STAGES.map((_, i) => i === 0 ? 'done' : i === 1 ? 'active' : 'pending');
+    if (result.retrieved_evidence) reached = 2;
     if (out.diagnosis) reached = 3;
     if (out.resolution) reached = 4;
     if (status === 'succeeded') reached = 5;
@@ -120,7 +125,7 @@
       fact('Risk', result.risk) +
       fact('Confidence', result.confidence) +
       fact('Eligibility', out.eligibility) +
-      fact('Stopped at gate', result.gate) +
+      fact('Review gate', result.gate === 'high_risk' ? 'Human approval required (high risk)' : result.gate) +
       fact('Outcome', result.action_taken) +
       fact('ServiceNow write', result.servicenow_write) +
       fact('Node reached', exec.node_reached) +

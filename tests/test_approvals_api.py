@@ -192,7 +192,8 @@ def test_approve_persists_then_resumes_same_run(setup, graph):
 
     response = client.post(
         "/api/v1/approvals/a-1/decide",
-        json={"action": "approve", "reviewer": "sarah", "rationale": "safe"},
+        json={"action": "approve", "reviewer": "sarah", "rationale": "safe",
+              "human_solution": "Restarted the affected service and verified recovery."},
     )
 
     assert response.status_code == 200
@@ -206,13 +207,28 @@ def test_approve_persists_then_resumes_same_run(setup, graph):
     assert evidence["brief"] == BRIEF
 
     assert dispatcher.calls == [("a-1", {"decision": "approve", "reviewer": "sarah", "comment": "safe",
-                                         "human_solution": None})]
+                                         "human_solution": "Restarted the affected service and verified recovery."})]
 
     # the SAME thread finished through act
     snapshot = graph.get_state(thread_config("a-1"))
     assert snapshot.next == ()
     assert snapshot.values["action_taken"] == "approved_by_human"
     assert snapshot.values["gate"] == "high_risk"
+
+
+def test_high_risk_approve_requires_human_solution(setup, graph):
+    client, store, dispatcher = setup
+    _pause(graph, "missing-solution")
+
+    response = client.post(
+        "/api/v1/approvals/missing-solution/decide",
+        json={"action": "approve", "reviewer": "sarah"},
+    )
+
+    assert response.status_code == 422
+    assert "human solution is required" in response.json()["error"]["message"]
+    assert store.records == []
+    assert dispatcher.calls == []
 
 
 def test_reject_resumes_to_rejection(setup, graph):
