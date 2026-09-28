@@ -23,6 +23,7 @@ htmlcov/
 qdrant_storage/
 postgres_data/
 redis_data/
+.qdrant/
 
 # IDE / OS
 .vscode/

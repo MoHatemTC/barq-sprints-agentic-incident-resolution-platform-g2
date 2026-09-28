@@ -43,4 +43,6 @@ stateDiagram-v2
     end note
 ```
 
+![Graph State Diagram](images/graph_state_diagram.png)
+
 
