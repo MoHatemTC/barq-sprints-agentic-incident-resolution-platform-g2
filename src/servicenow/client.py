@@ -73,15 +73,28 @@ class ServiceNowClient:
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
         return self._request("GET", url)
 
-    def create_incident(self, short_description, description=None, caller_id=None):
+    def create_incident(self, short_description, description=None, caller_id=None, category=None):
         # Create a new incident, returns the created record (sys_id, number, ...)
         payload = {"short_description": short_description}
         if description:
             payload["description"] = description
         if caller_id:
             payload["caller_id"] = caller_id
+        if category:
+            payload["category"] = category
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
         return self._request("POST", url, json=payload)
+
+    def get_choices(self, table, element):
+        # Choices of one choice field exactly as the ServiceNow form lists them.
+        # UI meta API, not sys_choice: the integration user cannot read sys_choice (403).
+        url = f"{config.INSTANCE_URL}/api/now/ui/meta/{table}"
+        column = (self._request("GET", url) or {}).get("columns", {}).get(element) or {}
+        return [
+            {"label": c.get("label"), "value": c.get("value")}
+            for c in column.get("choices") or []
+            if c.get("value")  # skip the form's "-- None --" entry
+        ]
 
     def delete_incident(self, sys_id):
         """Delete an incident explicitly requested by the dashboard user."""

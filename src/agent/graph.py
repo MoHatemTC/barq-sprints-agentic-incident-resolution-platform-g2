@@ -47,6 +47,11 @@ def route_after_risk(state: AgentState) -> str:
 def route_after_retrieve(state: AgentState) -> str:
     """Missing evidence (empty or retrieval failed) -> human review before diagnosis begins."""
     if not state.get("retrieved_evidence"):
+        # Already approved (high risk enrichment): never pause a second time.
+        # act writes the reviewer's solution since there is no draft to enrich.
+        decision = state.get("human_decision") or {}
+        if decision.get("decision") == "approve":
+            return "act"
         return "prepare_review"
     if state.get("retrieval_cache_hit") and state.get("cached_resolution"):
         # Reused KB text still must pass the normal output guardrail before it
@@ -280,7 +285,12 @@ def create_graph():
     workflow.add_conditional_edges(
         "retrieve",
         route_after_retrieve,
-        {"diagnose": "diagnose", "prepare_review": "prepare_review"},
+        {
+            "diagnose": "diagnose",
+            "safety_check": "safety_check",
+            "prepare_review": "prepare_review",
+            "act": "act",
+        },
     )
 
     workflow.add_edge("diagnose", "generate")

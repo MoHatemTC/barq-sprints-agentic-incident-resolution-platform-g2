@@ -7,7 +7,17 @@ from src.retrieval.hybrid_search import search
 from src.retrieval.filters import RetrievalFilters
 
 logger = logging.getLogger(__name__)
-CACHE_HIT_SCORE = float(os.getenv("RETRIEVAL_CACHE_HIT_SCORE", "0.55"))
+# Only human-approved resolutions (KBHR- articles from knowledge capture) are reused.
+# Manual sections and seeded KBs score high on unanswerable tickets too, so they
+# always go through diagnose/generate. The score is the cross-encoder logit (hybrid_rerank).
+CACHE_HIT_PREFIX = "KBHR-"
+CACHE_HIT_SCORE = float(os.getenv("RETRIEVAL_CACHE_HIT_SCORE", "5.0"))
+
+
+def _cached_resolution(text: str) -> str:
+    """The steps of a KBHR article, without its incident context."""
+    _, marker, steps = text.partition("Resolution:")
+    return steps.strip() if marker and steps.strip() else text
 
 @trace_node(name="retrieve", observation_type="retriever")
 def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
@@ -54,13 +64,19 @@ def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
             logger.info(f"Retrieved {len(retrieved)} chunks: {[(r['id'], round(r['score'], 3)) for r in retrieved]}")
 
         result = {"retrieved_evidence": retrieved, "retrieval_failed": False}
-        # A strong previous KB match is already an approved resolution. Reuse
-        # it directly to avoid repeating diagnose/generate/critic/LLM calls.
-        if retrieved and retrieved[0]["score"] >= CACHE_HIT_SCORE:
-            result["cached_resolution"] = retrieved[0]["text"]
+        # A strong match on a human-approved article is an existing resolution.
+        # Reuse it directly to avoid repeating diagnose/generate/critic/LLM calls.
+        top = retrieved[0] if retrieved else None
+        if (
+            top
+            and str(top["id"]).startswith(CACHE_HIT_PREFIX)
+            and top["score"] >= CACHE_HIT_SCORE
+        ):
+            cached = _cached_resolution(top["text"])
+            result["cached_resolution"] = cached
             result["outputs"] = {
                 **(state.get("outputs") or {}),
-                "resolution": retrieved[0]["text"],
+                "resolution": cached,
             }
             result["retrieval_cache_hit"] = True
             logger.info(

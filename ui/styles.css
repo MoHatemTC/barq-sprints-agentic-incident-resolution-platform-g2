@@ -189,6 +189,7 @@ h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.
 .input.sm, .select.sm { height: 32px; font-size: 13px; width: auto; min-width: 140px; }
 .input.search { min-width: 220px; }
 .textarea { height: auto; min-height: 190px; padding: 10px 11px; line-height: 1.55; resize: vertical; }
+.textarea.sm { min-height: 96px; }
 .input:focus, .select:focus, .textarea:focus {
   outline: none; border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
@@ -362,6 +363,8 @@ h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.
 .toast::before { content: ""; flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--ok); }
 .toast.err { border-color: color-mix(in srgb, var(--bad) 45%, var(--line)); }
 .toast.err::before { background: var(--bad); }
+.toast.warn { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.toast.warn::before { background: var(--warn); }
 
 /* ---------- motion ---------- */
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }

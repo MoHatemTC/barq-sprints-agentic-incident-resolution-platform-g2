@@ -22,6 +22,7 @@ from src.agent.nodes.validate import validate_node
 from src.agent.nodes.verify_evidence import verify_evidence_node
 from src.agent.nodes.safety_check import safety_check_node
 from src.agent.nodes.act import _plan_write
+from src.agent.guardrails.output_validation import validate_agent_output
 
 
 EVIDENCE = [
@@ -107,6 +108,60 @@ def test_cache_hit_is_screened_before_acting():
     assert checked["action_taken"] == "blocked_by_guardrail"
 
 
+KBHR_TEXT = (
+    "Incident context:\nVPN fails after a password reset.\n\n"
+    "Resolution:\n1. Clear the cached VPN credential.\n2. Reconnect and confirm access."
+)
+
+
+def _chunk(number: str, score: float, text: str = KBHR_TEXT) -> MagicMock:
+    chunk = MagicMock()
+    chunk.number, chunk.point_id, chunk.text, chunk.score = number, number, text, score
+    return chunk
+
+
+def test_cache_hit_only_reuses_strong_human_approved_articles():
+    """Manual sections and seeded KBs score high on unanswerable tickets too; only KBHR- is reused."""
+    def retrieve(chunk):
+        with patch("src.agent.nodes.retrieve.search", return_value=[chunk]):
+            return retrieve_node({"incident_payload": {"description": "VPN fails after reset"}})
+
+    hit = retrieve(_chunk("KBHR-abc123", 8.0))
+    assert hit["retrieval_cache_hit"] is True
+    assert hit["cached_resolution"] == "1. Clear the cached VPN credential.\n2. Reconnect and confirm access."
+
+    assert retrieve(_chunk("KBHR-abc123", 2.0))["retrieval_cache_hit"] is False  # weak match
+    assert retrieve(_chunk("KB0001", 9.0))["retrieval_cache_hit"] is False       # seeded KB
+    assert retrieve(_chunk("7.3", 9.0))["retrieval_cache_hit"] is False          # manual section
+
+
+def test_cache_hit_skips_diagnosis_and_acts_after_safety_check():
+    """The compiled graph keeps the cache flag, screens the reused text, and acts without a review."""
+    config = {"configurable": {"thread_id": "cache-hit"}}
+    graph = create_graph().compile(checkpointer=MemorySaver())
+
+    with patch("src.agent.nodes.validate.get_llm", return_value=_llm_response("valid")), \
+         patch("src.agent.nodes.classify.get_llm", return_value=_llm_response("network")), \
+         patch("src.agent.nodes.determine_risk.get_llm", return_value=_llm_response("low")), \
+         patch("src.agent.nodes.retrieve.search", return_value=[_chunk("KBHR-abc123", 8.0)]), \
+         patch("src.agent.nodes.diagnose.get_llm") as diagnose_llm, \
+         patch("src.agent.nodes.safety_check.validate_agent_output",
+               wraps=validate_agent_output) as screened:
+        result = graph.invoke({
+            "execution_id": "cache-hit",
+            "incident_number": "INC_CACHE",
+            "incident_payload": {"description": "VPN fails after password reset"},  # no sys_id: no write
+        }, config=config)
+
+    diagnose_llm.assert_not_called()
+    screened.assert_called()
+    assert result["retrieval_cache_hit"] is True
+    assert result["confidence"] == 1.0
+    assert result["action_taken"] == "resolved_automatically"
+    assert "__interrupt__" not in result
+    assert _plan_write(result)["fields"]["resolution"].startswith("1. Clear the cached VPN credential.")
+
+
 def test_approved_guardrail_block_writes_human_solution():
     plan = _plan_write({
         "human_decision": {"decision": "approve", "reviewer": "alice"},
@@ -175,6 +230,14 @@ def test_high_risk_request_skips_automatic_resolution():
 def test_approved_high_risk_retrieves_before_acting():
     assert route_after_human_review({"risk": "high", "human_decision": {"decision": "approve"}, "human_solution": "Restarted the service."}) == "retrieve"
     assert route_after_human_review({"risk": "high", "human_decision": {"decision": "reject"}}) == "act"
+
+
+def test_approved_run_without_evidence_acts_instead_of_pausing_again():
+    """Never two approvals: an approved run that retrieves nothing writes the human solution."""
+    approved = {"human_decision": {"decision": "approve"}, "human_solution": "Restarted the service."}
+    assert route_after_retrieve({**approved, "retrieved_evidence": []}) == "act"
+    assert route_after_retrieve({**approved, "retrieved_evidence": [], "retrieval_failed": True}) == "act"
+    assert _plan_write({**approved, "retrieved_evidence": []})["fields"]["resolution"] == "Restarted the service."
 
 
 def test_malformed_agent_output_and_repeated_critic_failure_are_contained():

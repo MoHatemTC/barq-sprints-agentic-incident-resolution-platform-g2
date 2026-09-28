@@ -4,6 +4,9 @@ class AgentState(TypedDict, total=False):
     incident_payload: Dict[str, Any]
     retrieved_evidence: List[Dict[str, Any]]
     retrieval_failed: bool
+    # Strong match on a human-approved (KBHR-) article: reuse it and skip diagnose/generate
+    retrieval_cache_hit: bool
+    cached_resolution: Optional[str]
     classification: Optional[str]
     risk: Optional[str]
     confidence: Optional[float]

@@ -9,11 +9,9 @@ actual rows while S2.2's async wiring lands.
 from __future__ import annotations
 
 import json
-import time
-import uuid
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, desc
 
 from src.db.database import SessionLocal
@@ -119,72 +117,107 @@ async def list_recent_executions(limit: int = 30):
         db.close()
 
 
+def _category_choices(client) -> list[dict]:
+    # The incident category list exactly as the ServiceNow form shows it
+    # (sys_choice can repeat a value, e.g. per domain; keep the first).
+    choices, seen = [], set()
+    for choice in client.get_choices("incident", "category"):
+        value = choice.get("value")
+        if value and value not in seen:
+            seen.add(value)
+            choices.append({"value": value, "label": choice.get("label") or value})
+    return choices
+
+
+@router.get("/incident-categories")
+def list_incident_categories():
+    from src.servicenow.client import ServiceNowClient
+
+    try:
+        return {"categories": _category_choices(ServiceNowClient())}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Could not read categories from ServiceNow: {exc}"
+        ) from exc
+
+
 class NewIncidentRequest(BaseModel):
-    short_description: str = "Manual test incident from dashboard"
-    sys_id: str | None = None
-    number: str | None = None
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    short_description: str = Field(..., min_length=1)
+    description: str | None = None
+    category: str = Field(..., min_length=1)
 
 
-@router.post("/incidents")
-async def create_incident_via_dashboard(payload: NewIncidentRequest):
-    import redis
+@router.post("/incidents", status_code=201)
+def create_incident_via_dashboard(payload: NewIncidentRequest):
+    """Create an incident in ServiceNow, the same as filling in the ServiceNow form.
 
-    from dotenv import load_dotenv
+    Nothing is stored or queued here. The insert fires the AI Eligibility Check
+    Business Rule (servicenow/ai_incident_orchestrator/update_set.xml),
+    which alone decides whether the incident reaches the webhook.
+    """
     import os
 
-    load_dotenv()
+    from src.servicenow.client import ServiceNowClient
 
-    if payload.sys_id:
-        sys_id = payload.sys_id
-        number = payload.number or f"INC{str(int(time.time()))[-7:]}"
-    else:
-        from src.servicenow.client import ServiceNowClient
+    client = ServiceNowClient()
+    try:
+        categories = {c["value"] for c in _category_choices(client)}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502, detail=f"Could not read categories from ServiceNow: {exc}"
+        ) from exc
+    # The Table API stores any string in a choice field; the form does not.
+    if payload.category not in categories:
+        raise HTTPException(
+            status_code=422,
+            detail=f"'{payload.category}' is not an incident category in ServiceNow",
+        )
 
-        try:
-            created = ServiceNowClient().create_incident(
-                payload.short_description,
-                caller_id=os.environ.get("SERVICENOW_DEFAULT_CALLER_SYS_ID") or None,
-            )
-        except Exception as exc:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Could not create incident in ServiceNow: {exc}",
-            ) from exc
-        sys_id, number = created["sys_id"], created["number"]
-    event_id = f"evt_dashboard_{uuid.uuid4().hex[:12]}"
+    try:
+        created = client.create_incident(
+            payload.short_description,
+            description=payload.description or None,
+            caller_id=os.environ.get("SERVICENOW_DEFAULT_CALLER_SYS_ID") or None,
+            category=payload.category,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not create incident in ServiceNow: {exc}",
+        ) from exc
 
+    return {"status": "created", "sys_id": created["sys_id"], "number": created["number"]}
+
+
+@router.get("/incidents/{sys_id}/events")
+def list_incident_events(sys_id: str):
+    """Webhook events received for one incident, i.e. what the Business Rule sent."""
     db = SessionLocal()
     try:
-        event = Event(
-            event_identifier=event_id,
-            incident_sys_id=sys_id,
-            incident_number=number,
-            event_type="incident.created",
-            contract_version="v1",
+        events = (
+            db.execute(
+                select(Event)
+                .where(Event.incident_sys_id == sys_id)
+                .order_by(Event.received_at)
+            )
+            .scalars()
+            .all()
         )
-        db.add(event)
-        db.commit()
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=409, detail=f"Could not create event: {exc}") from exc
+        return {
+            "sys_id": sys_id,
+            "events": [
+                {
+                    "event_id": e.event_identifier,
+                    "event_type": e.event_type,
+                    "received_at": e.received_at.isoformat() if e.received_at else None,
+                }
+                for e in events
+            ],
+        }
     finally:
         db.close()
-
-    redis_host = os.environ.get("REDIS_HOST", "localhost")
-    redis_port = int(os.environ.get("REDIS_PORT", "6379"))
-    r = redis.Redis(host=redis_host, port=redis_port, db=0)
-    message = json.dumps(
-        {
-            "event_id": event_id,
-            "sys_id": sys_id,
-            "number": number,
-            "event_type": "incident.created",
-            "contract_version": "v1",
-        }
-    )
-    r.rpush("incident_events", message)
-
-    return {"status": "queued", "event_id": event_id, "sys_id": sys_id, "number": number}
 
 
 @router.delete("/incidents/{sys_id}")

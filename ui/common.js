@@ -74,7 +74,7 @@
       document.body.appendChild(box);
     }
     const el = document.createElement('div');
-    el.className = 'toast' + (kind === 'err' ? ' err' : '');
+    el.className = 'toast' + (kind === 'err' || kind === 'warn' ? ' ' + kind : '');
     el.textContent = message;
     box.appendChild(el);
     requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add('in')));
@@ -82,7 +82,7 @@
       el.classList.remove('in');
       setTimeout(() => el.remove(), 320);
     };
-    setTimeout(remove, ms || (kind === 'err' ? 8000 : 5000));
+    setTimeout(remove, ms || (kind === 'err' || kind === 'warn' ? 8000 : 5000));
     el.addEventListener('click', remove);
   }
 

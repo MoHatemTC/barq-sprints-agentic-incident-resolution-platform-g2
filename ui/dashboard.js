@@ -1,6 +1,8 @@
-/* Pipeline dashboard logic. Endpoints are unchanged:
+/* Pipeline dashboard logic. Endpoints:
    GET  /api/v1/dashboard/executions?limit=N
-   POST /api/v1/dashboard/incidents
+   GET  /api/v1/dashboard/incident-categories
+   POST /api/v1/dashboard/incidents            (creates in ServiceNow only)
+   GET  /api/v1/dashboard/incidents/{sys_id}/events
    POST /api/v1/dashboard/kb-sync */
 (function () {
   'use strict';
@@ -312,21 +314,71 @@
   const modal = $('modal');
   const errEl = $('f-error');
 
+  const categorySelect = $('f-category');
+  let categoriesLoaded = false;
+
+  function showFormError(message, focusId) {
+    errEl.textContent = message;
+    errEl.classList.add('show');
+    if (focusId) $(focusId).focus();
+  }
+
+  // Same choices, labels and order as the Category field on the ServiceNow form.
+  async function loadCategories() {
+    if (categoriesLoaded) return;
+    categorySelect.disabled = true;
+    categorySelect.innerHTML = '<option value="">Loading categories from ServiceNow...</option>';
+    try {
+      const data = await api('/api/v1/dashboard/incident-categories');
+      categorySelect.innerHTML = '<option value="">Select a category</option>' +
+        (data.categories || []).map((c) =>
+          `<option value="${escapeHtml(c.value)}">${escapeHtml(c.label)}</option>`).join('');
+      categoriesLoaded = true;
+    } catch (err) {
+      categorySelect.innerHTML = '<option value="">Categories unavailable</option>';
+      showFormError('Could not load categories from ServiceNow: ' + err.message);
+    } finally {
+      categorySelect.disabled = false;
+    }
+  }
+
   $('newIncidentBtn').addEventListener('click', () => {
-    ['f-short', 'f-sysid', 'f-number'].forEach((id) => { $(id).value = ''; });
+    ['f-short', 'f-desc'].forEach((id) => { $(id).value = ''; });
+    categorySelect.value = '';
     errEl.classList.remove('show');
     openOverlay(modal);
+    loadCategories();
   });
   $('modalCancel').addEventListener('click', () => closeOverlay(modal));
 
+  // The Business Rule sends the webhook asynchronously (executeAsync), so give
+  // it a moment. No event means ServiceNow suppressed it or could not reach us.
+  const BR_WAIT_MS = 20000;
+  const BR_POLL_MS = 2000;
+
+  async function watchBusinessRule(sysId, number) {
+    const deadline = Date.now() + BR_WAIT_MS;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, BR_POLL_MS));
+      try {
+        const data = await api('/api/v1/dashboard/incidents/' + encodeURIComponent(sysId) + '/events');
+        if ((data.events || []).length) {
+          toast(`${number} passed the ServiceNow Business Rule and was queued`);
+          poll();
+          return;
+        }
+      } catch (err) { /* keep waiting; the API may be briefly busy */ }
+    }
+    toast(`${number} was not sent by the ServiceNow Business Rule. It is not eligible ` +
+      '(category, AI enabled, human lock), or ServiceNow cannot reach the webhook URL. ' +
+      'Check System Logs in ServiceNow for "AI Orchestrator".', 'warn', 12000);
+  }
+
   async function submitIncident() {
     const short = $('f-short').value.trim();
-    if (!short) {
-      errEl.textContent = 'Enter a short description first.';
-      errEl.classList.add('show');
-      $('f-short').focus();
-      return;
-    }
+    const category = categorySelect.value;
+    if (!short) return showFormError('Enter a short description first.', 'f-short');
+    if (!category) return showFormError('Choose a category.', 'f-category');
     errEl.classList.remove('show');
 
     const btn = $('modalSubmit');
@@ -338,18 +390,18 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           short_description: short,
-          sys_id: $('f-sysid').value.trim() || null,
-          number: $('f-number').value.trim() || null,
+          description: $('f-desc').value.trim() || null,
+          category,
         }),
       });
-      toast(`Incident ${data.number} queued for processing`);
+      toast(`${data.number} created in ServiceNow. Waiting for the Business Rule...`);
       closeOverlay(modal);
-      setTimeout(poll, 800);
+      watchBusinessRule(data.sys_id, data.number);
     } catch (err) {
       toast('Could not create incident: ' + err.message, 'err');
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Create and enqueue';
+      btn.textContent = 'Create in ServiceNow';
     }
   }
   $('modalSubmit').addEventListener('click', submitIncident);
