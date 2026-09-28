@@ -23,6 +23,7 @@ from src.workers.retry_policy import RetryDecision, RetryPolicy
 from src.workers.runtime_integration import (
     ExecutionContext,
     StateManagerTaskRecorder,
+    _sync_servicenow_completion,
     context_from_task_headers,
     execution_status_for,
     load_s2_2_state_manager,
@@ -96,6 +97,7 @@ class GraphAgentExecutor:
     def _continue(self, graph, execution_id: str, decision: dict | None = None) -> dict:
         """Continue an existing checkpoint and record how it continued."""
         snapshot = get_run_state(graph, execution_id)
+        full_state_before = snapshot.values if snapshot else {}
         ran = False
         if is_paused(snapshot):
             if decision is not None:
@@ -108,10 +110,35 @@ class GraphAgentExecutor:
                 "human_decision": snapshot.values.get("human_decision"),
                 "recovered_at": _now(),
             })
+        
         result = continue_run(graph, execution_id, decision)
+        
+        # Merge: full pre-resume state provides the context fields,
+        # the resume result provides action_taken / servicenow_write / outputs delta.
+        merged = {**full_state_before, **result}
+        completed_actions = {"approved_by_human", "rejected_by_human", "knowledge_captured",
+                             "resolved_automatically", "blocked_by_guardrail"}
+        if merged.get("action_taken") in completed_actions:
+            merged["human_review_required"] = False
+            merged.pop("__interrupt__", None)
+            merged.pop("failure_reason", None)
+
         if ran:
-            self._audit_outcome(execution_id, result)
-        return result
+            self._audit_outcome(execution_id, merged)
+            # Write Resolution Information fields (close_notes, close_code, state=6, resolved_at)
+            # to ServiceNow. This call is made during first-run by GraphRuntimeAdapter but
+            # never during HITL resume — we must call it here so the Resolution Information
+            # tab is populated after a human approves.
+            completed_actions = {"approved_by_human", "knowledge_captured"}
+            if merged.get("action_taken") in completed_actions:
+                accepted_incident = merged.get("incident_payload") or {}
+                _sync_servicenow_completion(
+                    accepted_incident,
+                    merged,
+                    execution_id,
+                    {},
+                )
+        return merged
 
     def _audit_outcome(self, execution_id: str, result: dict) -> None:
         """Paused: the raw payload (NFR-07). Finished: the outcome the dashboard shows."""

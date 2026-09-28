@@ -115,6 +115,10 @@
             <div class="field"><label for="reviewer">Reviewer</label><input class="input" id="reviewer" type="text" placeholder="Your name" /></div>
             <div class="field"><label for="rationale">Comment (optional)</label><input class="input" id="rationale" type="text" placeholder="Why you decided this" /></div>
           </div>
+          <div class="field" style="margin-top: 1rem;">
+            <label for="human_solution">Human Solution (optional, used for KB capture if approved)</label>
+            <textarea class="input" id="human_solution" rows="3" placeholder="Provide the actual resolution here to capture it in the Knowledge Base..."></textarea>
+          </div>
           <div class="dialog-actions"><div class="right">
             <button class="btn" type="button" data-action="reject">Reject</button>
             <button class="btn btn-primary" type="button" data-action="approve">Approve</button>
@@ -137,7 +141,7 @@
       await api(`/api/v1/approvals/${encodeURIComponent(d.approval_id)}/decide`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, reviewer, rationale: $('rationale').value.trim() || null }),
+        body: JSON.stringify({ action, reviewer, rationale: $('rationale').value.trim() || null, human_solution: $('human_solution').value.trim() || null }),
       });
       toast(`${d.incident_number}: ${action === 'approve' ? 'approved' : 'rejected'}. The run is resuming.`);
     } catch (err) {

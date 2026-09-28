@@ -33,18 +33,35 @@
     latest: [],
   };
 
-  /* ---------- pipeline stage logic (same rules as before) ---------- */
+  /* ---------- pipeline stage logic ---------- */
   function pipelineStages(exec) {
     const status = exec.status;
     const result = exec.latest_result || {};
     const out = result.outputs || {};
-    // A finished run only marks the stages that really ran: a high-risk run
-    // goes to a human before retrieve/diagnose/generate, so those stay grey
+    
+    // Check if it's a HITL completion (early escalation, resolution by human, etc)
+    const isHITL = ['approved_by_human', 'rejected_by_human', 'knowledge_captured'].includes(result.action_taken);
+
+    // If finished, calculate what actually ran
     if (status === 'succeeded' && result.action_taken) {
-      const ran = [true, !!result.classification, !!(result.retrieved_evidence || []).length,
-        !!out.diagnosis, !!out.resolution, !!out.resolution && result.action_taken !== 'rejected_by_human'];
-      return ran.map((r) => (r ? 'done' : 'pending'));
+      const ran = [
+        true, // received
+        !!result.classification, // classify
+        !!(result.retrieved_evidence || []).length, // retrieve
+        !!out.diagnosis, // diagnose
+        !!out.resolution || isHITL, // generate (or human provided it)
+        result.action_taken !== 'rejected_by_human' // resolved
+      ];
+      
+      return ran.map((r, i) => {
+        if (r) return 'done';
+        // If it's HITL and a stage didn't run, it was deliberately skipped, not left pending
+        if (isHITL) return 'skipped';
+        return 'pending';
+      });
     }
+
+    // In-progress logic
     let reached = 0;
     if (result.retrieved_evidence) reached = 2;
     if (result.classification) reached = 1;

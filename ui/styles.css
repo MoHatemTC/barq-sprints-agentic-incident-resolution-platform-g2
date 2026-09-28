@@ -284,6 +284,11 @@ h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.
 .track li.error .dot { background: var(--bad); border-color: var(--bad); }
 .track li.pending { opacity: 0.6; }
 
+/* skipped state (OBS-01) */
+.track li.skipped { opacity: 0.7; }
+.track li.skipped::after { background: repeating-linear-gradient(90deg, var(--line-strong), var(--line-strong) 4px, transparent 4px, transparent 8px); transform: scaleX(1); }
+.track li.skipped .dot { background: var(--surface-2); border-color: var(--line-strong); border-style: dashed; }
+
 /* expandable body */
 .row-body { display: grid; grid-template-rows: 0fr; visibility: hidden; transition: grid-template-rows 0.3s var(--ease), visibility 0s 0.3s; }
 .row.open .row-body { grid-template-rows: 1fr; visibility: visible; transition: grid-template-rows 0.3s var(--ease), visibility 0s; }

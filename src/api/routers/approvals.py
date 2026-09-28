@@ -169,6 +169,18 @@ def list_approvals(
         snapshot = get_run_state(graph, execution_id)
         if is_paused(snapshot):
             items.append(ApprovalResponse(**_summary(execution_id, snapshot.values)))
+        else:
+            # Auto-heal: DB still says awaiting_approval but graph is no longer paused.
+            # This happens when the worker completed after a rejection but a crash or
+            # race condition prevented the final DB status update from landing.
+            try:
+                with SessionLocal() as db:
+                    update_execution_status(db, execution_id, "succeeded")
+                logger.warning(
+                    "Auto-healed stale awaiting_approval status for execution %s", execution_id
+                )
+            except Exception as exc:
+                logger.warning("Could not auto-heal execution %s: %s", execution_id, exc)
     start = (max(page, 1) - 1) * page_size
     return ApprovalListResponse(
         items=items[start:start + page_size], page=page, page_size=page_size, total=len(items)

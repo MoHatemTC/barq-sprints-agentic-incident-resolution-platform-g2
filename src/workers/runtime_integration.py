@@ -23,8 +23,15 @@ logger = logging.getLogger(__name__)
 
 def execution_status_for(result: object) -> str:
     """S3.4: a graph that paused at interrupt() is awaiting approval, not finished."""
-    if isinstance(result, Mapping) and result.get("__interrupt__"):
+    if not isinstance(result, Mapping):
+        return "succeeded"
+    
+    if result.get("__interrupt__") or result.get("human_review_required"):
         return "awaiting_approval"
+    
+    if result.get("failure_reason"):
+        return "failed"
+        
     return "succeeded"
 
 
@@ -171,10 +178,8 @@ class StateManagerTaskRecorder:
         finally:
             close()
 
-        # S3.4: a paused run must not write to ServiceNow before the human decides;
-        # act writes after the approval resumes it
-        if execution_status_for(result) == "awaiting_approval":
-            return
+        # Fix for BUG-01: Synchronize partial state to ServiceNow even when paused
+        # so reviewers can see the AI's diagnosis in ServiceNow while they review.
         _sync_servicenow_completion(
             accepted_incident,
             checkpoint,
@@ -338,8 +343,12 @@ def _servicenow_completion_fields(
     execution_metadata = execution_metadata or {}
     outputs = checkpoint.get("outputs")
     outputs = outputs if isinstance(outputs, Mapping) else {}
+    is_awaiting_approval = checkpoint.get("__interrupt__") or checkpoint.get("human_review_required")
+    action_taken = checkpoint.get("action_taken", "")
+    is_resolved = not is_awaiting_approval and action_taken not in ("", None, "failed")
+
     fields: dict[str, object] = {
-        "processing_state": "complete",
+        "processing_state": "awaiting_approval" if is_awaiting_approval else "complete",
         "processing_start": execution_metadata.get("processing_start"),
         "processing_end": execution_metadata.get("processing_end"),
         "max_retries": execution_metadata.get("max_retries", 3),
@@ -349,11 +358,32 @@ def _servicenow_completion_fields(
         "model_name": execution_metadata.get("model_name", "gemini-3.6-flash"),
         "classification": _field_text(checkpoint.get("classification"), 255),
         "confidence": checkpoint.get("confidence") or 0,
-        "suggestion": _field_text(outputs.get("diagnosis"), 4_000),
-        "resolution": _field_text(outputs.get("resolution"), 4_000),
         "human_review": checkpoint.get("human_review_required") is True,
         "failure_reason": None,
     }
+
+    # Only write AI suggestion/resolution AFTER the ticket is resolved (approved or auto-resolved).
+    # While awaiting approval, only metadata is written so the caller does not see
+    # an unvetted AI draft as if it were an official resolution.
+    if not is_awaiting_approval:
+        fields["suggestion"] = _field_text(outputs.get("diagnosis"), 4_000)
+        final_res = checkpoint.get("human_solution") or outputs.get("resolution")
+        fields["resolution"] = _field_text(final_res, 4_000)
+
+    # Populate Resolution Information tab when ticket is resolved
+    if is_resolved:
+        final_res = checkpoint.get("human_solution") or outputs.get("resolution")
+        resolution_text = _field_text(final_res, 4_000)
+        fields["close_code"] = "Solved (Permanently)"
+        fields["close_notes"] = (
+            f"[AI Resolution]\n{resolution_text}"
+            if resolution_text
+            else "Resolved by AI Incident Orchestrator"
+        )
+        fields["resolved_at"] = execution_metadata.get("processing_end")
+        # State 6 = Resolved in ServiceNow
+        fields["state"] = "6"
+
     failure_reason = _field_text(checkpoint.get("failure_reason"), 1_000)
     if failure_reason:
         fields["failure_reason"] = failure_reason
