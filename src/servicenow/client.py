@@ -156,7 +156,13 @@ class ServiceNowClient:
                 "sysparm_fields": "value",
             },
         )
-        if not check or note not in check[0].get("value", ""):
+        if not check or not check[0].get("value", ""):
+            raise ServiceNowWriteNotAppliedError(200, "Work note not applied")
+        # ServiceNow may reformat whitespace/newlines in journal entries —
+        # compare using normalized (collapsed) text to avoid false negatives.
+        stored_normalized = " ".join(check[0]["value"].split())
+        note_normalized = " ".join(note.split())
+        if note_normalized not in stored_normalized:
             raise ServiceNowWriteNotAppliedError(200, "Work note not applied")
         return result
 
