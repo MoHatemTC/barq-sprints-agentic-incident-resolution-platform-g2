@@ -11,6 +11,46 @@ from src.db.database import SessionLocal
 from src.db.models import Approval, Execution
 
 
+# Modules that need live Postgres / Redis / Qdrant (or downloaded models).
+# CI runs them in the integration job, which has those services; the unit job
+# runs everything else with `-m "not integration"`.
+_INTEGRATION_MODULES = {
+    "test_act_node_registry_integration",
+    "test_agent_bootstrap",
+    "test_app_wiring",
+    "test_approval_service",
+    "test_approvals_api",
+    "test_audit_service",
+    "test_database",
+    "test_embedding",
+    "test_endpoints_contract",
+    "test_event_service",
+    "test_execution_service",
+    "test_failure_service",
+    "test_hybrid_search",
+    "test_idempotency",
+    "test_ingest",
+    "test_knowledge_capture_service",
+    "test_loop_closure",
+    "test_permissions",
+    "test_referential_integrity",
+    "test_registry_enforcement",
+    "test_retry_service",
+    "test_state_manager",
+    "test_webhook",
+    "test_worker_runtime_integration",
+    "test_workflow",
+    "test_workflow_service",
+    "test_workflow_servicenow",
+}
+
+
+def pytest_collection_modifyitems(config, items):
+    for item in items:
+        if item.module.__name__.rsplit(".", 1)[-1] in _INTEGRATION_MODULES:
+            item.add_marker(pytest.mark.integration)
+
+
 class _StubLLM:
     def __init__(self, reply):
         self.reply = reply
@@ -49,13 +89,17 @@ def hermetic_llm(monkeypatch):
 def _reload_embedding_module_after_test():
     """Undo any monkeypatch+reload pollution left behind by tests that
     reload src.config / src.retrieval.embedding with fake env vars
-    (e.g. tests/test_embedding.py). Runs after every test.
+    (e.g. tests/test_embedding.py). Reloads only when a test actually swapped
+    the config or sparse model: rebuilding BM25 after every test cost minutes.
     """
-    yield
     import src.config as cfg_mod
     import src.retrieval.embedding as emb_mod
-    importlib.reload(cfg_mod)
-    importlib.reload(emb_mod)
+    before = (cfg_mod.EMBEDDING, cfg_mod.RETRIEVAL, emb_mod._sparse_model)
+    yield
+    after = (cfg_mod.EMBEDDING, cfg_mod.RETRIEVAL, emb_mod._sparse_model)
+    if any(a is not b for a, b in zip(after, before)):
+        importlib.reload(cfg_mod)
+        importlib.reload(emb_mod)
 
 
 _CONSUME_AWARE_TRIGGER = """
