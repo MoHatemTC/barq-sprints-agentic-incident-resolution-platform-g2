@@ -284,6 +284,7 @@ def test_every_registered_tool_dispatches_without_typeerror():
     gateway = IncidentGateway(client=FakeServiceNowClient())
     handlers = {
         "read_incident": (PermissionClass.READ, gateway.read_incident),
+        "list_incidents": (PermissionClass.READ, gateway.list_incidents),
         "find_execution_log": (PermissionClass.READ, gateway.find_execution_log),
         "write_ai_fields": (PermissionClass.LOW_RISK_WRITE, gateway.write_ai_fields),
         "write_execution_log": (PermissionClass.LOW_RISK_WRITE, gateway.write_execution_log),
@@ -300,6 +301,7 @@ def test_every_registered_tool_dispatches_without_typeerror():
 
     kwargs = {
         "read_incident": {"sys_id": "s1"},
+        "list_incidents": {"query": "active=true", "fields": ["sys_id"]},
         "find_execution_log": {"action": "auto_resolve"},
         "write_ai_fields": {"sys_id": "s1", "fields": {"a": 1}},
         "write_execution_log": {

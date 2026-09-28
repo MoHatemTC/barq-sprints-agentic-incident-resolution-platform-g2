@@ -20,17 +20,23 @@ from src.servicenow.client import IncidentGateway
 
 # Mirrors build_default_registry(). Kept explicit rather than derived from it so
 # a test fails loudly if a tool is added to the default registry and not here.
-READ_TOOLS = ("read_incident", "find_execution_log")
+READ_TOOLS = ("read_incident", "list_incidents", "find_execution_log")
 WRITE_TOOLS = ("write_ai_fields", "write_execution_log", "write_work_note")
 
 
 class FakeServiceNowClient:
     """Records every Table API call the gateway makes, in order."""
 
-    def __init__(self, get_incident_result: Optional[Dict[str, Any]] = None) -> None:
+    def __init__(
+        self,
+        get_incident_result: Optional[Dict[str, Any]] = None,
+        list_incidents_result: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
         self.get_incident_result = (
             {} if get_incident_result is None else get_incident_result
         )
+        self.list_incidents_result = list_incidents_result or []
+        self.list_queries: List[str] = []
         self.incident_patches: List[Dict[str, Any]] = []
         self.logs: List[Dict[str, Any]] = []
         self.work_notes: List[Dict[str, Any]] = []
@@ -40,6 +46,11 @@ class FakeServiceNowClient:
     def get_incident(self, sys_id):
         self.calls.append("get_incident")
         return dict(self.get_incident_result)
+
+    def list_incidents(self, fields, limit=20, offset=0, query=None):
+        self.calls.append("list_incidents")
+        self.list_queries.append(query)
+        return list(self.list_incidents_result), len(self.list_incidents_result)
 
     def find_execution_log(self, execution_id, action):
         self.calls.append("find_execution_log")
@@ -93,6 +104,7 @@ def build_registry(
     gateway = IncidentGateway(client=client if client is not None else FakeServiceNowClient())
     handlers = {
         "read_incident": (PermissionClass.READ, gateway.read_incident),
+        "list_incidents": (PermissionClass.READ, gateway.list_incidents),
         "find_execution_log": (PermissionClass.READ, gateway.find_execution_log),
         "write_ai_fields": (PermissionClass.LOW_RISK_WRITE, gateway.write_ai_fields),
         "write_execution_log": (PermissionClass.LOW_RISK_WRITE, gateway.write_execution_log),

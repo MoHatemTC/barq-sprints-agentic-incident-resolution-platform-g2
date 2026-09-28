@@ -414,9 +414,13 @@ def test_worker_persists_retry_and_failure_through_injected_s2_2_adapter():
         state_recorder=recorder,
     )
 
-    terminal_result = terminal_task.apply(args=(CONFIRMED_PAYLOAD,))
+    with patch("src.workers.runtime_integration._sync_servicenow_failure") as failed_in_servicenow:
+        terminal_result = terminal_task.apply(args=(CONFIRMED_PAYLOAD,))
 
     assert terminal_result.state == "FAILURE"
+    failed_in_servicenow.assert_called_once_with(
+        CONFIRMED_PAYLOAD, "s2-2-created-uuid", 0, terminal_error
+    )
     assert state_manager.failure_calls == [
         (
             "s2-2-created-uuid",

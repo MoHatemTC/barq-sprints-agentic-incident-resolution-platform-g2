@@ -7,6 +7,7 @@ shared cache so dashboard polling never competes with the AI worker.
 
 import json
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -40,10 +41,11 @@ def _sn_row(number, sys_id, *, category="network", human_lock="false", ai_enable
 
 class FakeServiceNow:
     def __init__(self, rows):
-        self.rows, self.calls, self.error = rows, [], None
+        self.rows, self.calls, self.queries, self.error = rows, [], [], None
 
-    def list_incidents(self, fields, limit=20, offset=0):
+    def list_incidents(self, fields, limit=20, offset=0, query=None):
         self.calls.append((limit, offset))
+        self.queries.append(query)
         if self.error:
             raise self.error
         return self.rows[offset:offset + limit], len(self.rows)
@@ -60,7 +62,8 @@ def api(monkeypatch):
     ])
     monkeypatch.setattr(dashboard, "_servicenow", lambda: fake)
     monkeypatch.setattr(dashboard, "_incident_pages", dashboard._PageCache(ttl=60))
-    monkeypatch.setattr(dashboard, "_latest_runs", lambda db, numbers: {"INC0010002": RUN})
+    monkeypatch.setattr(dashboard, "_latest_runs", lambda db, numbers, live_graph=None: {"INC0010002": RUN})
+    monkeypatch.setattr(dashboard, "_live_graph", lambda: None)
     monkeypatch.setattr(dashboard, "SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
     app = FastAPI()
     app.include_router(dashboard.router)
@@ -79,6 +82,8 @@ def test_lists_every_servicenow_incident_with_its_ai_run(api):
     assert processed["category"] == "Network"          # display label, like the form
     assert processed["state"] == "New"
     assert processed["created_at"] == "2026-09-29T08:30:00+00:00"  # UTC value, not the display string
+    from src.servicenow import config
+    assert processed["servicenow_url"] == f"{config.INSTANCE_URL}/nav_to.do?uri=incident.do%3Fsys_id%3Dsys-2"
     assert not_sent["execution"] is None                # skipped by the Business Rule, still listed
     assert not_sent["human_lock"] is True and not_sent["ai_enabled"] is True
 
@@ -140,6 +145,45 @@ def test_page_bounds_are_validated(api, query):
     assert fake.calls == []
 
 
+# search
+
+def test_search_matches_number_or_description_words():
+    one = "numberLIKEvpn^ORshort_descriptionLIKEvpn^ORdescriptionLIKEvpn"
+    assert dashboard._search_query("vpn") == one
+    assert dashboard._search_query("  INC0010275 ") == (
+        "numberLIKEINC0010275^ORshort_descriptionLIKEINC0010275^ORdescriptionLIKEINC0010275"
+    )
+    # every word must match somewhere: (vpn in any field) AND (reset in any field)
+    assert dashboard._search_query("vpn reset") == one + "^" + one.replace("vpn", "reset")
+    assert dashboard._search_query("") is None and dashboard._search_query("   ") is None
+
+
+def test_search_text_cannot_add_filters():
+    """'^' starts a new clause in an encoded query; typed text must stay a search term."""
+    query = dashboard._search_query("vpn^active=false^ORDERBYsys_id")
+    clauses = query.split("^")
+    assert all(c.startswith(("numberLIKE", "ORshort_descriptionLIKE", "ORdescriptionLIKE")) for c in clauses)
+    assert "vpn" in query and "active=false" in query  # kept only as words to look for
+    assert len(dashboard._search_query("a b c d e f g").split("^")) == 3 * dashboard.MAX_SEARCH_WORDS
+
+
+def test_search_goes_to_servicenow_and_is_cached_per_query(api):
+    client, fake = api
+
+    body = client.get("/api/v1/dashboard/incidents?limit=20&q=vpn").json()
+    client.get("/api/v1/dashboard/incidents?limit=20&q=vpn")
+    client.get("/api/v1/dashboard/incidents?limit=20")
+
+    assert body["q"] == "vpn"
+    assert fake.queries == [dashboard._search_query("vpn"), None]  # one call per distinct search
+
+
+def test_search_text_length_is_bounded(api):
+    client, fake = api
+    assert client.get("/api/v1/dashboard/incidents?q=" + "x" * 101).status_code == 422
+    assert fake.calls == []
+
+
 # _latest_runs against the real database
 
 @pytest.fixture
@@ -193,3 +237,82 @@ def test_latest_run_per_incident_with_its_latest_checkpoint(two_runs):
     assert run["failures"][0]["failing_node"] == "act"
     assert run["retry_attempt_count"] == 1
     assert run["duration_seconds"] == pytest.approx(120, abs=1)
+
+
+# live progress of an in-progress run
+
+class FakeGraph:
+    """LangGraph's per-node checkpoint as the worker leaves it mid-run."""
+
+    def __init__(self, next_node="retrieve", error=None):
+        self.next_node, self.error, self.calls = next_node, error, []
+
+    def get_state(self, config):
+        self.calls.append(config["configurable"]["thread_id"])
+        if self.error:
+            raise self.error
+        return SimpleNamespace(
+            values={"classification": "network", "risk": "low", "incident_payload": {"sys_id": "x"}},
+            next=(self.next_node,),
+        )
+
+
+@pytest.fixture
+def running_run():
+    number, eid = f"INC-LIVE-{uuid4().hex[:8]}", f"dash-live-{uuid4().hex}"
+    db = SessionLocal()
+    try:
+        db.add(Execution(execution_identifier=eid, incident_reference=number, status="started"))
+        db.commit()
+        yield number, eid
+    finally:
+        db.query(Execution).filter(Execution.execution_identifier == eid).delete(synchronize_session=False)
+        db.commit()
+        db.close()
+
+
+def _runs(numbers, graph):
+    looked_up = []
+
+    def live_graph():
+        looked_up.append(True)
+        return graph
+
+    db = SessionLocal()
+    try:
+        return dashboard._latest_runs(db, numbers, live_graph=live_graph), looked_up
+    finally:
+        db.close()
+
+
+def test_running_incident_shows_the_node_running_now(running_run):
+    number, eid = running_run
+    graph = FakeGraph(next_node="retrieve")
+
+    runs, _ = _runs([number], graph)
+    run = runs[number]
+
+    assert graph.calls == [eid]
+    assert run["live_node"] == "retrieve"
+    assert run["latest_result"] == {"classification": "network", "risk": "low"}  # payload left out
+
+
+def test_finished_runs_do_not_touch_the_checkpoint_store(two_runs):
+    number, _ = two_runs
+
+    runs, looked_up = _runs([number], FakeGraph())
+    run = runs[number]
+
+    assert looked_up == []  # no run in progress: the graph is never even built
+    assert run["live_node"] is None
+    assert run["latest_result"] == {"action_taken": "resolved_automatically"}
+
+
+def test_unreadable_live_state_keeps_the_list_working(running_run):
+    number, _ = running_run
+
+    runs, _ = _runs([number], FakeGraph(error=RuntimeError("checkpoint store down")))
+    assert runs[number]["status"] == "started" and runs[number]["live_node"] is None
+
+    runs, _ = _runs([number], None)  # graph could not be built at all
+    assert runs[number]["status"] == "started" and runs[number]["live_node"] is None

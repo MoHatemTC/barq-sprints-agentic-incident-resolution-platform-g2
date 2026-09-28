@@ -96,15 +96,17 @@ class ServiceNowClient:
             if c.get("value")  # skip the form's "-- None --" entry
         ]
 
-    def list_incidents(self, fields, limit=20, offset=0):
-        # Newest incidents first, one page. Each field comes back as
-        # {"value": ..., "display_value": ...}. Returns (rows, total).
+    def list_incidents(self, fields, limit=20, offset=0, query=None):
+        # Newest incidents first, one page, optionally filtered by an encoded
+        # query. Each field comes back as {"value": ..., "display_value": ...}.
+        # Returns (rows, total).
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
+        order = "ORDERBYDESCsys_created_on"
         response = self._response(
             "GET",
             url,
             params={
-                "sysparm_query": "ORDERBYDESCsys_created_on",
+                "sysparm_query": f"{query}^{order}" if query else order,
                 "sysparm_fields": ",".join(fields),
                 "sysparm_display_value": "all",
                 "sysparm_exclude_reference_link": "true",
@@ -268,6 +270,11 @@ class IncidentGateway:
 
     def read_incident(self, sys_id, execution_id=None):
         return self._client.get_incident(sys_id)
+
+    def list_incidents(self, query, fields, limit=100, execution_id=None):
+        """Incidents matching an encoded query, newest first, one page"""
+        rows, _total = self._client.list_incidents(fields, limit=limit, query=query)
+        return rows
 
     def find_execution_log(self, execution_id, action, incident_sys_id=None):
         """Return the prior receipt row for this (execution_id, action), if any"""

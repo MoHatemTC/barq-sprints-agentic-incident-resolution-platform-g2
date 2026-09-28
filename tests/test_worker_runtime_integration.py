@@ -88,7 +88,9 @@ def test_s2_2_recorder_reuses_context_for_retry_failure_and_success():
 
     error = RuntimeError("temporary")
     recorder.record_retry(PAYLOAD, 0, error)
-    recorder.record_failure(PAYLOAD, 1, error)
+    with patch.object(runtime_integration, "_sync_servicenow_failure") as failed_sync:
+        recorder.record_failure(PAYLOAD, 1, error)
+    failed_sync.assert_called_once_with(PAYLOAD, "s2-2-execution-id", 1, error)
     with patch.object(runtime_integration, "_sync_servicenow_completion") as sync:
         recorder.record_success(
             PAYLOAD,

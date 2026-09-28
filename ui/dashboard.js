@@ -22,6 +22,7 @@
     blocked: ['warn', 'Blocked'],
     awaiting_approval: ['violet', 'Awaiting approval'],
     not_sent: ['plain', 'Not sent to AI'],
+    waiting: ['accent', 'Waiting for ServiceNow'],
   };
   const PAGE = 20;
   const CHEVRON = '<svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
@@ -34,18 +35,40 @@
     inflight: false,
     timer: null,
     extra: 0,        // incidents added by "Load more" on top of the chosen limit
+    q: '',           // search box text; the search itself runs in ServiceNow
+    again: false,    // a poll was asked for while one was in flight
     rows: new Map(), // sys_id -> row element
+    waiting: new Set(), // sys_ids created here whose Business Rule has not fired yet
     latest: [],
   };
   const shownLimit = () => state.limit + state.extra;
-  const statusOf = (item) => (item.execution ? item.execution.status : 'not_sent');
+  const statusOf = (item) => {
+    if (item.execution) return item.execution.status;
+    return state.waiting.has(item.sys_id) ? 'waiting' : 'not_sent';
+  };
+
+  // Graph node running now (live_node from the API) -> the dot it belongs to.
+  const NODE_STAGE = {
+    load: 0, validate: 0,
+    classify: 1, determine_risk: 1,
+    retrieve: 2,
+    diagnose: 3,
+    generate: 4, verify_evidence: 4, safety_check: 4, confidence_check: 4,
+    act: 5, knowledge_capture: 5,
+  };
 
   /* ---------- pipeline stage logic ---------- */
   function pipelineStages(exec) {
     const status = exec.status;
     const result = exec.latest_result || {};
     const out = result.outputs || {};
-    
+
+    // Running: light the dot of the node that is executing right now.
+    const live = NODE_STAGE[exec.live_node];
+    if (status === 'started' && live !== undefined) {
+      return STAGES.map((_, i) => (i < live ? 'done' : i === live ? 'active' : 'pending'));
+    }
+
     // Check if it's a HITL completion (early escalation, resolution by human, etc)
     const isHITL = ['approved_by_human', 'rejected_by_human', 'knowledge_captured'].includes(result.action_taken);
     const awaiting = exec.status === 'awaiting_approval';
@@ -123,6 +146,11 @@
     return `<dt>${label}</dt><dd${mono ? ' class="mono"' : ''}>${escapeHtml(shown)}</dd>`;
   }
 
+  function openInServiceNowHtml(item) {
+    if (!item.servicenow_url) return '';
+    return `<div class="dialog-actions"><div class="right"><a class="btn btn-sm" href="${escapeHtml(item.servicenow_url)}" target="_blank" rel="noopener noreferrer">Open in ServiceNow \u2197</a></div></div>`;
+  }
+
   function incidentFacts(item) {
     return '<dl class="facts">' +
       fact('ServiceNow sys_id', item.sys_id, true) +
@@ -175,10 +203,11 @@
 
   function updateRow(el, item) {
     const exec = item.execution;
+    if (exec) state.waiting.delete(item.sys_id);
     el.querySelector('.inc').textContent = item.number || '\u2014';
     el.querySelector('.desc').textContent = item.short_description || '';
     el.querySelector('.meta').textContent = [item.category, item.state].filter(Boolean).join(' \u00b7 ');
-    el.classList.toggle('no-ai', !exec);
+    el.classList.toggle('no-ai', !exec && !state.waiting.has(item.sys_id));
 
     const status = statusOf(item);
     const [tone, label] = STATUS[status] || ['', status || 'unknown'];
@@ -192,7 +221,7 @@
     const classes = exec ? pipelineStages(exec) : STAGES.map(() => 'pending');
     el.querySelectorAll('.track li').forEach((li, i) => { li.className = classes[i]; });
 
-    const html = incidentFacts(item) + (exec ? detailsHtml(exec) : notSentHtml(item));
+    const html = openInServiceNowHtml(item) + incidentFacts(item) + (exec ? detailsHtml(exec) : notSentHtml(item));
     if (el._details !== html) {
       el._details = html;
       el.querySelector('.inner-pad').innerHTML = html;
@@ -253,7 +282,9 @@
     });
 
     const box = $('empty');
-    if (!items.length) {
+    if (!items.length && state.q) {
+      showEmpty(`No incidents match "${state.q}"`, 'Search looks in the incident number, short description and description.');
+    } else if (!items.length) {
       showEmpty('No incidents in ServiceNow yet', 'Create one above, or in ServiceNow.');
     } else if (!visible) {
       showEmpty('Nothing matches this filter', 'Try another status, or load more incidents.');
@@ -275,17 +306,20 @@
 
   /* ---------- polling ---------- */
   async function poll() {
-    if (state.inflight) return;
+    if (state.inflight) { state.again = true; return; }
     state.inflight = true;
+    const q = state.q;
     try {
-      const data = await api('/api/v1/dashboard/incidents?limit=' + shownLimit());
+      const data = await api('/api/v1/dashboard/incidents?limit=' + shownLimit() +
+        (q ? '&q=' + encodeURIComponent(q) : ''));
+      if (q !== state.q) return; // the search changed while this was loading; the next poll shows it
       state.latest = data.incidents || [];
       if (data.stale) setConn('warn', 'ServiceNow delayed');
       else setConn(state.live ? 'live' : 'ok', state.live ? 'Live' : 'Connected');
       render(state.latest);
       renderMetrics(state.latest);
       const total = data.total ?? state.latest.length;
-      $('updated').textContent = `${state.latest.length} of ${total} in ServiceNow · Updated ` +
+      $('updated').textContent = `${state.latest.length} of ${total} ${q ? 'matching' : 'in ServiceNow'} · Updated ` +
         fmtTime(new Date().toISOString());
       $('loadMore').hidden = state.latest.length >= total || shownLimit() >= 500;
     } catch (err) {
@@ -297,6 +331,7 @@
     } finally {
       state.inflight = false;
       state.firstLoad = false;
+      if (state.again) { state.again = false; poll(); }
     }
   }
 
@@ -316,6 +351,26 @@
   $('loadMore').addEventListener('click', () => {
     state.extra += PAGE;
     poll();
+  });
+
+  // Search runs in ServiceNow (number, short description, description), so it
+  // covers all history, not just the rows loaded here. Debounced per keystroke.
+  const searchBox = $('searchBox');
+  let searchTimer = null;
+  function setSearch(value) {
+    const q = value.trim();
+    if (q === state.q) return;
+    state.q = q;
+    state.extra = 0;
+    poll();
+  }
+  searchBox.addEventListener('input', () => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => setSearch(searchBox.value), 350);
+  });
+  searchBox.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { clearTimeout(searchTimer); setSearch(searchBox.value); }
+    if (e.key === 'Escape') { clearTimeout(searchTimer); searchBox.value = ''; setSearch(''); }
   });
 
   $('statusFilter').addEventListener('change', (e) => {
@@ -402,6 +457,15 @@
   const BR_POLL_MS = 2000;
 
   async function watchBusinessRule(sysId, number) {
+    state.waiting.add(sysId);
+    // Sent: stays "waiting" until its run shows up (updateRow clears it).
+    if (!(await waitForBusinessRule(sysId, number))) {
+      state.waiting.delete(sysId);
+      render(state.latest);
+    }
+  }
+
+  async function waitForBusinessRule(sysId, number) {
     const deadline = Date.now() + BR_WAIT_MS;
     while (Date.now() < deadline) {
       await new Promise((r) => setTimeout(r, BR_POLL_MS));
@@ -410,13 +474,14 @@
         if ((data.events || []).length) {
           toast(`${number} passed the ServiceNow Business Rule and was queued`);
           poll();
-          return;
+          return true;
         }
       } catch (err) { /* keep waiting; the API may be briefly busy */ }
     }
-    toast(`${number} was not sent by the ServiceNow Business Rule. It is not eligible ` +
-      '(category, AI enabled, human lock), or ServiceNow cannot reach the webhook URL. ' +
-      'Check System Logs in ServiceNow for "AI Orchestrator".', 'warn', 12000);
+    toast(`${number} was not received from ServiceNow yet. If it is eligible, the delivery ` +
+      'sweep picks it up within about 3 minutes. If it is not eligible (category, AI enabled, ' +
+      'human lock), it stays with ServiceNow: see System Logs for "AI Orchestrator".', 'warn', 12000);
+    return false;
   }
 
   async function submitIncident() {

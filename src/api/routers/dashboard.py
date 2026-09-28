@@ -221,10 +221,23 @@ def _field(row: dict, name: str, display: bool = False):
     return cell if cell not in ("", None) else None
 
 
+def _servicenow_link(sys_id: str | None) -> str | None:
+    """The incident form inside the full ServiceNow UI (navigation and all)."""
+    if not sys_id:
+        return None
+    from urllib.parse import quote
+
+    from src.servicenow import config
+
+    return f"{config.INSTANCE_URL}/nav_to.do?uri={quote(f'incident.do?sys_id={sys_id}', safe='')}"
+
+
 def _incident_from_servicenow(row: dict, fields: dict) -> dict:
     created = _field(row, fields["created_at"])  # UTC "YYYY-MM-DD HH:MM:SS"
+    sys_id = _field(row, fields["sys_id"])
     return {
-        "sys_id": _field(row, fields["sys_id"]),
+        "sys_id": sys_id,
+        "servicenow_url": _servicenow_link(sys_id),
         "number": _field(row, fields["number"]),
         "short_description": _field(row, fields["short_description"]),
         "category": _field(row, fields["category"], display=True),
@@ -237,14 +250,68 @@ def _incident_from_servicenow(row: dict, fields: dict) -> dict:
     }
 
 
-def _fetch_incident_page(limit: int, offset: int) -> dict:
+SEARCH_FIELDS = ("number", "short_description", "description")
+MAX_SEARCH_WORDS = 5
+
+
+def _search_query(q: str | None) -> str | None:
+    """ServiceNow encoded query for the search box: every word must appear in the
+    number, short description or description (contains, case-insensitive).
+
+    '^' joins clauses in an encoded query, so it is removed: typed text can only
+    ever be a search term, never an extra filter.
+    """
+    words = (q or "").replace("^", " ").split()[:MAX_SEARCH_WORDS]
+    # a^ORb^ORc^d^ORe^ORf  ==  (a OR b OR c) AND (d OR e OR f)
+    return "^".join(
+        "^OR".join(f"{field}LIKE{word}" for field in SEARCH_FIELDS) for word in words
+    ) or None
+
+
+def _fetch_incident_page(limit: int, offset: int, query: str | None = None) -> dict:
     fields = _incident_fields()
-    rows, total = _servicenow().list_incidents(list(fields.values()), limit=limit, offset=offset)
+    rows, total = _servicenow().list_incidents(
+        list(fields.values()), limit=limit, offset=offset, query=query
+    )
     return {"incidents": [_incident_from_servicenow(r, fields) for r in rows], "total": total}
 
 
-def _latest_runs(db, numbers: list[str]) -> dict:
-    """Latest execution per incident number, same shape as /executions minus the checkpoint list."""
+def _live_graph():
+    """The API's shared graph over the LangGraph checkpointer, or None if it is unavailable."""
+    try:
+        from src.api.routers.approvals import _compiled_graph
+
+        return _compiled_graph()
+    except Exception:
+        return None
+
+
+def _live_progress(graph, execution_id: str):
+    """(state, running node) of an in-progress run from LangGraph's per-node checkpoint.
+
+    The worker saves a dashboard checkpoint only when the run ends, but LangGraph
+    persists state after every node, so this is read-only and costs the worker nothing.
+    """
+    if graph is None:
+        return None, None
+    try:
+        snapshot = graph.get_state({"configurable": {"thread_id": execution_id}})
+    except Exception:
+        return None, None
+    if not snapshot or not snapshot.values:
+        return None, None
+    values = {k: v for k, v in snapshot.values.items() if k != "incident_payload"}
+    state = json.loads(json.dumps(values, default=str))
+    return state, (snapshot.next[0] if snapshot.next else None)
+
+
+def _latest_runs(db, numbers: list[str], live_graph=None) -> dict:
+    """Latest execution per incident number, same shape as /executions minus the checkpoint list.
+
+    In-progress runs carry their live state and ``live_node`` (the node running now).
+    ``live_graph`` returns the graph to read that from; it is only called when
+    some run is in progress, so an idle list never touches the checkpoint store.
+    """
     if not numbers:
         return {}
     runs = (
@@ -291,6 +358,10 @@ def _latest_runs(db, numbers: list[str]) -> dict:
         ).scalars()
     }
 
+    graph = None
+    if live_graph is not None and any(run.status == "started" for run in runs):
+        graph = live_graph()
+
     summaries = {}
     for run in runs:
         eid = run.execution_identifier
@@ -299,6 +370,10 @@ def _latest_runs(db, numbers: list[str]) -> dict:
             result = json.loads(raw) if raw else None
         except (json.JSONDecodeError, TypeError):
             result = {"raw": raw}
+        live_node = None
+        if run.status == "started":
+            live_state, live_node = _live_progress(graph, eid)
+            result = live_state or result
         summaries[run.incident_reference] = {
             "execution_id": eid,
             "status": run.status,
@@ -311,6 +386,7 @@ def _latest_runs(db, numbers: list[str]) -> dict:
                 else None
             ),
             "latest_result": result,
+            "live_node": live_node,
             "failures": failures.get(eid, []),
             "retry_attempt_count": retries.get(eid, 0),
         }
@@ -318,14 +394,22 @@ def _latest_runs(db, numbers: list[str]) -> dict:
 
 
 @router.get("/incidents")
-def list_incidents(limit: int = Query(20, ge=1, le=MAX_INCIDENT_PAGE), offset: int = Query(0, ge=0)):
+def list_incidents(
+    limit: int = Query(20, ge=1, le=MAX_INCIDENT_PAGE),
+    offset: int = Query(0, ge=0),
+    q: str | None = Query(None, max_length=100),
+):
     """ServiceNow incidents (newest first) with the latest AI run for each, if any.
 
+    ``q`` searches the incident number and the words of the descriptions.
     Plain def on purpose: FastAPI runs it in a worker thread, so a slow
     ServiceNow call never blocks the event loop that serves the webhook.
     """
+    query = _search_query(q)
     try:
-        page, stale_error = _incident_pages.get((limit, offset), lambda: _fetch_incident_page(limit, offset))
+        page, stale_error = _incident_pages.get(
+            (limit, offset, query), lambda: _fetch_incident_page(limit, offset, query)
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=502, detail=f"Could not read incidents from ServiceNow: {exc}"
@@ -334,7 +418,7 @@ def list_incidents(limit: int = Query(20, ge=1, le=MAX_INCIDENT_PAGE), offset: i
     numbers = [i["number"] for i in page["incidents"] if i["number"]]
     db = SessionLocal()
     try:
-        runs = _latest_runs(db, numbers)
+        runs = _latest_runs(db, numbers, live_graph=_live_graph)
     finally:
         db.close()
 
@@ -343,6 +427,7 @@ def list_incidents(limit: int = Query(20, ge=1, le=MAX_INCIDENT_PAGE), offset: i
         "total": page["total"],
         "limit": limit,
         "offset": offset,
+        "q": q if query else None,
         "stale": stale_error is not None,
         "stale_reason": stale_error,
     }

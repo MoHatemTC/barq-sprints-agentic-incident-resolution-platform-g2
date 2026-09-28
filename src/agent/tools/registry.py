@@ -136,6 +136,8 @@ def build_default_registry() -> ToolRegistry:
 
     registry = ToolRegistry()
     registry.register("read_incident", PermissionClass.READ, gateway.read_incident)
+    # The delivery sweep's catch-up query (src/workers/delivery_sweep.py).
+    registry.register("list_incidents", PermissionClass.READ, gateway.list_incidents)
     # Idempotency probe, not a write: act_node must be able to ask "has this
     # execution already written its receipt?" without an approval, or a
     # retried execution would duplicate the write S3.4 works to prevent.

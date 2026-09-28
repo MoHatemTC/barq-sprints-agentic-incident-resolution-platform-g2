@@ -24,6 +24,7 @@ from src.workers.runtime_integration import (
     ExecutionContext,
     StateManagerTaskRecorder,
     _sync_servicenow_completion,
+    _sync_servicenow_failure,
     context_from_task_headers,
     execution_status_for,
     load_s2_2_state_manager,
@@ -366,6 +367,9 @@ def register_process_accepted_incident_task(
         try:
             if isinstance(accepted_incident, MalformedIncidentPayload):
                 raise accepted_incident.error
+            record_start = getattr(task_seams.state_recorder, "record_start", None)
+            if callable(record_start):
+                record_start(accepted_incident)
             result = task_seams.agent.execute(accepted_incident)
             record_success = getattr(task_seams.state_recorder, "record_success", None)
             if callable(record_success):
@@ -402,11 +406,25 @@ def _set_execution_status(state_manager_factory, execution_id: str, status: str,
         close()
 
 
+def checkpointed_incident(execution_id: str) -> dict:
+    """The incident payload saved with a run, for its ServiceNow status writes; {} if unreadable."""
+    try:
+        snapshot = get_run_state(compile_graph(checkpointer=get_checkpointer()), execution_id)
+    except Exception:
+        logger.warning("No checkpoint readable for %s; ServiceNow status not updated", execution_id,
+                       exc_info=True)
+        return {}
+    if snapshot is None:
+        return {}
+    return snapshot.values.get("incident_payload") or {}
+
+
 def register_resume_incident_task(
     retry_policy: RetryPolicy,
     app: Celery,
     agent: object | None = None,
     state_manager_factory=load_s2_2_state_manager,
+    incident_lookup: Callable[[str], dict] = checkpointed_incident,
 ) -> Task:
     """S3.4 REQ resume a paused execution with the reviewer's decision."""
 
@@ -424,6 +442,8 @@ def register_resume_incident_task(
                     max_retries=retry_policy.max_retries,
                 )
             _set_execution_status(state_manager_factory, execution_id, "failed", error, retries)
+            # Otherwise ServiceNow keeps showing Awaiting Approval for a run that died.
+            _sync_servicenow_failure(incident_lookup(execution_id), execution_id, retries, error)
             raise
         _set_execution_status(state_manager_factory, execution_id, execution_status_for(result))
         return {

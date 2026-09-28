@@ -394,6 +394,7 @@ def _resume_task(agent, manager):
         app,
         agent=agent,
         state_manager_factory=lambda: (manager, lambda: None),
+        incident_lookup=lambda execution_id: {},  # no sys_id: no ServiceNow status writes
     )
 
 
