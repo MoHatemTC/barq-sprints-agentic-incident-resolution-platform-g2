@@ -165,6 +165,11 @@ def test_servicenow_completion_fields_contain_actionable_graph_result():
         "resolution": "1. Clear the cached credential. [Source: KB0001]",
         "human_review": False,
         "failure_reason": None,
+        # Resolved ticket: Resolution Information tab is filled too
+        "close_code": "Solved (Permanently)",
+        "close_notes": "[AI Resolution]\n1. Clear the cached credential. [Source: KB0001]",
+        "resolved_at": "2026-09-24 10:01:00",
+        "state": "6",
     }
 
 

@@ -6,13 +6,15 @@ re-running this idempotent.
 
 import time
 import hashlib
+import json
+from dataclasses import asdict
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
     Distance, VectorParams, SparseVectorParams, PointStruct, SparseVector,
     Filter, FieldCondition, MatchValue, FilterSelector
 )
 
-from ..config import QDRANT
+from ..config import PATHS, QDRANT
 from .embedding import embed_dense, embed_sparse, get_model_fingerprint, get_dense_dimension
 from .chunking import chunk_article
 from .schema import Article
@@ -83,6 +85,17 @@ def _build_points(articles: list[Article]) -> list[PointStruct]:
                 },
             ))
     return points
+
+
+def load_articles_from_json(path: str) -> list[Article]:
+    """Read a KB snapshot written by scripts/export_kb_snapshot.py (CI eval gate)."""
+    with open(path, encoding="utf-8") as f:
+        return [Article(**row) for row in json.load(f)]
+
+
+def save_articles_to_json(articles: list[Article], path: str) -> None:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump([asdict(a) for a in articles], f, indent=2, ensure_ascii=False)
 
 
 def load_stressors(base_dir: str = "data/corpus/stressors") -> list[Article]:
@@ -435,5 +448,7 @@ if __name__ == "__main__":
         ingest_stressors()
     elif verb == "drop-stressors":
         drop_stressors()
+    elif verb == "local":
+        ingest_articles(source="local")
     else:
         ingest_articles(source="servicenow")

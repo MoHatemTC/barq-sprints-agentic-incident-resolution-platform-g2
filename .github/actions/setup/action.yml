@@ -1,0 +1,37 @@
+name: Set up Python project
+description: Python 3.12 (same as the Dockerfile), a cached virtualenv and cached fastembed models.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      id: python
+      with:
+        python-version: "3.12"
+
+    # Restoring a whole venv takes seconds; a cold `pip install -r requirements.txt`
+    # takes minutes. The key changes whenever requirements.txt does.
+    - uses: actions/cache@v4
+      id: venv
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-py${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements.txt') }}-v1
+
+    - if: steps.venv.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        python -m venv .venv
+        .venv/bin/pip install --upgrade pip
+        .venv/bin/pip install -r requirements.txt pytest-xdist
+
+    # BM25 (imported by src.retrieval.embedding) and the reranker are downloaded
+    # from Hugging Face on first use; keep them between runs.
+    - uses: actions/cache@v4
+      with:
+        path: ~/.cache/fastembed
+        key: fastembed-bm25-ms-marco-MiniLM-L-6-v2-v1
+
+    - shell: bash
+      run: |
+        echo "$GITHUB_WORKSPACE/.venv/bin" >> "$GITHUB_PATH"
+        echo "FASTEMBED_CACHE_PATH=$HOME/.cache/fastembed" >> "$GITHUB_ENV"

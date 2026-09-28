@@ -1,0 +1,22 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = [
+    "venv",
+    "migrations/versions",
+    "notes for myself",
+    "ui",
+]
+
+[tool.ruff.lint]
+# Start lenient: syntax errors and undefined names only, so CI is green on
+# day one. Tighten (e.g. add "F", "E", "I") in a follow-up PR.
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--ignore=tests/load"
+markers = [
+    "integration: needs live Postgres / Redis / Qdrant or downloaded embedding models",
+    "eval: retrieval-quality evaluation",
+]

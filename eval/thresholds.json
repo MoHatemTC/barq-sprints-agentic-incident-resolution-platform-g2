@@ -1,0 +1,11 @@
+{
+  "evaluation_set_version": "1.2",
+  "k": 5,
+  "baseline": "CI snapshot data/kb_dataset.json (106 published articles), 2026-09-28",
+  "tolerance": 0.02,
+  "floors": {
+    "dense":         {"hit_rate": 0.406, "mrr": 0.391, "recall": 0.359},
+    "hybrid":        {"hit_rate": 0.375, "mrr": 0.308, "recall": 0.344},
+    "hybrid_rerank": {"hit_rate": 0.406, "mrr": 0.281, "recall": 0.359}
+  }
+}

@@ -255,6 +255,9 @@ def test_no_agent_module_touches_servicenow_client_directly():
         code = "\n".join(
             line for line in text.splitlines() if not line.lstrip().startswith("#")
         )
+        # Exception types carry no client and make no call, so catching them is
+        # allowed; any other src.servicenow import is still a bypass.
+        code = code.replace("src.servicenow.exceptions", "")
         if "src.servicenow" in code or "servicenow.client" in code:
             offenders.append(str(path.relative_to(root)))
         if "IncidentGateway" in code:

@@ -1,0 +1,70 @@
+# Live ServiceNow tests: talk to the REAL instance (OAuth, fields, ACLs, work notes,
+# execution log) on a dedicated test incident. The mocked ServiceNow tests run in ci.yml;
+# this proves the real instance still matches the code. How it works: docs/CI_CD.md
+
+name: Live ServiceNow tests
+
+on:
+  pull_request:
+    paths:
+      - "src/servicenow/**"
+      - "src/orchestrator/**"
+      - "tests/test_integration.py"
+      - "tests/test_workflow_servicenow.py"
+      - ".github/workflows/live-servicenow.yml"
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 2 * * *"   # nightly 02:00 UTC: catches instance drift (ACLs, fields, sleeping PDI)
+  workflow_dispatch:
+
+# One test incident is shared, so runs QUEUE instead of running at the same time.
+concurrency:
+  group: live-servicenow
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  live-servicenow:
+    name: Live ServiceNow tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: orchestrator
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app -d orchestrator"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://app:app@localhost:5432/orchestrator
+      PG_CONN_STRING: postgresql://app:app@localhost:5432/orchestrator
+      SERVICENOW_INSTANCE_URL: ${{ secrets.SERVICENOW_INSTANCE_URL }}
+      SERVICENOW_OAUTH_CLIENT_ID: ${{ secrets.SERVICENOW_OAUTH_CLIENT_ID }}
+      SERVICENOW_OAUTH_CLIENT_SECRET: ${{ secrets.SERVICENOW_OAUTH_CLIENT_SECRET }}
+      SERVICENOW_OAUTH_USERNAME: ${{ secrets.SERVICENOW_OAUTH_USERNAME }}
+      SERVICENOW_OAUTH_PASSWORD: ${{ secrets.SERVICENOW_OAUTH_PASSWORD }}
+      # The dedicated test incident (INC0010273, ai_enabled=false)
+      INCIDENT_SYS_ID: ${{ secrets.INCIDENT_SYS_ID }}
+      INCIDENT_NUMBER: ${{ secrets.INCIDENT_NUMBER }}
+      LANGFUSE_SECRET_KEY: ""
+      LANGFUSE_PUBLIC_KEY: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Check the ServiceNow secrets are available
+        run: |
+          for v in SERVICENOW_INSTANCE_URL SERVICENOW_OAUTH_CLIENT_ID SERVICENOW_OAUTH_CLIENT_SECRET \
+                   SERVICENOW_OAUTH_USERNAME SERVICENOW_OAUTH_PASSWORD INCIDENT_SYS_ID INCIDENT_NUMBER; do
+            if [ -z "${!v}" ]; then echo "::error::Secret $v is not set (docs/CI_CD.md, section 6)"; exit 1; fi
+          done
+      - name: Apply database migrations
+        run: alembic upgrade head
+      - name: pytest against the live instance
+        run: pytest tests/test_integration.py tests/test_workflow_servicenow.py -q -p no:warnings -rs

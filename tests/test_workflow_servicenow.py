@@ -1,4 +1,7 @@
+import os
 import uuid
+
+import pytest
 
 from src.db.database import SessionLocal
 from src.db.models import (
@@ -13,8 +16,15 @@ from src.servicenow.client import ServiceNowClient
 from src.servicenow import config
 
 
-INCIDENT_SYS_ID = "08429623c3df0310b9523342b40131c8"
-INCIDENT_NUMBER = "INC0010096"
+# Talks to the live ServiceNow instance; same opt-in as tests/test_integration.py.
+# CI (live-servicenow.yml) points these at the dedicated test incident.
+INCIDENT_SYS_ID = os.getenv("INCIDENT_SYS_ID", "")
+INCIDENT_NUMBER = os.getenv("INCIDENT_NUMBER", "")
+
+pytestmark = pytest.mark.skipif(
+    not (INCIDENT_SYS_ID and INCIDENT_NUMBER),
+    reason="INCIDENT_SYS_ID / INCIDENT_NUMBER not set (live ServiceNow instance)",
+)
 
 
 def get_servicenow_logs(client):

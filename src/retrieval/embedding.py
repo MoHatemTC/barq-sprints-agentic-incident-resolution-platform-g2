@@ -9,6 +9,8 @@ and are completely unchanged from the previous implementation.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 
 import certifi
@@ -75,8 +77,26 @@ def _litellm_embed(text: str) -> list[float]:
 # ---------------------------------------------------------------------------
 
 def embed_dense(text: str) -> list[float]:
-    """Return a dense embedding vector for *text* using the LiteLLM API."""
-    return _litellm_embed(text)
+    """Return a dense embedding vector for *text* using the LiteLLM API.
+
+    If DENSE_EMBEDDING_CACHE_DIR is set, vectors are cached on disk keyed by
+    model + text, so re-embedding identical text costs no API call. CI sets it
+    to keep the eval gate fast; unset (the default) the API is always called.
+    """
+    cache_dir = os.environ.get("DENSE_EMBEDDING_CACHE_DIR", "").strip()
+    if not cache_dir:
+        return _litellm_embed(text)
+
+    key = hashlib.sha256(f"{EMBEDDING.litellm_embedding_model}\0{text}".encode()).hexdigest()
+    path = os.path.join(cache_dir, f"{key}.json")
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    vector = _litellm_embed(text)
+    os.makedirs(cache_dir, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(vector, f)
+    return vector
 
 
 def embed_sparse(text: str) -> dict:
