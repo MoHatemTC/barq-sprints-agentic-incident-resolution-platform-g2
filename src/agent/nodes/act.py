@@ -92,7 +92,6 @@ def _plan_write(state: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     fields = {"processing_state": "complete", "human_review": False}
-    
     # The human solution is an input to generation. Prefer the generated,
     # evidence-enriched resolution; fall back to the human text only when a
     # generated resolution is unavailable.
@@ -114,7 +113,7 @@ def _plan_write(state: Dict[str, Any]) -> Dict[str, Any]:
         )
     if final_resolution:
         fields["resolution"] = final_resolution
-        
+
     if outputs.get("diagnosis"):
         fields["suggestion"] = outputs["diagnosis"]
     if state.get("confidence") is not None:
@@ -142,6 +141,32 @@ def _plan_write(state: Dict[str, Any]) -> Dict[str, Any]:
             else f"Approved by {decision.get('reviewer') or 'unknown reviewer'}"
         ),
     }
+
+
+def _human_review_note(state: Dict[str, Any]) -> str:
+    """Work note carrying the reviewer's comment and human solution, if any.
+
+    Returns "" when there was no human review, or the reviewer wrote neither a
+    comment nor a solution, so an empty Work note is never sent.
+    """
+    decision = state.get("human_decision")
+    if not decision:
+        return ""
+
+    comment = (decision.get("comment") or "").strip()
+    solution = (state.get("human_solution") or "").strip()
+    if not comment and not solution:
+        return ""
+
+    reviewer = decision.get("reviewer") or "unknown"
+    verdict = "Approved" if decision.get("decision") == "approve" else "Rejected"
+
+    lines = [f"[Human Review - {reviewer}]", f"Decision: {verdict}"]
+    if comment:
+        lines.append(f"Comment: {comment}")
+    if solution:
+        lines.append(f"Human Solution: {solution}")
+    return "\n".join(lines)
 
 
 def _dispatch(registry, tool: str, execution_id: Optional[str], **kwargs):
@@ -200,6 +225,26 @@ def act_node(state: Dict[str, Any]) -> Dict[str, Any]:
             "write_ai_fields verification mismatch for %s (data may still have landed): %s",
             execution_id, exc,
         )
+
+    # Reviewer's comment / human solution -> ServiceNow Work notes (Notes tab).
+    # Written before the receipt on purpose: if the worker dies between the two,
+    # the retry repeats the note (harmless) instead of finding the receipt
+    # already present and losing the note forever.
+    note = _human_review_note(state)
+    if note:
+        try:
+            _dispatch(TOOL_REGISTRY, "write_work_note", execution_id,
+                      sys_id=sys_id, note=note)
+        except ServiceNowWriteNotAppliedError as exc:
+            # The PATCH returned 200 but the journal verification check failed.
+            # ServiceNow journal entries may take a moment to appear or the text
+            # may be reformatted — log as warning and continue so the execution
+            # is not failed over a note that likely landed.
+            logger.warning(
+                "write_work_note verification mismatch for %s (note may still have landed): %s",
+                execution_id, exc,
+            )
+
     receipt = _dispatch(
         TOOL_REGISTRY, "write_execution_log", execution_id,
         incident_sys_id=sys_id,
