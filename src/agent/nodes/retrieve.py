@@ -58,6 +58,10 @@ def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
         # it directly to avoid repeating diagnose/generate/critic/LLM calls.
         if retrieved and retrieved[0]["score"] >= CACHE_HIT_SCORE:
             result["cached_resolution"] = retrieved[0]["text"]
+            result["outputs"] = {
+                **(state.get("outputs") or {}),
+                "resolution": retrieved[0]["text"],
+            }
             result["retrieval_cache_hit"] = True
             logger.info(
                 "Strong KB match reused as cached resolution: %s (score=%.3f)",

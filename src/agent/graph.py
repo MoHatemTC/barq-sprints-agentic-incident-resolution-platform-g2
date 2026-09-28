@@ -49,7 +49,9 @@ def route_after_retrieve(state: AgentState) -> str:
     if not state.get("retrieved_evidence"):
         return "prepare_review"
     if state.get("retrieval_cache_hit") and state.get("cached_resolution"):
-        return "act"
+        # Reused KB text still must pass the normal output guardrail before it
+        # can reach ServiceNow. Avoid LLM diagnosis/generation, not screening.
+        return "safety_check"
     return "diagnose"
 
 
@@ -60,11 +62,16 @@ def route_after_confidence(state: AgentState) -> str:
     # reopen the same approval gate because the post-approval AI confidence is
     # below the normal automation floor; the reviewer already accepted the
     # human-provided resolution and the enriched result.
+    if state.get("critic_exhausted") or state.get("action_taken") == "blocked_by_guardrail":
+        # Do not reopen approval after a reviewer decision. act_node will use
+        # the approved human solution instead of an unsafe/unverified draft.
+        decision = state.get("human_decision") or {}
+        if decision.get("decision") == "approve":
+            return "act"
+        return "prepare_review"
     decision = state.get("human_decision") or {}
     if decision.get("decision") == "approve":
         return "act"
-    if state.get("critic_exhausted") or state.get("action_taken") == "blocked_by_guardrail":
-        return "prepare_review"
     confidence = state.get("confidence", 0.0)
 
     if confidence < CONFIDENCE_FLOOR:

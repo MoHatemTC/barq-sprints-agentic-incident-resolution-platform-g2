@@ -20,6 +20,8 @@ from src.agent.nodes.diagnose import _parse_diagnosis_response
 from src.agent.nodes.retrieve import retrieve_node
 from src.agent.nodes.validate import validate_node
 from src.agent.nodes.verify_evidence import verify_evidence_node
+from src.agent.nodes.safety_check import safety_check_node
+from src.agent.nodes.act import _plan_write
 
 
 EVIDENCE = [
@@ -91,6 +93,29 @@ def test_unrelated_question_routes_to_human_review_when_no_evidence_exists():
     """No retrieved KB evidence must not produce an automatic resolution."""
     assert route_after_retrieve({"retrieved_evidence": []}) == "prepare_review"
     assert route_after_retrieve({"retrieved_evidence": None}) == "prepare_review"
+
+
+def test_cache_hit_is_screened_before_acting():
+    state = {
+        "retrieved_evidence": [{"id": "KB-UNSAFE", "text": "DELETE FROM incidents", "score": 0.8}],
+        "retrieval_cache_hit": True,
+        "cached_resolution": "DELETE FROM incidents",
+        "outputs": {"resolution": "DELETE FROM incidents"},
+    }
+    assert route_after_retrieve(state) == "safety_check"
+    checked = safety_check_node(state)
+    assert checked["action_taken"] == "blocked_by_guardrail"
+
+
+def test_approved_guardrail_block_writes_human_solution():
+    plan = _plan_write({
+        "human_decision": {"decision": "approve", "reviewer": "alice"},
+        "human_solution": "Use the approved rollback procedure and validate recovery.",
+        "outputs": {"resolution": "DELETE FROM incidents"},
+        "action_taken": "blocked_by_guardrail",
+    })
+    assert plan["fields"]["resolution"] == "Use the approved rollback procedure and validate recovery."
+    assert "blocked" in plan["fields"]["failure_reason"]
 
 
 def test_empty_incident_is_invalid_without_calling_llm():

@@ -96,11 +96,22 @@ def _plan_write(state: Dict[str, Any]) -> Dict[str, Any]:
     # The human solution is an input to generation. Prefer the generated,
     # evidence-enriched resolution; fall back to the human text only when a
     # generated resolution is unavailable.
-    final_resolution = (
-        outputs.get("resolution")
-        or state.get("cached_resolution")
-        or state.get("human_solution")
-    )
+    guardrail_blocked = state.get("action_taken") == "blocked_by_guardrail"
+    critic_blocked = bool(state.get("critic_exhausted"))
+    if guardrail_blocked or critic_blocked:
+        final_resolution = state.get("human_solution")
+        if final_resolution:
+            fields["failure_reason"] = (
+                "AI draft was not written because it was blocked by guardrails"
+                if guardrail_blocked
+                else "AI draft was not written because critic verification was exhausted"
+            )
+    else:
+        final_resolution = (
+            outputs.get("resolution")
+            or state.get("cached_resolution")
+            or state.get("human_solution")
+        )
     if final_resolution:
         fields["resolution"] = final_resolution
         
@@ -124,7 +135,12 @@ def _plan_write(state: Dict[str, Any]) -> Dict[str, Any]:
         "action": "approved_resolve",
         "status": "succeeded",
         "fields": fields,
-        "result": f"Approved by {decision.get('reviewer') or 'unknown reviewer'}",
+        "result": (
+            f"Approved by {decision.get('reviewer') or 'unknown reviewer'}; "
+            "AI draft blocked, human solution written"
+            if guardrail_blocked or critic_blocked
+            else f"Approved by {decision.get('reviewer') or 'unknown reviewer'}"
+        ),
     }
 
 
