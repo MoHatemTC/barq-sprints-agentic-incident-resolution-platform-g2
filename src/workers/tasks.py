@@ -163,7 +163,7 @@ class GraphAgentExecutor:
             "finished_at": _now(),
         })
 
-    @trace_execution(name="execute_incident_graph")
+    @trace_execution(name="worker.pickup")
     def execute(self, accepted_incident: dict, execution_id: str = None, incident_number: str = None) -> dict:
         """
         Execute the LangGraph state machine.
@@ -196,7 +196,7 @@ class GraphAgentExecutor:
         self._audit_outcome(exec_id, result)
         return result
 
-    @trace_execution(name="resume_incident_graph")
+    @trace_execution(name="worker.resume")
     def resume(self, execution_id: str = None, decision: dict = None) -> dict:
         """Continue the SAME checkpointed execution after a human decision"""
         graph = compile_graph(checkpointer=get_checkpointer())

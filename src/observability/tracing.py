@@ -41,6 +41,9 @@ _current_trace_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVa
 _current_span_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
     "_current_span_id", default=None
 )
+_current_root_span_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "_current_root_span_id", default=None
+)
 
 # ---------------------------------------------------------------------------
 # Secret sanitization
@@ -122,6 +125,9 @@ def trace_execution(name: str):
                         "user_id": str(inc_num) if inc_num else None,
                     },
                 ) as root_span:
+                    root_span_token = None
+                    if hasattr(root_span, "id"):
+                        root_span_token = _current_root_span_id.set(root_span.id)
                     try:
                         result = func(*args, **kwargs)
 
@@ -147,6 +153,9 @@ def trace_execution(name: str):
                         except Exception:
                             pass
                         raise
+                    finally:
+                        if root_span_token is not None:
+                            _current_root_span_id.reset(root_span_token)
 
             except Exception as e:
                 # If it's a Langfuse SDK error (not a user func error), fall back
@@ -199,6 +208,7 @@ def trace_node(name: str, observation_type: str = "span"):
 
             client = get_client()
             parent_trace_id = _current_trace_id.get()
+            parent_root_span_id = _current_root_span_id.get()
 
             # Sanitize dict arguments
             clean_args = [
@@ -207,15 +217,22 @@ def trace_node(name: str, observation_type: str = "span"):
             ]
             clean_kwargs = sanitize_payload(kwargs)
 
-            # Build trace_context so this span nests under the root trace
-            trace_context = {"trace_id": parent_trace_id} if parent_trace_id else None
+            # Build trace_context so this span nests under the root span
+            trace_context = None
+            if parent_trace_id:
+                trace_context = {"trace_id": parent_trace_id}
+                if parent_root_span_id:
+                    trace_context["parent_span_id"] = parent_root_span_id
+
+            # Prefix with "node." for clear identification in Langfuse tree
+            span_name = f"node.{name}" if not name.startswith("node.") else name
 
             # Create span via the v4 API
             span = None
             span_token = None
             try:
                 span = client.start_observation(
-                    name=name,
+                    name=span_name,
                     as_type="span",
                     trace_context=trace_context,
                     input={"args": [str(a)[:500] for a in clean_args], "kwargs": clean_kwargs},
@@ -298,7 +315,7 @@ def get_llm_callback():
     if parent_trace_id:
         trace_context["trace_id"] = parent_trace_id
     if parent_span_id:
-        trace_context["parent_observation_id"] = parent_span_id
+        trace_context["parent_span_id"] = parent_span_id
 
     try:
         handler = CallbackHandler(
