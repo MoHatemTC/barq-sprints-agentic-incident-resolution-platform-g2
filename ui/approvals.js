@@ -127,6 +127,17 @@
       </div>`;
 
     $('reviewer').value = store.get('barq.reviewer', '');
+    const approveButton = $('review').querySelector('[data-action="approve"]');
+    const solutionField = $('human_solution');
+    const requiresHumanSolution = p.verdicts && p.verdicts.risk === 'high';
+    const syncApproveState = () => {
+      approveButton.disabled = requiresHumanSolution && !solutionField.value.trim();
+      approveButton.title = approveButton.disabled
+        ? 'Enter the human solution before approving a high-risk incident.'
+        : '';
+    };
+    solutionField.addEventListener('input', syncApproveState);
+    syncApproveState();
     $('review').querySelectorAll('[data-action]').forEach((btn) => btn.addEventListener('click', () => decide(d, btn.dataset.action)));
   }
 
@@ -137,6 +148,7 @@
     store.set('barq.reviewer', reviewer);
 
     $('review').querySelectorAll('[data-action]').forEach((b) => { b.disabled = true; });
+    let decided = false;
     try {
       await api(`/api/v1/approvals/${encodeURIComponent(d.approval_id)}/decide`, {
         method: 'POST',
@@ -144,11 +156,18 @@
         body: JSON.stringify({ action, reviewer, rationale: $('rationale').value.trim() || null, human_solution: $('human_solution').value.trim() || null }),
       });
       toast(`${d.incident_number}: ${action === 'approve' ? 'approved' : 'rejected'}. The run is resuming.`);
+      decided = true;
     } catch (err) {
       toast(err.status === 409 ? 'Already decided: another decision was recorded first.' : 'Decision failed: ' + err.message, 'err');
     }
-    clearReview();
-    loadList();
+    if (decided) {
+      clearReview();
+      loadList();
+    } else {
+      // Keep the review form visible so the reviewer can correct the input or
+      // see the actual server error instead of losing the pending decision.
+      loadList();
+    }
   }
 
   $('refreshBtn').addEventListener('click', loadList);

@@ -46,7 +46,12 @@ You will be given a confirmed diagnosis and the retrieved knowledge-base evidenc
 Your job is to produce a clear, numbered resolution procedure for an IT technician.
 
 STRICT RULES:
-- Use ONLY the retrieved evidence as the source for your steps.
+- Use the retrieved evidence and the human-provided resolution as inputs.
+- Do NOT copy the human-provided resolution verbatim. Reconcile it with the
+  evidence, add supported operational detail, and produce a clearer final
+  procedure in your own words.
+- The final procedure must contain at least one concrete detail from the
+  retrieved evidence when evidence is available.
 - Every step that references a procedure or policy MUST include a citation in
   the format [Source: KB_ID] at the end of that step.
 - Do NOT contradict the given diagnosis.
@@ -58,6 +63,9 @@ STRICT RULES:
 EXAMPLE CITATION FORMAT:
 1. Restart the VPN gateway service using the admin console. [Source: KB0023]
 2. Verify the tunnel status with the monitoring dashboard. [Source: KB0031]
+
+When a human resolution is provided, treat it as an approved direction, not
+as the final answer to repeat. Improve and integrate it with the evidence.
 """
 
 # Resolution Agent — revision (with Critic feedback)
