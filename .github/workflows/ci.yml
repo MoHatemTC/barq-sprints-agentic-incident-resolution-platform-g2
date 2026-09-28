@@ -1,0 +1,255 @@
+# CI/CD for the Agentic Incident Resolution Platform. How it works: docs/CI_CD.md
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, development]
+  workflow_dispatch:
+
+# A newer push to the same branch/PR cancels the run in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/${{ github.repository }}
+  # The PDF-extractor tests are slow (~3 min) and run in extractors.yml
+  PDF_TESTS: >-
+    --ignore=tests/test_extractors_layout.py
+    --ignore=tests/test_extractors_tables.py
+    --ignore=tests/test_ingest_stressors.py
+
+  #  App configuration for CI (replaces .env, which is never committed)
+  # Service containers (only running in the integration / eval jobs)
+  POSTGRES_HOST: localhost
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: app
+  POSTGRES_PASSWORD: app
+  POSTGRES_DB: orchestrator
+  DATABASE_URL: postgresql://app:app@localhost:5432/orchestrator
+  PG_CONN_STRING: postgresql://app:app@localhost:5432/orchestrator
+  REDIS_HOST: localhost
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_URL: redis://localhost:6379/0
+  CELERY_BROKER_URL: redis://localhost:6379/0
+  QDRANT_URL: http://localhost:6333
+  QDRANT_COLLECTION_NAME: barq_knowledge_base
+
+  # ServiceNow: placeholders so config imports; tests mock every HTTP call
+  SERVICENOW_INSTANCE_URL: https://ci-placeholder.invalid
+  SERVICENOW_OAUTH_CLIENT_ID: ci-placeholder
+  SERVICENOW_OAUTH_CLIENT_SECRET: ci-placeholder
+  SERVICENOW_OAUTH_USERNAME: ci-placeholder
+  SERVICENOW_OAUTH_PASSWORD: ci-placeholder
+  WEBHOOK_AUTH_TOKEN: ci-placeholder-webhook-token
+  # Empty = the live-ServiceNow test files skip themselves
+  INCIDENT_SYS_ID: ""
+
+  # Tracing off in CI
+  LANGFUSE_SECRET_KEY: ""
+  LANGFUSE_PUBLIC_KEY: ""
+
+  # Worker
+  CELERY_MAIN_QUEUE: barq_main
+  CELERY_DLQ_QUEUE: barq_dlq
+  CELERY_WORKER_CONCURRENCY: "2"
+  CELERY_WORKER_PREFETCH_MULTIPLIER: "1"
+  CELERY_TASK_SOFT_TIME_LIMIT_SECONDS: "30"
+  CELERY_TASK_TIME_LIMIT_SECONDS: "60"
+  CELERY_TASK_MAX_RETRIES: "3"
+  CELERY_RETRY_BASE_DELAY_SECONDS: "5"
+  CELERY_RETRY_MAX_DELAY_SECONDS: "60"
+  CELERY_TASK_ACKS_LATE: "true"
+  CELERY_TASK_REJECT_ON_WORKER_LOST: "true"
+  CELERY_WORKER_SHUTDOWN_TIMEOUT_SECONDS: "10"
+
+  # Retrieval: pinned so the eval gate always measures the same settings
+  SPARSE_EMBEDDING_MODEL: Qdrant/bm25
+  QDRANT_DENSE_DIMENSION: "3072"
+  CORPUS_JSON_PATH: data/kb_dataset.json
+  RETRIEVAL_MODE: hybrid_rerank
+  RETRIEVAL_TOP_K: "5"
+  RETRIEVAL_CANDIDATE_K: "20"
+  RRF_K: "60"
+  RERANK_MODEL: Xenova/ms-marco-MiniLM-L-6-v2
+  ALLOWED_WORKFLOW_STATES: published
+  BLOCKED_SECURITY_LEVELS: restricted
+
+jobs:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/ruff-action@v3
+
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: pytest (no services)
+        run: pytest -m "not integration" $PDF_TESTS -n auto -q -p no:warnings --junitxml=unit.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unit-test-report
+          path: unit.xml
+
+  integration-tests:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: orchestrator
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U app -d orchestrator"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      qdrant:
+        image: qdrant/qdrant:v1.12.4
+        ports: ["6333:6333"]
+    env:
+      LITELLM_BASE_URL: ${{ secrets.LITELLM_BASE_URL }}
+      LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+      LITELLM_EMBEDDING_MODEL: ${{ secrets.LITELLM_EMBEDDING_MODEL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Apply database migrations
+        run: alembic upgrade head
+      - name: pytest (Postgres + Redis + Qdrant)
+        run: pytest -m integration -q -p no:warnings --junitxml=integration.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: integration-test-report
+          path: integration.xml
+
+  eval-gate:
+    name: Evaluation gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.12.4
+        ports: ["6333:6333"]
+    env:
+      LITELLM_BASE_URL: ${{ secrets.LITELLM_BASE_URL }}
+      LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+      LITELLM_EMBEDDING_MODEL: ${{ secrets.LITELLM_EMBEDDING_MODEL }}
+      DENSE_EMBEDDING_CACHE_DIR: ${{ github.workspace }}/.embedding-cache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      # Embeddings of identical text never change, so they are cached between runs. Only new or edited text (KB snapshot, eval queries) hits the API.
+      - uses: actions/cache@v4
+        with:
+          path: .embedding-cache
+          key: embeddings-${{ hashFiles('data/kb_dataset.json', 'eval/evaluation_set.json', 'src/retrieval/chunking.py') }}
+          restore-keys: embeddings-
+      - name: Check the embedding secret is available
+        run: |
+          if [ -z "$LITELLM_API_KEY" ] && [ -z "$(ls -A .embedding-cache 2>/dev/null)" ]; then
+            echo "::error::LITELLM_API_KEY secret is not set and there is no embedding cache. Add the LITELLM_* repository secrets (docs/CI_CD.md)."
+            exit 1
+          fi
+      - name: Ingest the KB snapshot into a fresh Qdrant
+        run: python -m src.retrieval.ingest local
+      - name: Score dense / hybrid / hybrid_rerank
+        run: python eval/ablation.py --k 5
+      - name: Compare against eval/thresholds.json
+        run: python eval/gate.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: eval/results/ablation_k5.*
+
+  docker:
+    name: Docker image + Compose smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: barq-g2:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Start the Compose stack with the built image
+        run: |
+          # compose's env_file needs a .env; the template is enough because
+          # docker-compose.yml sets the real service hosts itself.
+          cp .env.example .env
+          docker compose up -d --no-build --wait postgres redis qdrant api
+      - name: API answers /health and /ready
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS localhost:8000/health && curl -fsS localhost:8000/ready && exit 0
+            sleep 2
+          done
+          docker compose logs api
+          exit 1
+      - if: always()
+        run: docker compose down -v
+
+  # CD: only on a push to main, and only after every check above passed.
+  publish:
+    name: Publish image to GHCR
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [lint, unit-tests, integration-tests, eval-gate, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # GHCR names must be lowercase; the repository owner is not.
+      - id: image
+        run: echo "name=${IMAGE,,}" >> "$GITHUB_OUTPUT"
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha

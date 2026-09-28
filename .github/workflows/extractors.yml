@@ -1,0 +1,48 @@
+# The PDF-extractor tests parse the full BARQ manual many times (~3 min), which would blow the 2-4 min so They run here instead, only when the code or data they cover changes, plus on every push to main
+
+name: PDF extractor tests
+
+on:
+  pull_request:
+    paths:
+      - "src/retrieval/extractors/**"
+      - "src/retrieval/ingest_stressors.py"
+      - "src/retrieval/ingest_manual.py"
+      - "src/retrieval/manual_parser.py"
+      - "data/*.pdf"
+      - "data/corpus/stressors/**"
+      - "tests/test_extractors_*.py"
+      - "tests/test_ingest_stressors.py"
+      - ".github/workflows/extractors.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: extractors-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # src.db.database builds its engine at import; it never connects here.
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+jobs:
+  extractor-tests:
+    name: PDF extractor tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      # One runner per file: they share nothing, so this cuts wall time ~3x.
+      matrix:
+        file:
+          - tests/test_extractors_layout.py
+          - tests/test_extractors_tables.py
+          - tests/test_ingest_stressors.py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pytest ${{ matrix.file }} -q -p no:warnings
