@@ -96,6 +96,26 @@ class ServiceNowClient:
             if c.get("value")  # skip the form's "-- None --" entry
         ]
 
+    def list_incidents(self, fields, limit=20, offset=0):
+        # Newest incidents first, one page. Each field comes back as
+        # {"value": ..., "display_value": ...}. Returns (rows, total).
+        url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
+        response = self._response(
+            "GET",
+            url,
+            params={
+                "sysparm_query": "ORDERBYDESCsys_created_on",
+                "sysparm_fields": ",".join(fields),
+                "sysparm_display_value": "all",
+                "sysparm_exclude_reference_link": "true",
+                "sysparm_limit": limit,
+                "sysparm_offset": offset,
+            },
+        )
+        rows = response.json().get("result") or []
+        total = response.headers.get("X-Total-Count")
+        return rows, int(total) if total is not None else len(rows)
+
     def delete_incident(self, sys_id):
         """Delete an incident explicitly requested by the dashboard user."""
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"

@@ -36,7 +36,7 @@
   <div class="toolbar">
     <div class="toolbar-group">
       <span class="lbl">Show last</span>
-      <div class="segmented" id="limitSeg" role="group" aria-label="Number of executions">
+      <div class="segmented" id="limitSeg" role="group" aria-label="Number of incidents">
         <button type="button" data-value="5">5</button>
         <button type="button" data-value="10">10</button>
         <button type="button" data-value="20">20</button>
@@ -49,6 +49,7 @@
         <option value="failed">Failed</option>
         <option value="blocked">Blocked</option>
         <option value="awaiting_approval">Awaiting approval</option>
+        <option value="not_sent">Not sent to AI</option>
       </select>
     </div>
     <div class="toolbar-group">
@@ -64,6 +65,7 @@
   <section class="panel" aria-live="polite">
     <div id="list"></div>
     <div class="empty" id="empty" hidden></div>
+    <div class="load-more"><button class="btn btn-sm" id="loadMore" type="button" hidden>Load more</button></div>
   </section>
 </main>
 

@@ -1,5 +1,5 @@
 /* Pipeline dashboard logic. Endpoints:
-   GET  /api/v1/dashboard/executions?limit=N
+   GET  /api/v1/dashboard/incidents?limit=N     (ServiceNow incidents + latest AI run)
    GET  /api/v1/dashboard/incident-categories
    POST /api/v1/dashboard/incidents            (creates in ServiceNow only)
    GET  /api/v1/dashboard/incidents/{sys_id}/events
@@ -21,7 +21,9 @@
     started: ['accent', 'In progress'],
     blocked: ['warn', 'Blocked'],
     awaiting_approval: ['violet', 'Awaiting approval'],
+    not_sent: ['plain', 'Not sent to AI'],
   };
+  const PAGE = 20;
   const CHEVRON = '<svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 
   const state = {
@@ -31,9 +33,12 @@
     firstLoad: true,
     inflight: false,
     timer: null,
-    rows: new Map(),
+    extra: 0,        // incidents added by "Load more" on top of the chosen limit
+    rows: new Map(), // sys_id -> row element
     latest: [],
   };
+  const shownLimit = () => state.limit + state.extra;
+  const statusOf = (item) => (item.execution ? item.execution.status : 'not_sent');
 
   /* ---------- pipeline stage logic ---------- */
   function pipelineStages(exec) {
@@ -86,16 +91,17 @@
   }
 
   /* ---------- rows ---------- */
-  function buildRow(exec, index, animate) {
+  function buildRow(item, index, animate) {
     const el = document.createElement('article');
     el.className = 'row' + (animate ? ' enter' : '');
     el.style.setProperty('--i', String(Math.min(index, 8)));
-    el.dataset.id = exec.execution_id;
+    el.dataset.id = item.sys_id;
     el.innerHTML = `
       <button class="row-head" type="button" aria-expanded="false">
         <div class="row-main">
           <div class="row-line"><span class="inc"></span><span class="chip"></span></div>
-          <div class="sub"><span class="when"></span></div>
+          <div class="desc"></div>
+          <div class="sub"><span class="meta"></span><span class="when"></span></div>
         </div>
         <ol class="track" aria-label="Pipeline progress">
           ${STAGES.map(([key, label]) => `<li data-k="${key}"><span class="dot"></span><span class="lbl">${label}</span></li>`).join('')}
@@ -117,12 +123,34 @@
     return `<dt>${label}</dt><dd${mono ? ' class="mono"' : ''}>${escapeHtml(shown)}</dd>`;
   }
 
+  function incidentFacts(item) {
+    return '<dl class="facts">' +
+      fact('ServiceNow sys_id', item.sys_id, true) +
+      fact('Category', item.category) +
+      fact('State', item.state) +
+      fact('Priority', item.priority) +
+      fact('Created', fmtTime(item.created_at)) +
+      fact('AI processing state', item.ai_processing_state) +
+      fact('AI enabled', item.ai_enabled ? 'Yes' : 'No') +
+      fact('Human lock', item.human_lock ? 'On' : 'Off') +
+      '</dl>';
+  }
+
+  // Why an incident has no AI run. The Business Rule decides; these are the
+  // reasons visible on the record, the rest (category) live in ServiceNow.
+  function notSentHtml(item) {
+    let reason = 'The ServiceNow Business Rule did not send it: its category is not supported, ' +
+      'it was created before the integration, or ServiceNow could not reach the webhook.';
+    if (item.human_lock) reason = 'Human lock is on, so the Business Rule does not send it to the AI.';
+    else if (!item.ai_enabled) reason = 'AI is disabled on this incident.';
+    return `<div class="result"><b>AI</b><span>${escapeHtml(reason)}</span></div>`;
+  }
+
   function detailsHtml(exec) {
     const result = exec.latest_result || {};
     const out = result.outputs || {};
     let html = '<dl class="facts">' +
       fact('Execution ID', exec.execution_id, true) +
-      fact('ServiceNow sys_id', exec.incident_sys_id, true) +
       fact('Classification', result.classification) +
       fact('Risk', result.risk) +
       fact('Confidence', result.confidence) +
@@ -145,21 +173,26 @@
     return html;
   }
 
-  function updateRow(el, exec) {
-    el.querySelector('.inc').textContent = exec.incident_number || '\u2014';
+  function updateRow(el, item) {
+    const exec = item.execution;
+    el.querySelector('.inc').textContent = item.number || '\u2014';
+    el.querySelector('.desc').textContent = item.short_description || '';
+    el.querySelector('.meta').textContent = [item.category, item.state].filter(Boolean).join(' \u00b7 ');
+    el.classList.toggle('no-ai', !exec);
 
-    const [tone, label] = STATUS[exec.status] || ['', exec.status || 'unknown'];
+    const status = statusOf(item);
+    const [tone, label] = STATUS[status] || ['', status || 'unknown'];
     const chip = el.querySelector('.chip');
     chip.className = 'chip' + (tone ? ' ' + tone : '');
     chip.textContent = label;
 
-    el.querySelector('.when').textContent = fmtTime(exec.started_at);
-    el.querySelector('.dur').textContent = fmtDuration(exec.duration_seconds);
+    el.querySelector('.when').textContent = fmtTime(item.created_at);
+    el.querySelector('.dur').textContent = exec ? fmtDuration(exec.duration_seconds) : '';
 
-    const classes = pipelineStages(exec);
+    const classes = exec ? pipelineStages(exec) : STAGES.map(() => 'pending');
     el.querySelectorAll('.track li').forEach((li, i) => { li.className = classes[i]; });
 
-    const html = detailsHtml(exec);
+    const html = incidentFacts(item) + (exec ? detailsHtml(exec) : notSentHtml(item));
     if (el._details !== html) {
       el._details = html;
       el.querySelector('.inner-pad').innerHTML = html;
@@ -187,50 +220,52 @@
       </div>`).join('');
   }
 
-  function render(executions) {
+  function render(items) {
     if (state.firstLoad) list.innerHTML = '';
-    const ids = new Set(executions.map((e) => e.execution_id));
+    // Rows missing from ServiceNow (deleted there) disappear here too.
+    const ids = new Set(items.map((item) => item.sys_id));
 
     state.rows.forEach((el, id) => {
       if (!ids.has(id)) { el.remove(); state.rows.delete(id); }
     });
 
-    executions.forEach((exec, i) => {
-      let el = state.rows.get(exec.execution_id);
+    items.forEach((item, i) => {
+      let el = state.rows.get(item.sys_id);
       if (!el) {
-        el = buildRow(exec, state.firstLoad ? i : 0, true);
-        state.rows.set(exec.execution_id, el);
+        el = buildRow(item, state.firstLoad ? i : 0, true);
+        state.rows.set(item.sys_id, el);
       }
-      updateRow(el, exec);
+      updateRow(el, item);
       if (list.children[i] !== el) list.insertBefore(el, list.children[i] || null);
     });
 
-    applyFilter(executions);
+    applyFilter(items);
   }
 
-  function applyFilter(executions) {
+  function applyFilter(items) {
     let visible = 0;
-    executions.forEach((exec) => {
-      const el = state.rows.get(exec.execution_id);
+    items.forEach((item) => {
+      const el = state.rows.get(item.sys_id);
       if (!el) return;
-      const show = !state.status || exec.status === state.status;
+      const show = !state.status || statusOf(item) === state.status;
       el.hidden = !show;
       if (show) visible += 1;
     });
 
     const box = $('empty');
-    if (!executions.length) {
-      showEmpty('No executions yet', 'Create an incident above, or send one from ServiceNow.');
+    if (!items.length) {
+      showEmpty('No incidents in ServiceNow yet', 'Create one above, or in ServiceNow.');
     } else if (!visible) {
-      showEmpty('Nothing matches this filter', 'Try another status, or show more executions.');
+      showEmpty('Nothing matches this filter', 'Try another status, or load more incidents.');
     } else {
       box.hidden = true;
     }
   }
 
-  function renderMetrics(executions) {
+  function renderMetrics(items) {
+    const executions = items.map((item) => item.execution).filter(Boolean);
     const count = (s) => executions.filter((e) => e.status === s).length;
-    tween($('m-total'), executions.length);
+    tween($('m-total'), items.length);
     tween($('m-ok'), count('succeeded'));
     tween($('m-bad'), count('failed'));
     tween($('m-run'), count('started'));
@@ -243,12 +278,16 @@
     if (state.inflight) return;
     state.inflight = true;
     try {
-      const data = await api('/api/v1/dashboard/executions?limit=' + state.limit);
-      state.latest = data.executions || [];
-      setConn(state.live ? 'live' : 'ok', state.live ? 'Live' : 'Connected');
+      const data = await api('/api/v1/dashboard/incidents?limit=' + shownLimit());
+      state.latest = data.incidents || [];
+      if (data.stale) setConn('warn', 'ServiceNow delayed');
+      else setConn(state.live ? 'live' : 'ok', state.live ? 'Live' : 'Connected');
       render(state.latest);
       renderMetrics(state.latest);
-      $('updated').textContent = 'Updated ' + fmtTime(new Date().toISOString());
+      const total = data.total ?? state.latest.length;
+      $('updated').textContent = `${state.latest.length} of ${total} in ServiceNow · Updated ` +
+        fmtTime(new Date().toISOString());
+      $('loadMore').hidden = state.latest.length >= total || shownLimit() >= 500;
     } catch (err) {
       setConn('err', 'API unreachable');
       if (state.firstLoad) {
@@ -269,7 +308,13 @@
   /* ---------- controls ---------- */
   segmented($('limitSeg'), state.limit, (v) => {
     state.limit = parseInt(v, 10);
+    state.extra = 0;
     store.set('barq.limit', String(state.limit));
+    poll();
+  });
+
+  $('loadMore').addEventListener('click', () => {
+    state.extra += PAGE;
     poll();
   });
 
@@ -396,6 +441,7 @@
       });
       toast(`${data.number} created in ServiceNow. Waiting for the Business Rule...`);
       closeOverlay(modal);
+      poll();
       watchBusinessRule(data.sys_id, data.number);
     } catch (err) {
       toast('Could not create incident: ' + err.message, 'err');
