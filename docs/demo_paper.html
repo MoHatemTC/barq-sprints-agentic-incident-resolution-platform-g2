@@ -234,7 +234,7 @@ details p{margin:8px 0 0;font-size:16px}
 .opens{border:1px solid var(--line);border-left:4px solid var(--c);border-radius:6px;padding:12px 14px;margin:14px 0 6px;font:14px var(--f-head);display:grid;gap:8px}
 .opens > b{font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .opens .row{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center}
-.opens .row > span{font-size:12px;color:var(--muted);min-width:86px}
+.opens .row > span{font-size:12px;color:var(--muted);min-width:130px;font-weight:600}
 .opens a.lnk{display:inline-flex;gap:6px;align-items:center;padding:4px 10px;border:1px solid var(--line);border-radius:99px;text-decoration:none;color:var(--ink);font-size:13px}
 .opens a.lnk:hover{border-color:var(--accent);color:var(--accent)}
 .opens a.lnk i{width:8px;height:8px;border-radius:50%;background:var(--c2)}
@@ -255,6 +255,12 @@ details p{margin:8px 0 0;font-size:16px}
 .brule .n.core rect{fill:var(--accent-soft);stroke:var(--accent)}
 .brule .n.sn rect{fill:var(--ok-soft);stroke:var(--sn)}
 .brule .n.bad rect{fill:var(--crit-soft);stroke:var(--crit)}
+.pairs td{min-width:150px}
+.pairs td:first-child{font-weight:600;min-width:110px}
+.pairs small{display:block;color:var(--muted);font-size:12px;margin:1px 0 6px}
+.pairs small:last-child{margin-bottom:0}
+.lnk2{font-weight:600;text-decoration:none;white-space:nowrap}
+.lnk2:hover{text-decoration:underline}
 </style>
 </head>
 <body>
@@ -370,7 +376,7 @@ details p{margin:8px 0 0;font-size:16px}
   <!-- ============ PART 2 ============ -->
   <section class="part" id="p2" style="--c:var(--p2)" data-toc="2|Solution and architecture|P2">
     <div class="part-band"><div class="pn">2</div><div class="pk">Presenter 2 · Architect</div><h2>Solution and architecture</h2></div>
-    <div class="opens" data-links="dash,docs,snNew,snLog,snOut" data-cmds="0,1"></div>
+    <div class="opens" data-links="dash,kb,docs,snNew,snList,snKb,snBr,snProps,snLog,snOut" data-cmds="0,1"></div>
 
     <h3 id="p2-1"><span class="num">2.1</span>The solution</h3>
     <p>ServiceNow stays the system of record. It sends us a tiny event, we answer immediately, and a background agent does the work. Every write back to ServiceNow goes through one permission-checked gateway.</p>
@@ -436,6 +442,35 @@ details p{margin:8px 0 0;font-size:16px}
         <li>The API answers <code>202</code> before any AI work starts, so ServiceNow is never kept waiting.</li></ul></div>
     </figure>
 
+    <h4>Where to see each piece: our side and ServiceNow</h4>
+    <p>Every part of Figure 3 can be opened live. Each row has one link on our side and one on ServiceNow, so you can show both ends of the same thing.</p>
+    <div class="tbl"><table class="pairs">
+      <thead><tr><th>Piece</th><th><span class="dot" style="--c:var(--dash)"></span>Our dashboard / API</th><th><span class="dot" style="--c:var(--sn)"></span>ServiceNow</th></tr></thead>
+      <tbody>
+        <tr><td>Webhook</td>
+          <td><a class="lnk2" href="http://localhost:8000/docs" target="_blank" rel="noopener">Webhook endpoint ↗</a><small><code>POST /api/v1/webhook/incident</code> in Swagger</small></td>
+          <td><a class="lnk2" href="https://dev323650.service-now.com/sys_script_list.do?sysparm_query=nameLIKEAI%20Eligibility" target="_blank" rel="noopener">Business Rule ↗</a><small>sends the event</small>
+              <a class="lnk2" href="https://dev323650.service-now.com/sys_properties_list.do?sysparm_query=nameSTARTSWITHx_2215689_ai_inc_0" target="_blank" rel="noopener">Webhook URL + token ↗</a><small>system properties</small>
+              <a class="lnk2" href="https://dev323650.service-now.com/sys_outbound_http_log_list.do?sysparm_query=ORDERBYDESCsys_created_on" target="_blank" rel="noopener">Outbound HTTP log ↗</a><small>proof each call was sent</small></td></tr>
+        <tr><td>Create incident</td>
+          <td><a class="lnk2" href="http://localhost:8082/dashboard.html" target="_blank" rel="noopener">Dashboard ↗</a><small>“New incident” button</small></td>
+          <td><a class="lnk2" href="https://dev323650.service-now.com/incident.do?sys_id=-1" target="_blank" rel="noopener">New incident form ↗</a></td></tr>
+        <tr><td>Incident list</td>
+          <td><a class="lnk2" href="http://localhost:8082/dashboard.html" target="_blank" rel="noopener">Dashboard ↗</a><small>incidents with their AI run</small></td>
+          <td><a class="lnk2" href="https://dev323650.service-now.com/incident_list.do?sysparm_query=ORDERBYDESCsys_created_on" target="_blank" rel="noopener">Incident list ↗</a><small>newest first</small></td></tr>
+        <tr><td>Knowledge base</td>
+          <td><a class="lnk2" href="http://localhost:8082/kb.html" target="_blank" rel="noopener">KB page ↗</a><small>index status, Update Vector DB</small></td>
+          <td><a class="lnk2" href="https://dev323650.service-now.com/kb_knowledge_list.do?sysparm_query=ORDERBYDESCsys_updated_on" target="_blank" rel="noopener">Knowledge articles ↗</a>
+              <a class="lnk2" href="https://dev323650.service-now.com/kb_knowledge_list.do?sysparm_query=x_2215689_ai_inc_0_u_article_numberSTARTSWITHKBHR%5EORDERBYDESCsys_created_on" target="_blank" rel="noopener">KBHR articles ↗</a><small>approved human fixes</small></td></tr>
+        <tr><td>Result of a run</td>
+          <td><a class="lnk2" href="http://localhost:8082/dashboard.html" target="_blank" rel="noopener">Dashboard row ↗</a><small>status, steps, confidence</small></td>
+          <td><a class="lnk2" href="https://dev323650.service-now.com/x_2215689_ai_inc_0_ai_execution_log_list.do?sysparm_query=ORDERBYDESCsys_created_on" target="_blank" rel="noopener">AI Execution Log ↗</a><small>one receipt per write</small></td></tr>
+        <tr><td>Human review</td>
+          <td><a class="lnk2" href="http://localhost:8082/approvals.html" target="_blank" rel="noopener">Approvals page ↗</a><small>approve or reject</small></td>
+          <td><a class="lnk2" href="https://dev323650.service-now.com/incident_list.do?sysparm_query=ORDERBYDESCsys_updated_on" target="_blank" rel="noopener">Incident work notes ↗</a><small>the decision is written on the incident</small></td></tr>
+      </tbody>
+    </table></div>
+
     <h3 id="p2-3"><span class="num">2.3</span>Inside the agent</h3>
     <p>The agent is a graph of small steps. Risk is decided <b>before</b> retrieval, so a dangerous ticket costs no search and no model spend. After retrieval, more gates can still stop the run.</p>
     <figure class="wide">
@@ -472,7 +507,7 @@ details p{margin:8px 0 0;font-size:16px}
   <!-- ============ PART 3 ============ -->
   <section class="part" id="p3" style="--c:var(--p3)" data-toc="3|ServiceNow sync and safety|P3">
     <div class="part-band"><div class="pn">3</div><div class="pk">Presenter 3 · ServiceNow + safety</div><h2>ServiceNow sync and safety</h2></div>
-    <div class="opens" data-links="dash,kb,snNew,snList,snKb,snBr,snProps,snSys,lf"></div>
+    <div class="opens" data-links="dash,kb,docs,snNew,snList,snKb,snBr,snProps,snOut,snSys,lf"></div>
     <p>ServiceNow stays in control. It decides which tickets the AI may touch, and it never sends ticket text to us, only IDs.</p>
 
     <h3 id="p3-1"><span class="num">3.1</span>The Business Rule</h3>
@@ -531,7 +566,7 @@ details p{margin:8px 0 0;font-size:16px}
   <!-- ============ PART 4 ============ -->
   <section class="part" id="p4" style="--c:var(--p4)" data-toc="4|Human in the loop|P4">
     <div class="part-band"><div class="pn">4</div><div class="pk">Presenter 4 · Human in the loop</div><h2>Human in the loop</h2></div>
-    <div class="opens" data-links="dash,appr,kb,snNew,snLog,snKbhr" data-cmds="2"></div>
+    <div class="opens" data-links="dash,appr,kb,snNew,snList,snLog,snKb,snKbhr" data-cmds="2"></div>
     <p>Two kinds of stop: <b>before</b> retrieval when the risk is high, and <b>after</b> retrieval when the evidence is weak. One approval per run, never two. An approved human fix is saved as a KBHR article and reused next time.</p>
     <div class="walk-slot" data-case="w4" data-num="4.1"></div>
     <div class="walk-slot" data-case="w5" data-num="4.2"></div>
@@ -542,7 +577,7 @@ details p{margin:8px 0 0;font-size:16px}
   <!-- ============ PART 5 ============ -->
   <section class="part" id="p5" style="--c:var(--p5)" data-toc="5|Reliability, tracing and next steps|P5">
     <div class="part-band"><div class="pn">5</div><div class="pk">Presenter 5 · Reliability</div><h2>Reliability, tracing and next steps</h2></div>
-    <div class="opens" data-links="dash,dlq,docs,snNew,snLog,lf" data-cmds="2,3,4"></div>
+    <div class="opens" data-links="dash,dlq,docs,snNew,snList,snLog,lf" data-cmds="2,3,4"></div>
     <div class="walk-slot" data-case="w7" data-num="5.1"></div>
     <div class="walk-slot" data-case="w8" data-num="5.2"></div>
     <div class="walk-slot" data-case="w9" data-num="5.3"></div>
@@ -585,12 +620,12 @@ details p{margin:8px 0 0;font-size:16px}
   var UI='http://localhost:8082', API='http://localhost:8000';
   var GH='https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2', LF='https://us.cloud.langfuse.com';
   var L={
-    dash:['Dashboard',UI+'/dashboard.html','--dash'], appr:['Approvals',UI+'/approvals.html','--appr'], kb:['KB page',UI+'/kb.html','--kb'],
-    docs:['Swagger',API+'/docs','--api'], dlq:['Dead-letter queue',API+'/api/v1/dlq','--api'],
-    snNew:['New incident',SN+'/incident.do?sys_id=-1','--sn'],
+    dash:['Dashboard (create + list)',UI+'/dashboard.html','--dash'], appr:['Approvals',UI+'/approvals.html','--appr'], kb:['KB page (ours)',UI+'/kb.html','--kb'],
+    docs:['Swagger (webhook)',API+'/docs','--api'], dlq:['Dead-letter queue',API+'/api/v1/dlq','--api'],
+    snNew:['Create incident',SN+'/incident.do?sys_id=-1','--sn'],
     snList:['Incident list',SN+'/incident_list.do?sysparm_query=ORDERBYDESCsys_created_on','--sn'],
     snLog:['AI Execution Log',SN+'/'+SCOPE+'_ai_execution_log_list.do?sysparm_query=ORDERBYDESCsys_created_on','--sn'],
-    snKb:['Knowledge articles',SN+'/kb_knowledge_list.do?sysparm_query=ORDERBYDESCsys_updated_on','--sn'],
+    snKb:['Knowledge base (ServiceNow)',SN+'/kb_knowledge_list.do?sysparm_query=ORDERBYDESCsys_updated_on','--sn'],
     snKbhr:['KBHR articles',SN+'/kb_knowledge_list.do?sysparm_query='+SCOPE+'_u_article_numberSTARTSWITHKBHR%5EORDERBYDESCsys_created_on','--sn'],
     snBr:['Business Rule',SN+'/sys_script_list.do?sysparm_query=nameLIKEAI%20Eligibility','--sn'],
     snProps:['System properties',SN+'/sys_properties_list.do?sysparm_query=nameSTARTSWITH'+SCOPE,'--sn'],
@@ -738,7 +773,7 @@ details p{margin:8px 0 0;font-size:16px}
   // links each presenter opens
   document.querySelectorAll('.opens').forEach(function(box){
     var ks=box.dataset.links.split(','),h='<b>Screens this presenter opens</b>';
-    var groups=[['Console',['dash','appr','kb']],['ServiceNow',['snNew','snList','snLog','snKbhr','snKb','snBr','snProps','snOut','snSys']],['API',['docs','dlq']],['Tools',['lf','gh','ghPr','ghAct']]];
+    var groups=[['Our dashboard / API',['dash','appr','kb','docs','dlq']],['ServiceNow',['snNew','snList','snKb','snKbhr','snLog','snBr','snProps','snOut','snSys']],['Tools',['lf','gh','ghPr','ghAct']]];
     groups.forEach(function(g){var items=g[1].filter(function(k){return ks.indexOf(k)>-1;});if(!items.length)return;
       h+='<div class="row"><span>'+g[0]+'</span>'+items.map(function(k){var x=L[k];return '<a class="lnk" style="--c2:var('+x[2]+')" href="'+esc(x[1])+'" target="_blank" rel="noopener"><i></i>'+esc(x[0])+' ↗</a>';}).join('')+'</div>';});
     if(box.dataset.cmds)box.dataset.cmds.split(',').forEach(function(i){var c=CMDS[+i];h+='<div class="row"><span>'+esc(c[0])+'</span></div><div class="cmd"><code>'+esc(c[1])+'</code><button class="btn" type="button" data-cmd="'+i+'">Copy</button></div>';});
