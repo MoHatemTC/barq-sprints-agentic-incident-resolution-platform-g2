@@ -251,6 +251,10 @@ details p{margin:8px 0 0;font-size:16px}
 .demo .chip.who{font-size:11px;padding:2px 7px}
 @media (max-width:900px){.demolist{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.demolist{grid-template-columns:minmax(0,1fr)}}
+.brule .n.ok rect{fill:var(--ok-soft);stroke:var(--ok)}
+.brule .n.core rect{fill:var(--accent-soft);stroke:var(--accent)}
+.brule .n.sn rect{fill:var(--ok-soft);stroke:var(--sn)}
+.brule .n.bad rect{fill:var(--crit-soft);stroke:var(--crit)}
 </style>
 </head>
 <body>
@@ -469,9 +473,58 @@ details p{margin:8px 0 0;font-size:16px}
   <section class="part" id="p3" style="--c:var(--p3)" data-toc="3|ServiceNow sync and safety|P3">
     <div class="part-band"><div class="pn">3</div><div class="pk">Presenter 3 · ServiceNow + safety</div><h2>ServiceNow sync and safety</h2></div>
     <div class="opens" data-links="dash,kb,snNew,snList,snKb,snBr,snProps,snSys,lf"></div>
-    <p>ServiceNow decides which tickets the AI may touch. The Business Rule runs six checks (active, AI enabled, not already processed, supported category, not already running, not human-locked) and only then sends the event.</p>
-    <div class="walk-slot" data-case="w2" data-num="3.1"></div>
-    <div class="walk-slot" data-case="w3" data-num="3.2"></div>
+    <p>ServiceNow stays in control. It decides which tickets the AI may touch, and it never sends ticket text to us, only IDs.</p>
+
+    <h3 id="p3-1"><span class="num">3.1</span>The Business Rule</h3>
+    <p>A Business Rule is a small script that ServiceNow runs by itself whenever a record is saved. Ours is called <b>AI Eligibility Check</b>. It runs every time an incident is created or updated, and it is the only door from ServiceNow into our platform.</p>
+    <figure class="wide">
+      <div class="frame brule">
+      <svg viewBox="0 0 960 300" role="img" aria-label="Business Rule flow: an incident is saved, six checks run, if all pass a small event is posted to our webhook, otherwise nothing is sent">
+        <defs><marker id="br" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="var(--muted)"/></marker></defs>
+        <path class="e" d="M150 150H188" marker-end="url(#br)"/>
+        <path class="e" d="M510 150C560 150 560 70 608 70" marker-end="url(#br)"/>
+        <path class="e" d="M510 150C560 150 560 232 608 232" marker-end="url(#br)"/>
+        <path class="e" d="M790 70H818" marker-end="url(#br)"/>
+        <text class="elabel" x="612" y="120" style="fill:var(--ok);font-weight:600">all 6 pass</text>
+        <text class="elabel" x="612" y="196" style="fill:var(--crit);font-weight:600">any fails</text>
+        <g class="n sn"><rect x="15" y="122" width="135" height="56" rx="8"/><text x="82" y="143">Incident saved</text></g>
+        <g class="n sub"><text x="82" y="162">created or updated</text></g>
+        <rect x="190" y="30" width="320" height="240" rx="10" fill="var(--ok-soft)" stroke="var(--sn)" stroke-width="1.2"/>
+        <text x="350" y="52" text-anchor="middle" style="fill:var(--sn);font-weight:700;font-size:13px">AI Eligibility Check · 6 checks</text>
+        <g class="n"><rect x="206" y="66" width="140" height="34" rx="6"/><text x="276" y="83">1 · Active</text></g>
+        <g class="n"><rect x="354" y="66" width="140" height="34" rx="6"/><text x="424" y="83">2 · AI enabled</text></g>
+        <g class="n"><rect x="206" y="116" width="140" height="34" rx="6"/><text x="276" y="133">3 · Not processed</text></g>
+        <g class="n"><rect x="354" y="116" width="140" height="34" rx="6"/><text x="424" y="133">4 · Category OK</text></g>
+        <g class="n"><rect x="206" y="166" width="140" height="34" rx="6"/><text x="276" y="183">5 · Not running</text></g>
+        <g class="n"><rect x="354" y="166" width="140" height="34" rx="6"/><text x="424" y="183">6 · Not human-locked</text></g>
+        <text class="elabel" x="350" y="232" text-anchor="middle">URL + token read from system properties</text>
+        <text class="elabel" x="350" y="250" text-anchor="middle">(no secrets in the script)</text>
+        <g class="n core"><rect x="610" y="36" width="180" height="68" rx="8"/><text x="700" y="56">POST to our webhook</text></g>
+        <g class="n sub"><text x="700" y="74">4 IDs + Bearer token</text></g>
+        <g class="n sub"><text x="700" y="90">contract_version v1</text></g>
+        <g class="n ok"><rect x="820" y="48" width="125" height="44" rx="8"/><text x="882" y="70">202 → agent runs</text></g>
+        <g class="n bad"><rect x="610" y="204" width="180" height="56" rx="8"/><text x="700" y="224">Nothing is sent</text></g>
+        <g class="n sub"><text x="700" y="243">dashboard: Not sent to AI</text></g>
+      </svg>
+      </div>
+      <figcaption><b>Figure 5.</b> What the Business Rule does every time an incident is saved.</figcaption>
+      <div class="explain"><b>How to read this figure</b><ul>
+        <li><b>Left:</b> someone creates or updates an incident, in ServiceNow or from our dashboard. Both are treated the same.</li>
+        <li><b>Green box:</b> the six checks run inside ServiceNow. Active ticket, AI enabled on it, not already processed, a category we support, not already running, and not locked by a human.</li>
+        <li><b>Top right:</b> only if all six pass, ServiceNow sends a tiny event (<code>event_id</code>, <code>sys_id</code>, <code>number</code>, <code>event_type</code>) with a Bearer token. The agent later reads the ticket itself over OAuth.</li>
+        <li><b>Bottom right:</b> if any check fails, nothing leaves ServiceNow and no AI cost is spent. The dashboard shows the ticket as <i>Not sent to AI</i>.</li>
+        <li>The webhook URL and token live in system properties, so a new ngrok URL only needs the property changed, not the script.</li></ul></div>
+    </figure>
+    <div class="tbl"><table>
+      <thead><tr><th>Who</th><th>Explains the Business Rule how</th></tr></thead>
+      <tbody>
+        <tr><td>P2</td><td>Shows where it sits (Figure 3, first step of intake)</td></tr>
+        <tr><td>P3</td><td>Explains how it works (this section) and shows it deciding live in 3.2</td></tr>
+      </tbody>
+    </table></div>
+
+    <div class="walk-slot" data-case="w2" data-num="3.2"></div>
+    <div class="walk-slot" data-case="w3" data-num="3.3"></div>
     <p class="handoff">“Now P4 shows when the agent must not act alone.”</p>
   </section>
 
@@ -714,7 +767,7 @@ details p{margin:8px 0 0;font-size:16px}
   drawGraph(document.getElementById('agentFull'),null,'full');
 
   // walkthroughs into their slots, each with its own route graph
-  var ORDER=[],fig=5;
+  var ORDER=[],fig=6;
   var PART={p2:['P2','Architect','--p2'],p3:['P3','ServiceNow + safety','--p3'],p4:['P4','Human in the loop','--p4'],p5:['P5','Reliability','--p5']};
   document.querySelectorAll('.walk-slot').forEach(function(slot){
     var id=slot.dataset.case,num=slot.dataset.num,c=CASES[id];c.id=id;c.num=num;c.part=PART[slot.closest('section').id];ORDER.push(c);
@@ -741,6 +794,9 @@ details p{margin:8px 0 0;font-size:16px}
   // the demo list under the full flow
   var dl=document.getElementById('demoList');
   ORDER.forEach(function(c){dl.appendChild(el('<a class="demo" href="#'+c.id+'" style="--c:var('+c.part[2]+')"><span class="num">'+c.num+'</span><span>'+esc(c.t.replace('Demo: ',''))+'</span><span class="chip who">'+c.part[0]+'</span></a>'));});
+
+  // number figures in page order
+  document.querySelectorAll('figcaption > b:first-child').forEach(function(b,i){b.textContent='Figure '+(i+1)+'.';});
 
   // Q&A
   var qa=document.getElementById('qaList');QA.forEach(function(q){qa.appendChild(el('<details><summary>'+esc(q[0])+'</summary><p>'+esc(q[1])+'</p></details>'));});
