@@ -11,4 +11,4 @@ worker = create_integrated_worker(redis_client)
 celery_app = worker.process_task.app
 
 if __name__ == "__main__":
-    celery_app.worker_main(["worker", "--loglevel=info", "--pool=solo"])
+    celery_app.worker_main(["worker", "--loglevel=info", "--concurrency=4"])

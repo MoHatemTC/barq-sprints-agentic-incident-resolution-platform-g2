@@ -144,6 +144,13 @@
   async function decide(d, action) {
     const reviewer = $('reviewer').value.trim();
     if (!reviewer) { toast('Enter your name as reviewer first.', 'err'); $('reviewer').focus(); return; }
+    let rationale = $('rationale').value.trim();
+    const humanSolution = $('human_solution').value.trim();
+    if (action === 'reject') {
+      // A reject discards the solution box server-side; keep what was typed there as the reason.
+      if (!rationale && humanSolution) rationale = humanSolution;
+      if (!rationale) { toast('Enter a comment saying why you reject this.', 'err'); $('rationale').focus(); return; }
+    }
     if (!window.confirm(`${action === 'approve' ? 'Approve' : 'Reject'} ${d.incident_number || 'this run'}? The paused run will continue.`)) return;
     store.set('barq.reviewer', reviewer);
 
@@ -153,7 +160,7 @@
       await api(`/api/v1/approvals/${encodeURIComponent(d.approval_id)}/decide`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action, reviewer, rationale: $('rationale').value.trim() || null, human_solution: $('human_solution').value.trim() || null }),
+        body: JSON.stringify({ action, reviewer, rationale: rationale || null, human_solution: humanSolution || null }),
       });
       toast(`${d.incident_number}: ${action === 'approve' ? 'approved' : 'rejected'}. The run is resuming.`);
       decided = true;

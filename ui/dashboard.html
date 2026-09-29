@@ -35,8 +35,9 @@
 
   <div class="toolbar">
     <div class="toolbar-group">
+      <input class="input sm search" type="search" id="searchBox" placeholder="Search number or description" aria-label="Search incidents" maxlength="100" autocomplete="off" />
       <span class="lbl">Show last</span>
-      <div class="segmented" id="limitSeg" role="group" aria-label="Number of executions">
+      <div class="segmented" id="limitSeg" role="group" aria-label="Number of incidents">
         <button type="button" data-value="5">5</button>
         <button type="button" data-value="10">10</button>
         <button type="button" data-value="20">20</button>
@@ -49,6 +50,7 @@
         <option value="failed">Failed</option>
         <option value="blocked">Blocked</option>
         <option value="awaiting_approval">Awaiting approval</option>
+        <option value="not_sent">Not sent to AI</option>
       </select>
     </div>
     <div class="toolbar-group">
@@ -64,6 +66,7 @@
   <section class="panel" aria-live="polite">
     <div id="list"></div>
     <div class="empty" id="empty" hidden></div>
+    <div class="load-more"><button class="btn btn-sm" id="loadMore" type="button" hidden>Load more</button></div>
   </section>
 </main>
 
@@ -75,18 +78,21 @@
       <input class="input" type="text" id="f-short" placeholder="VPN authentication fails after password change" data-autofocus />
     </div>
     <div class="field">
-      <label for="f-sysid">Existing ServiceNow sys_id (optional)</label>
-      <input class="input" type="text" id="f-sysid" placeholder="Leave empty to create a new ServiceNow incident" />
+      <label for="f-desc">Description (optional)</label>
+      <textarea class="textarea sm" id="f-desc" placeholder="What happened, when it started, what you already tried"></textarea>
     </div>
     <div class="field">
-      <label for="f-number">Incident number (optional)</label>
-      <input class="input" type="text" id="f-number" placeholder="INC0010100" />
+      <label for="f-category">Category</label>
+      <select class="select" id="f-category">
+        <option value="">Loading categories from ServiceNow...</option>
+      </select>
       <div class="err-text" id="f-error"></div>
     </div>
+    <p class="hint">Created in ServiceNow. Its AI Eligibility Check Business Rule decides whether the incident is sent for AI processing.</p>
     <div class="dialog-actions">
       <div class="right">
         <button class="btn" type="button" id="modalCancel">Cancel</button>
-        <button class="btn btn-primary" type="button" id="modalSubmit">Create and enqueue</button>
+        <button class="btn btn-primary" type="button" id="modalSubmit">Create in ServiceNow</button>
       </div>
     </div>
   </div>

@@ -2,12 +2,17 @@
 Output Validation Guardrail (Sprint 3.3 — FR-18).
 
 Validates agent outputs *before* they reach the act/write path.  This module
-is consumed by ``safety_check_node`` (which will be updated separately) to
-enforce semantic constraints on the generated response and proposed actions.
+is consumed by ``safety_check_node`` to enforce semantic constraints on the
+generated response and proposed actions.
 
 Three validation layers:
   1. **Action Allowlist** — only pre-approved ServiceNow write operations may
-     proceed; everything else is blocked.
+     proceed; everything else is blocked. The allowlist is the ToolRegistry:
+     unregistered tools are blocked; HIGH_RISK tools require human approval;
+     READ and LOW_RISK_WRITE tools are permitted for automated execution.
+     No production node currently sets outputs['proposed_action']; act_node
+     only dispatches fixed tools. This layer is defense in depth for future
+     agent-proposed actions.
   2. **Output Content Screening** — the generated text must not leak system
      internals, credentials, or injection artefacts that survived earlier
      stages.
@@ -69,68 +74,52 @@ def _emit_output_guardrail_span(
 
 
 # ---------------------------------------------------------------------------
-# 1. Action Allowlist
+# 1. Action Allowlist (ToolRegistry-backed)
 # ---------------------------------------------------------------------------
-
-# Only these ServiceNow write operations are permitted.  Anything not listed
-# here must be blocked by safety_check before it reaches act_node.
-ALLOWED_ACTIONS: Set[str] = frozenset({
-    "update_incident",          # set work notes / resolution
-    "add_comment",              # post a customer-visible comment
-    "resolve_incident",         # move to Resolved state
-    "reassign_incident",        # change assignment group / assignee
-    "escalate_incident",        # raise priority / escalation flag
-})
-
-# These actions are ALWAYS blocked regardless of context.
-DENIED_ACTIONS: Set[str] = frozenset({
-    "delete_incident",
-    "delete_user",
-    "drop_table",
-    "execute_script",
-    "run_command",
-    "modify_acl",
-    "create_admin",
-    "disable_security",
-    "export_all_users",
-    "purge_records",
-})
-
 
 @dataclass
 class ActionValidationResult:
-    """Result of validating a proposed action against the allowlist."""
+    """Result of validating a proposed action against the ToolRegistry."""
     is_allowed: bool
     action: str
     reason: str
 
 
 def validate_action(action: str) -> ActionValidationResult:
-    """Check whether *action* is on the allowlist.
+    """Check whether *action* is permitted by the ToolRegistry.
 
-    Returns an ``ActionValidationResult`` with ``is_allowed=True`` only when
-    the action is explicitly present in ``ALLOWED_ACTIONS``.
+    Returns an ``ActionValidationResult`` with:
+    - is_allowed=True for READ or LOW_RISK_WRITE tools
+    - is_allowed=False for unregistered tools (reason="unregistered_tool")
+    - is_allowed=False for HIGH_RISK tools (reason="requires_human_approval")
+
+    The ToolRegistry is imported lazily to avoid circular imports at module load.
     """
+    from src.agent.tools.registry import DEFAULT_TOOL_REGISTRY
+
     normalised = action.strip().lower().replace("-", "_").replace(" ", "_")
+    permission_class = DEFAULT_TOOL_REGISTRY.permission_class_of(normalised)
 
-    if normalised in DENIED_ACTIONS:
+    if permission_class is None:
         return ActionValidationResult(
             is_allowed=False,
             action=action,
-            reason=f"Action '{action}' is explicitly denied (DENIED_ACTIONS).",
+            reason=f"Action '{action}' is not a registered tool (unregistered_tool).",
         )
 
-    if normalised not in ALLOWED_ACTIONS:
+    from src.agent.tools.permissions import PermissionClass
+    if permission_class is PermissionClass.HIGH_RISK:
         return ActionValidationResult(
             is_allowed=False,
             action=action,
-            reason=f"Action '{action}' is not in the ALLOWED_ACTIONS allowlist.",
+            reason=f"Action '{action}' requires human approval (HIGH_RISK).",
         )
 
+    # READ and LOW_RISK_WRITE are allowed for automated execution
     return ActionValidationResult(
         is_allowed=True,
         action=action,
-        reason="Action is permitted.",
+        reason=f"Action '{action}' is permitted ({permission_class.name}).",
     )
 
 
@@ -140,19 +129,19 @@ def validate_action(action: str) -> ActionValidationResult:
 
 # Patterns that should NEVER appear in agent output text.
 _OUTPUT_LEAK_PATTERNS: List[tuple] = [
-    
+
     # System prompt / internal config leakage
-    
+
     (re.compile(r"(?i)system\s*prompt\s*[:=]"), "system_prompt_leak"),
     (re.compile(r"(?i)(?:my|the)\s+(?:instructions?|directives?)\s+(?:are|is)\s*[:=]"), "instruction_leak"),
     (re.compile(r"(?i)(?:internal|hidden)\s+(?:configuration|config|settings?)"), "config_leak"),
 
     # Residual injection markers that should have been caught on input
-    
+
     (re.compile(r"\[SCREENED_CONTENT\]"), "residual_injection_marker"),
 
     # Credential / secret leakage in output
-    
+
     (re.compile(
         r"(?i)(?:api[_\-]?key|secret[_\-]?key|access[_\-]?token|auth[_\-]?token)"
         r"\s*[=:]\s*\S{8,}"
@@ -163,7 +152,7 @@ _OUTPUT_LEAK_PATTERNS: List[tuple] = [
     ), "password_in_output"),
 
     # Raw SQL / destructive commands
-    
+
     (re.compile(
         r"(?i)(?:DROP\s+TABLE|DELETE\s+FROM|TRUNCATE\s+TABLE|ALTER\s+TABLE.*DROP)"
     ), "destructive_sql"),
@@ -285,16 +274,19 @@ def validate_agent_output(state: Dict[str, Any]) -> OutputValidationResult:
 
     block_reasons: List[str] = []
 
-    # --- 1. Action allowlist ---------------------------------------------------
-    proposed_action = state.get("action_taken") or state.get("outputs", {}).get("proposed_action")
+    # --- 1. Action allowlist (ToolRegistry-backed) ----------------------------------
+    # NOTE: Only outputs["proposed_action"] is checked. action_taken holds
+    # outcome labels (e.g. "resolved_automatically") from a previous run and
+    # is NOT a proposed tool name. It must not be used here.
+    outputs = state.get("outputs") or {}
+    proposed_action = outputs.get("proposed_action")
     action_result = None
     if proposed_action:
         action_result = validate_action(proposed_action)
         if not action_result.is_allowed:
             block_reasons.append(f"ACTION_BLOCKED: {action_result.reason}")
 
-    # --- 2. Output content screening -------------------------------------------
-    outputs = state.get("outputs", {})
+    # --- 2. Output content screening -----------------------------------------------
     resolution = outputs.get("resolution", "")
     screening_result = screen_output_content(resolution)
     if not screening_result.is_clean:
@@ -302,8 +294,8 @@ def validate_agent_output(state: Dict[str, Any]) -> OutputValidationResult:
             f"OUTPUT_CONTENT_FLAGGED: {', '.join(screening_result.flagged_labels)}"
         )
 
-    # --- 3. Schema conformance -------------------------------------------------
-    schema_result = validate_output_schema(outputs if outputs else None)
+    # --- 3. Schema conformance -----------------------------------------------------
+    schema_result = validate_output_schema(outputs)
     if not schema_result.is_valid:
         block_reasons.append(
             f"SCHEMA_INVALID: missing required keys {schema_result.missing_keys}"

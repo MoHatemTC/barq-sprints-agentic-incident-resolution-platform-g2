@@ -73,15 +73,50 @@ class ServiceNowClient:
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
         return self._request("GET", url)
 
-    def create_incident(self, short_description, description=None, caller_id=None):
+    def create_incident(self, short_description, description=None, caller_id=None, category=None):
         # Create a new incident, returns the created record (sys_id, number, ...)
         payload = {"short_description": short_description}
         if description:
             payload["description"] = description
         if caller_id:
             payload["caller_id"] = caller_id
+        if category:
+            payload["category"] = category
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
         return self._request("POST", url, json=payload)
+
+    def get_choices(self, table, element):
+        # Choices of one choice field exactly as the ServiceNow form lists them.
+        # UI meta API, not sys_choice: the integration user cannot read sys_choice (403).
+        url = f"{config.INSTANCE_URL}/api/now/ui/meta/{table}"
+        column = (self._request("GET", url) or {}).get("columns", {}).get(element) or {}
+        return [
+            {"label": c.get("label"), "value": c.get("value")}
+            for c in column.get("choices") or []
+            if c.get("value")  # skip the form's "-- None --" entry
+        ]
+
+    def list_incidents(self, fields, limit=20, offset=0, query=None):
+        # Newest incidents first, one page, optionally filtered by an encoded
+        # query. Each field comes back as {"value": ..., "display_value": ...}.
+        # Returns (rows, total).
+        url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
+        order = "ORDERBYDESCsys_created_on"
+        response = self._response(
+            "GET",
+            url,
+            params={
+                "sysparm_query": f"{query}^{order}" if query else order,
+                "sysparm_fields": ",".join(fields),
+                "sysparm_display_value": "all",
+                "sysparm_exclude_reference_link": "true",
+                "sysparm_limit": limit,
+                "sysparm_offset": offset,
+            },
+        )
+        rows = response.json().get("result") or []
+        total = response.headers.get("X-Total-Count")
+        return rows, int(total) if total is not None else len(rows)
 
     def delete_incident(self, sys_id):
         """Delete an incident explicitly requested by the dashboard user."""
@@ -235,6 +270,11 @@ class IncidentGateway:
 
     def read_incident(self, sys_id, execution_id=None):
         return self._client.get_incident(sys_id)
+
+    def list_incidents(self, query, fields, limit=100, execution_id=None):
+        """Incidents matching an encoded query, newest first, one page"""
+        rows, _total = self._client.list_incidents(fields, limit=limit, query=query)
+        return rows
 
     def find_execution_log(self, execution_id, action, incident_sys_id=None):
         """Return the prior receipt row for this (execution_id, action), if any"""

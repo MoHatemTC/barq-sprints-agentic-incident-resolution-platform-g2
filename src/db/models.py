@@ -96,7 +96,8 @@ class Execution(Base):
 
     incident_reference = Column(
         String(255),
-        nullable=False
+        nullable=False,
+        index=True
     )
 
     status = Column(

@@ -115,7 +115,7 @@ def test_forged_permission_downgrade_via_reregistration_is_rejected():
 
 def test_registry_public_surface_offers_no_downgrade_bypass():
     public = {name for name in dir(ToolRegistry) if not name.startswith("_")}
-    assert public == {"dispatch", "register"}
+    assert public == {"dispatch", "register", "permission_class_of"}
 
 
 def test_dispatch_signature_accepts_no_permission_class_override():
@@ -242,6 +242,7 @@ def test_no_agent_module_touches_servicenow_client_directly():
 
     This is the check that would have caught the reported gap, stated against
     the package where the threat model applies rather than the whole tree.
+    Imports from src.servicenow.exceptions (exception classes) are allowed.
     """
     root = Path(__file__).resolve().parents[1]
     agent_root = root / AGENT_ROOT
@@ -283,6 +284,7 @@ def test_every_registered_tool_dispatches_without_typeerror():
     gateway = IncidentGateway(client=FakeServiceNowClient())
     handlers = {
         "read_incident": (PermissionClass.READ, gateway.read_incident),
+        "list_incidents": (PermissionClass.READ, gateway.list_incidents),
         "find_execution_log": (PermissionClass.READ, gateway.find_execution_log),
         "write_ai_fields": (PermissionClass.LOW_RISK_WRITE, gateway.write_ai_fields),
         "write_execution_log": (PermissionClass.LOW_RISK_WRITE, gateway.write_execution_log),
@@ -299,6 +301,7 @@ def test_every_registered_tool_dispatches_without_typeerror():
 
     kwargs = {
         "read_incident": {"sys_id": "s1"},
+        "list_incidents": {"query": "active=true", "fields": ["sys_id"]},
         "find_execution_log": {"action": "auto_resolve"},
         "write_ai_fields": {"sys_id": "s1", "fields": {"a": 1}},
         "write_execution_log": {

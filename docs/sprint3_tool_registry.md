@@ -22,6 +22,7 @@ caught by any human before it propagates.
 | Tool | Permission Class | Reasoning |
 |---|---|---|
 | `read_incident` | `read` | Zero mutation — queries incident fields without modifying any state. |
+| `list_incidents` | `read` | Zero mutation — one Table API GET for incidents matching an encoded query. Used by the delivery sweep (`src/workers/delivery_sweep.py`) to find eligible Pending incidents whose webhook never arrived. |
 | `write_execution_log` | `low_risk_write` | Purely internal bookkeeping. Appends diagnostic telemetry and execution logs that neither agents nor customers rely on for ticket resolution. Single-incident-scoped, effectively unread by downstream consumers. |
 | `write_ai_fields` | `low_risk_write` | Dedicated AI scratchpad. Updates model suggestions and analysis fields, strictly restricted by the S1.2 ACL boundary from touching core operational fields (`state`, `priority`, `assigned_to`). Single-incident-scoped, bounded by existing ACL. |
 | `write_work_note` | `low_risk_write` | Visible internal record — adds an entry to the incident's activity journal for IT support agents to review and triage from. Single-incident-scoped, and critically, a human agent independently reviews the ticket before acting — the human stays in the loop as a check on this write. |

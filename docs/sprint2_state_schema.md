@@ -44,7 +44,7 @@ The migration supports both forward and reverse execution.
 
 ## 3. Entity Relationship Diagram
 
-![Sprint 2 State Schema ERD](sprint2_state_schema_erd.png)
+![Sprint 2 State Schema ERD](images/sprint2_state_schema_erd.png)
 
 The diagram represents logical application-level relationships between
 the state tables.

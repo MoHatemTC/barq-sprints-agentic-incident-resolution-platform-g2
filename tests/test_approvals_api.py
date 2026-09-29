@@ -2,7 +2,7 @@
 
 import json
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from celery import Celery
@@ -20,6 +20,19 @@ from src.workers.runtime_integration import execution_status_for
 
 
 pytestmark = pytest.mark.usefixtures("hermetic_llm")
+
+SOLUTION = "Restarted the affected service and verified recovery."
+
+
+@pytest.fixture(autouse=True)
+def offline_resume(monkeypatch):
+    """An approved high-risk run resumes into retrieve and knowledge_capture; keep both off the network."""
+    monkeypatch.setattr("src.agent.nodes.retrieve.search", lambda **kwargs: [])
+    registry = MagicMock()
+    registry.dispatch.return_value = {"status": "published"}
+    monkeypatch.setattr("src.agent.graph.DEFAULT_TOOL_REGISTRY", registry)
+    monkeypatch.setattr("src.agent.graph.SessionLocal", MagicMock)
+    return registry
 
 
 BRIEF = {
@@ -186,14 +199,13 @@ def test_detail_unknown_is_404_and_finished_is_409(setup, graph):
 
 # POST decide tests
 
-def test_approve_persists_then_resumes_same_run(setup, graph):
+def test_approve_persists_then_resumes_same_run(setup, graph, offline_resume):
     client, store, dispatcher = setup
     _pause(graph, "a-1")
 
     response = client.post(
         "/api/v1/approvals/a-1/decide",
-        json={"action": "approve", "reviewer": "sarah", "rationale": "safe",
-              "human_solution": "Restarted the affected service and verified recovery."},
+        json={"action": "approve", "reviewer": "sarah", "rationale": "safe", "human_solution": SOLUTION},
     )
 
     assert response.status_code == 200
@@ -207,13 +219,16 @@ def test_approve_persists_then_resumes_same_run(setup, graph):
     assert evidence["brief"] == BRIEF
 
     assert dispatcher.calls == [("a-1", {"decision": "approve", "reviewer": "sarah", "comment": "safe",
-                                         "human_solution": "Restarted the affected service and verified recovery."})]
+                                         "human_solution": SOLUTION})]
 
-    # the SAME thread finished through act
+    # the SAME thread finished through act (no second pause, even with no KB evidence)
+    # and then captured the reviewer's solution as knowledge
     snapshot = graph.get_state(thread_config("a-1"))
     assert snapshot.next == ()
-    assert snapshot.values["action_taken"] == "approved_by_human"
+    assert snapshot.values["action_taken"] == "knowledge_captured"
     assert snapshot.values["gate"] == "high_risk"
+    offline_resume.dispatch.assert_called_once()
+    assert offline_resume.dispatch.call_args.kwargs["human_solution"] == SOLUTION
 
 
 def test_high_risk_approve_requires_human_solution(setup, graph):
@@ -247,7 +262,8 @@ def test_second_decision_is_refused(setup, graph):
     _pause(graph, "twice")
     dispatcher.resume = False  # the worker has not picked it up yet: still paused
 
-    first = client.post("/api/v1/approvals/twice/decide", json={"action": "approve", "reviewer": "a"})
+    first = client.post("/api/v1/approvals/twice/decide",
+                        json={"action": "approve", "reviewer": "a", "human_solution": SOLUTION})
     second = client.post("/api/v1/approvals/twice/decide", json={"action": "reject", "reviewer": "b"})
 
     assert first.status_code == 200
@@ -277,7 +293,8 @@ def test_dispatch_failure_is_503_but_decision_is_kept(setup, graph):
     _pause(graph, "down")
     dispatcher.error = ConnectionError("redis down")
 
-    response = client.post("/api/v1/approvals/down/decide", json={"action": "approve", "reviewer": "a"})
+    response = client.post("/api/v1/approvals/down/decide",
+                           json={"action": "approve", "reviewer": "a", "human_solution": SOLUTION})
 
     assert response.status_code == 503
     assert store.records[0][0] == "down"
@@ -289,7 +306,7 @@ def test_retry_after_dispatch_failure_resends_and_resumes(setup, graph):
     client, store, dispatcher = setup
     _pause(graph, "down-2")
     dispatcher.error = ConnectionError("redis down")
-    body = {"action": "approve", "reviewer": "sarah", "rationale": "safe"}
+    body = {"action": "approve", "reviewer": "sarah", "rationale": "safe", "human_solution": SOLUTION}
 
     assert client.post("/api/v1/approvals/down-2/decide", json=body).status_code == 503
 
@@ -300,8 +317,8 @@ def test_retry_after_dispatch_failure_resends_and_resumes(setup, graph):
     assert retry.json()["status"] == "approved" and retry.json()["resumed"] is True
     assert len(store.records) == 1  # the decision is not recorded twice
     assert dispatcher.calls[-1] == ("down-2", {"decision": "approve", "reviewer": "sarah", "comment": "safe",
-                                               "human_solution": None})
-    assert graph.get_state(thread_config("down-2")).values["action_taken"] == "approved_by_human"
+                                               "human_solution": SOLUTION})
+    assert graph.get_state(thread_config("down-2")).values["action_taken"] == "knowledge_captured"
 
 
 def test_retry_with_other_decision_is_still_refused(setup, graph):
@@ -309,11 +326,13 @@ def test_retry_with_other_decision_is_still_refused(setup, graph):
     client, _, dispatcher = setup
     _pause(graph, "down-3")
     dispatcher.error = ConnectionError("redis down")
-    client.post("/api/v1/approvals/down-3/decide", json={"action": "approve", "reviewer": "sarah"})
+    client.post("/api/v1/approvals/down-3/decide",
+                json={"action": "approve", "reviewer": "sarah", "human_solution": SOLUTION})
     dispatcher.error = None
 
     other_action = client.post("/api/v1/approvals/down-3/decide", json={"action": "reject", "reviewer": "sarah"})
-    other_reviewer = client.post("/api/v1/approvals/down-3/decide", json={"action": "approve", "reviewer": "bob"})
+    other_reviewer = client.post("/api/v1/approvals/down-3/decide",
+                                 json={"action": "approve", "reviewer": "bob", "human_solution": SOLUTION})
 
     assert other_action.status_code == 409
     assert other_reviewer.status_code == 409
@@ -375,6 +394,7 @@ def _resume_task(agent, manager):
         app,
         agent=agent,
         state_manager_factory=lambda: (manager, lambda: None),
+        incident_lookup=lambda execution_id: {},  # no sys_id: no ServiceNow status writes
     )
 
 

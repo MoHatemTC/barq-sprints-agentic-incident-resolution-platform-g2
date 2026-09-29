@@ -35,7 +35,14 @@
 <category>customer</category>
 <comments/>
 <name>sys_script_ed7e89a4c3578f10b9523342b4013144</name>
-<payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update sys_domain="global" table="sys_script"&gt;&lt;sys_script action="INSERT_OR_UPDATE"&gt;&lt;abort_action&gt;false&lt;/abort_action&gt;&lt;access&gt;package_private&lt;/access&gt;&lt;action_delete&gt;false&lt;/action_delete&gt;&lt;action_insert&gt;true&lt;/action_insert&gt;&lt;action_query&gt;false&lt;/action_query&gt;&lt;action_update&gt;true&lt;/action_update&gt;&lt;active&gt;true&lt;/active&gt;&lt;add_message&gt;false&lt;/add_message&gt;&lt;advanced&gt;true&lt;/advanced&gt;&lt;change_fields&gt;false&lt;/change_fields&gt;&lt;client_callable&gt;false&lt;/client_callable&gt;&lt;collection&gt;incident&lt;/collection&gt;&lt;condition/&gt;&lt;description/&gt;&lt;execute_function&gt;false&lt;/execute_function&gt;&lt;filter_condition/&gt;&lt;is_rest&gt;false&lt;/is_rest&gt;&lt;message/&gt;&lt;name&gt;AI Eligibility Check&lt;/name&gt;&lt;order&gt;100&lt;/order&gt;&lt;priority&gt;100&lt;/priority&gt;&lt;rest_method/&gt;&lt;rest_method_text/&gt;&lt;rest_service/&gt;&lt;rest_service_text/&gt;&lt;rest_variables/&gt;&lt;role_conditions/&gt;&lt;script&gt;&lt;![CDATA[(function executeRule(current, previous /*null when async*/) {
+<payload>&lt;?xml version="1.0" encoding="UTF-8"?&gt;&lt;record_update sys_domain="global" table="sys_script"&gt;&lt;sys_script action="INSERT_OR_UPDATE"&gt;&lt;abort_action&gt;false&lt;/abort_action&gt;&lt;access&gt;package_private&lt;/access&gt;&lt;action_delete&gt;false&lt;/action_delete&gt;&lt;action_insert&gt;true&lt;/action_insert&gt;&lt;action_query&gt;false&lt;/action_query&gt;&lt;action_update&gt;true&lt;/action_update&gt;&lt;active&gt;true&lt;/active&gt;&lt;add_message&gt;false&lt;/add_message&gt;&lt;advanced&gt;true&lt;/advanced&gt;&lt;change_fields&gt;false&lt;/change_fields&gt;&lt;client_callable&gt;false&lt;/client_callable&gt;&lt;collection&gt;incident&lt;/collection&gt;&lt;condition/&gt;&lt;description/&gt;&lt;execute_function&gt;false&lt;/execute_function&gt;&lt;filter_condition/&gt;&lt;is_rest&gt;false&lt;/is_rest&gt;&lt;message/&gt;&lt;name&gt;AI Eligibility Check&lt;/name&gt;&lt;order&gt;100&lt;/order&gt;&lt;priority&gt;100&lt;/priority&gt;&lt;rest_method/&gt;&lt;rest_method_text/&gt;&lt;rest_service/&gt;&lt;rest_service_text/&gt;&lt;rest_variables/&gt;&lt;role_conditions/&gt;&lt;script&gt;&lt;![CDATA[// Business Rule: AI Eligibility Check
+// Table: incident | When: after | Insert: true | Update: true | Order: 100
+//
+// Sends eligible incidents to the orchestrator webhook (POST /api/v1/webhook/incident).
+// The target is read from two system properties so a new ngrok URL needs no script edit:
+//   x_2215689_ai_inc_0.webhook_url    public base URL, e.g. https://xxxx.ngrok-free.app (no trailing slash)
+//   x_2215689_ai_inc_0.webhook_token  same value as WEBHOOK_AUTH_TOKEN in the orchestrator .env
+(function executeRule(current, previous /*null when async*/) {
 
     // Condition 1: not active
     if (current.active == false) {
@@ -88,7 +95,7 @@
                 current.x_2215689_ai_inc_0_human_lock.changes() ||
                 current.x_2215689_ai_inc_0_ai_enabled.changes() ||
                 current.active.changes();
-            
+
             if (!relevantChange) {
                 gs.info("AI Orchestrator Suppression [" + current.number + "]: No relevant field changed.");
                 return;
@@ -96,18 +103,29 @@
             event_type = 'Update';
         }
 
+        var baseUrl = gs.getProperty('x_2215689_ai_inc_0.webhook_url', '');
+        var token = gs.getProperty('x_2215689_ai_inc_0.webhook_token', '');
+        if (!baseUrl || !token) {
+            gs.error("AI Orchestrator [" + current.number + "]: webhook_url or webhook_token property is not set.");
+            return;
+        }
+
         var payload = {
             "event_id": gs.generateGUID(),
             "sys_id": current.getValue('sys_id'),
             "number": current.getValue('number'),
-            "event_type": event_type
+            "event_type": event_type,
+            // the webhook rejects payloads without a supported contract version (422)
+            "contract_version": "v1"
         };
 
         var r = new sn_ws.RESTMessageV2();
-        r.setEndpoint('https://webhook.site/818273b6-89e1-4206-8a48-64eb86cd9b42');
+        r.setEndpoint(baseUrl.replace(/\/+$/, '') + '/api/v1/webhook/incident');
         r.setHttpMethod('POST');
         r.setRequestHeader('Content-Type', 'application/json');
-        r.setAuthenticationProfile('oauth2', 'fb24a315c3df4750b9523342b4013136');
+        // the webhook checks a static bearer token (src/api/auth.py), not OAuth
+        r.setRequestHeader('Authorization', 'Bearer ' + token);
+        r.setRequestHeader('ngrok-skip-browser-warning', 'true');
         r.setRequestBody(JSON.stringify(payload));
         r.executeAsync();
 

@@ -109,6 +109,9 @@ class StateManagerTaskRecorder:
     failing_node: str
     state_manager_factory: StateManagerFactory = load_s2_2_state_manager
 
+    def record_start(self, accepted_incident: object) -> None:
+        sync_servicenow_in_progress(accepted_incident, self.context.execution_identifier)
+
     def record_retry(
         self,
         accepted_incident: object,
@@ -133,7 +136,6 @@ class StateManagerTaskRecorder:
         retries_completed: int,
         error: BaseException,
     ) -> None:
-        del accepted_incident
         state_manager, close = self.state_manager_factory()
         try:
             state_manager.record_failure(
@@ -149,6 +151,15 @@ class StateManagerTaskRecorder:
             )
         finally:
             close()
+
+        # Terminal failure: the task goes to the DLQ next. Without this the
+        # incident keeps showing Pending in ServiceNow forever.
+        _sync_servicenow_failure(
+            accepted_incident,
+            self.context.execution_identifier,
+            retries_completed,
+            error,
+        )
 
     def record_success(self, accepted_incident: object, result: object) -> None:
         state_manager, close = self.state_manager_factory()
@@ -318,6 +329,88 @@ def _sync_servicenow_completion(
         logger.warning(
             "BARQ completed execution %s, but could not update its ServiceNow AI fields",
             execution_identifier,
+            exc_info=True,
+        )
+
+
+def _sync_servicenow_failure(
+    accepted_incident: object,
+    execution_identifier: str,
+    retries_completed: int,
+    error: BaseException,
+) -> None:
+    """Mark a dead-lettered run Failed in ServiceNow, with a work note saying why.
+
+    'failed' is a state the AI Eligibility Check Business Rule already honours:
+    it never re-sends a failed incident, and the delivery sweep only picks up
+    pending ones, so this cannot loop. Setting the state back to Pending in
+    ServiceNow re-sends it (the rule fires on changesTo('pending')).
+
+    Best effort, like the completion sync: a ServiceNow outage must not stop
+    the dead-letter record that follows.
+    """
+    incident_sys_id = _incident_sys_id(accepted_incident)
+    if not incident_sys_id:
+        return
+
+    reason = _field_text(f"{type(error).__name__}: {error}", 1_000)
+    fields = {
+        "processing_state": "failed",
+        "failure_reason": reason,
+        "retry_count": retries_completed,
+        "processing_end": _servicenow_timestamp(datetime.now(timezone.utc)),
+    }
+    note = (
+        f"AI processing failed after {retries_completed} "
+        f"{'retry' if retries_completed == 1 else 'retries'} and was moved to the dead-letter queue.\n"
+        f"Reason: {reason}\n"
+        f"Execution: {execution_identifier}\n"
+        "To try again, set AI Processing State back to Pending."
+    )
+
+    _dispatch_best_effort("write_ai_fields", execution_identifier, sys_id=incident_sys_id, fields=fields)
+    _dispatch_best_effort("write_work_note", execution_identifier, sys_id=incident_sys_id, note=note)
+
+
+def sync_servicenow_in_progress(accepted_incident: object, execution_identifier: str) -> None:
+    """Mark the incident In Progress in ServiceNow when a run starts.
+
+    One write per run, before the graph, so it can never land after the final
+    state. The Business Rule never re-sends in_progress and the delivery sweep
+    only picks up pending, so this cannot trigger a second run. Best effort:
+    a ServiceNow problem must not stop the AI from working.
+    """
+    incident_sys_id = _incident_sys_id(accepted_incident)
+    if incident_sys_id:
+        _dispatch_best_effort(
+            "write_ai_fields",
+            execution_identifier,
+            sys_id=incident_sys_id,
+            fields={"processing_state": "in_progress"},
+        )
+
+
+def _incident_sys_id(accepted_incident: object) -> str | None:
+    if not isinstance(accepted_incident, Mapping):
+        return None
+    sys_id = accepted_incident.get("sys_id")
+    return sys_id if isinstance(sys_id, str) and sys_id else None
+
+
+def _dispatch_best_effort(tool: str, execution_identifier: str, **arguments: object) -> None:
+    """One ServiceNow status write through the registry; logged, never raised."""
+    registry_module = import_module("src.agent.tools.registry")
+    try:
+        result = registry_module.DEFAULT_TOOL_REGISTRY.dispatch(tool, execution_identifier, **arguments)
+        if isinstance(result, registry_module.ToolRefusal):
+            logger.error(
+                "BARQ execution %s: the registry refused %s (%s): %s",
+                execution_identifier, tool, result.reason, result.message,
+            )
+    except Exception:
+        logger.warning(
+            "BARQ execution %s: %s could not reach ServiceNow",
+            execution_identifier, tool,
             exc_info=True,
         )
 

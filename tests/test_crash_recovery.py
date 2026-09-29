@@ -32,6 +32,7 @@ class FakeServiceNow:
         self.kill_at = kill_at
         self.patches = []
         self.logs = []
+        self.work_notes = []
 
     def _maybe_kill(self, point):
         if self.kill_at == point:
@@ -49,6 +50,10 @@ class FakeServiceNow:
         self.patches.append({"sys_id": sys_id, **fields})
         self._maybe_kill("after_patch")
         return fields
+
+    def add_work_note(self, sys_id, note):
+        self.work_notes.append({"sys_id": sys_id, "note": note})
+        return {"note": note}
 
     def write_execution_log(self, incident_sys_id, execution_id, action, status,
                             agent=None, result=None, error=None):
@@ -144,7 +149,11 @@ def test_reject_writes_escalation(fake):
     assert [(r["action"], r["status"]) for r in fake.logs] == [("escalated_rejected", "blocked")]
     assert fake.patches[0]["human_review"] is True
     assert fake.patches[0]["failure_reason"] == "Rejected by bob: wrong KB"
-    assert "processing_state" not in fake.patches[0]
+    assert fake.patches[0]["processing_state"] == "failed"
+    # the reviewer's comment lands in the incident's Work notes
+    [work_note] = fake.work_notes
+    assert work_note["sys_id"] == "sys-0001"
+    assert "Rejected" in work_note["note"] and "wrong KB" in work_note["note"]
 
 
 def test_missing_sys_id_skips_write(fake):

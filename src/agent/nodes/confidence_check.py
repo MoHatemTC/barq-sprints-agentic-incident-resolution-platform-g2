@@ -22,7 +22,12 @@ def confidence_check_node(state: Dict[str, Any]) -> Dict[str, Any]:
     diagnosis_structured = outputs.get("diagnosis_structured") or {}
     confidence = diagnosis_structured.get("confidence")
 
-    if confidence is None:
+    if confidence is None and state.get("retrieval_cache_hit"):
+        # Reused a human-approved (KBHR-) resolution that already passed
+        # safety_check; diagnose was skipped on purpose, not an escalation.
+        confidence = 1.0
+        logger.info("confidence_check: cached human-approved resolution, confidence=1.0")
+    elif confidence is None:
         # diagnose_node did not run (early escalation / invalid ticket).
         confidence = 0.0
         logger.info("confidence_check: no diagnosis confidence found, defaulting to 0.0")

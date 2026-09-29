@@ -45,6 +45,9 @@ services:
     command: sh -c "alembic upgrade head && exec uvicorn src.api.app:app --host 0.0.0.0 --port 8000 --workers $${UVICORN_WORKERS}"
     ports:
       - "8000:8000"
+    volumes:
+      # fastembed models (sparse + reranker) survive container rebuilds
+      - model_cache:/tmp/fastembed_cache
     environment:
       UVICORN_WORKERS: "1"
       POSTGRES_HOST: postgres
@@ -67,6 +70,10 @@ services:
     command: python run_worker.py
     # S3.4: come back after a crash so Celery re-delivers the unfinished task
     restart: unless-stopped
+    volumes:
+      # Downloaded once, not on the first ticket after every restart: that
+      # download used up the task time limit and failed retrieval.
+      - model_cache:/tmp/fastembed_cache
     environment:
       # DEMO ONLY: before_write | after_write kills the worker once per run (empty = off)
       DEMO_CRASH_AT: ${DEMO_CRASH_AT:-}
@@ -118,6 +125,7 @@ services:
 volumes:
   qdrant_data:
   pg_data:
+  model_cache:
 
 
 

@@ -77,3 +77,28 @@ def test_published_kb_articles_are_limited_to_our_knowledge_base(client, monkeyp
 
     query = req.call_args.kwargs["params"]["sysparm_query"]
     assert query == "workflow_state=published^kb_knowledge_base=kb123^ORDERBYsys_id"
+
+
+def test_create_incident_sends_category_and_description(client):
+    with patch("src.servicenow.client.requests.request", return_value=_response(200)) as req:
+        client.create_incident("VPN down", description="since 9am", category="network")
+
+    assert req.call_args.kwargs["json"] == {
+        "short_description": "VPN down", "description": "since 9am", "category": "network",
+    }
+
+
+def test_get_choices_reads_the_form_choice_list_from_ui_meta(client):
+    meta = {"columns": {"category": {"choices": [
+        {"label": "-- None --", "value": ""},
+        {"label": "Inquiry / Help", "value": "inquiry", "sequence": 1},
+        {"label": "Software", "value": "software", "sequence": 2},
+    ]}}}
+    with patch("src.servicenow.client.requests.request", return_value=_response(200, meta)) as req:
+        choices = client.get_choices("incident", "category")
+
+    assert req.call_args.args[1].endswith("/api/now/ui/meta/incident")
+    assert choices == [
+        {"label": "Inquiry / Help", "value": "inquiry"},
+        {"label": "Software", "value": "software"},
+    ]
