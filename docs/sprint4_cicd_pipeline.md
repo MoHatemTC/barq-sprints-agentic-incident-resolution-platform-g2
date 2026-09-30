@@ -3,14 +3,14 @@
 **Author:** Bassant Hossam , **Branch:** `CI/CD-pipeline-V2`
 
 ## Summary
-Every pull request runs the full automated test suite against real PostgreSQL, Redis and Qdrant containers, scores retrieval quality, and builds and boots the project Docker image. One final job, **`CI passed`**, succeeds only if all of them succeed, and branch protection requires it, so a red run cannot be merged.
+Every pull request runs the full automated test suite against real PostgreSQL, Redis and Qdrant containers, scores retrieval quality, and builds and boots the project Docker image. One final job, **`CI passed`**, succeeds only if all of them succeed. It is the required status check for branch protection, so a red run cannot be merged.
 
 | Deliverable | Where |
 |---|---|
 | Workflow definition | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) |
 | Repository with the active workflow | https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2/actions/workflows/ci.yml |
 | Green run | [run 36769498275](https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2/actions/runs/36769498275) on PR [#36](https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2/pull/36) |
-| Red run (merge blocked) | __RED_RUN__ |
+| Red run (intentional failure) | [run 36770418206](https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2/actions/runs/36770418206) on PR [#37](https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2/pull/37) |
 | Deep reference (caching, eval gate, local runs) | [`docs/CI_CD.md`](CI_CD.md) |
 
 ---
@@ -124,7 +124,7 @@ So a broken Dockerfile, a missing dependency or an API that crashes on startup a
 - `CI passed` runs with `if: always()` and fails when any required job ended in `failure`, `cancelled` or `skipped`. A skipped job can therefore never pass as green.
 
 **Branch protection**
-- `main` and `development` require the status check **`CI passed`** before merging, and require PRs to be up to date.
+- The pipeline gives branch protection one check to require: **`CI passed`**. The repository owner configures the rule for `main` and `development`: require a PR, require **`CI passed`**, and require the branch to be up to date.
 - Because only this one gate check is required, adding a job to the pipeline only means adding it to the gate's `needs:`.
 
 **Green run: all checks pass, PR mergeable**
@@ -143,9 +143,37 @@ So a broken Dockerfile, a missing dependency or an API that crashes on startup a
 
 The companion workflows on the same PR also passed: [Live ServiceNow tests](https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2/actions/runs/36769498324) and [PDF extractor tests](https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2/actions/runs/36769498243). The PR's merge state was `CLEAN` (mergeable).
 
-**Red run: one failing test, merge blocked**
+**Red run: one failing test fails the gate**
 
-__RED_EVIDENCE__
+PR [#37](https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2/pull/37) (`ci-red-demo → development`) adds only `tests/test_ci_red_demo.py`, a single test that does `assert False`. [Run 36770418206](https://github.com/MoHatemTC/barq-sprints-agentic-incident-resolution-platform-g2/actions/runs/36770418206), 2026-09-30:
+
+| Job | Result |
+|---|---|
+| Lint (ruff) | ✅ success |
+| Unit tests | ❌ **failure**: `1 failed, 460 passed, 9 skipped` |
+| Integration tests (Postgres + Redis + Qdrant) | ✅ success |
+| Evaluation gate | ✅ success |
+| Docker image + Compose smoke test | ✅ success |
+| **CI passed** | ❌ **failure**: `Required jobs did not succeed: unit-tests` |
+| Publish image to GHCR | skipped |
+
+One failing test out of ~460 was enough to turn the required check red, even though every other job passed.
+
+![PR #37 checks: CI passed and Unit tests failing, 8 successful](images/ci-red-pr-checks.png)
+
+![Unit tests job: test_ci_blocks_merge_on_failure fails with AssertionError](images/ci-red-unit-failure.png)
+
+`CI passed` job log:
+```
+lint: success
+unit-tests: failure
+integration-tests: success
+eval-gate: success
+docker: success
+##[error]Required jobs did not succeed: unit-tests
+```
+
+With **`CI passed`** set as a required status check, GitHub disables the merge button while that check is red. The PR was closed without merging and the `ci-red-demo` branch deleted.
 
 ---
 
