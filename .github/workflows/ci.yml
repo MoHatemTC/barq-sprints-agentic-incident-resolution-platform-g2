@@ -27,13 +27,12 @@ env:
 
   #  App configuration for CI (replaces .env, which is never committed)
   # Service containers (only running in the integration / eval jobs)
+  # Postgres credentials come from the CI_POSTGRES_* repository secrets
   POSTGRES_HOST: localhost
   POSTGRES_PORT: "5432"
-  POSTGRES_USER: app
-  POSTGRES_PASSWORD: app
   POSTGRES_DB: orchestrator
-  DATABASE_URL: postgresql://app:app@localhost:5432/orchestrator
-  PG_CONN_STRING: postgresql://app:app@localhost:5432/orchestrator
+  DATABASE_URL: postgresql://${{ secrets.CI_POSTGRES_USER }}:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/orchestrator
+  PG_CONN_STRING: postgresql://${{ secrets.CI_POSTGRES_USER }}:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/orchestrator
   REDIS_HOST: localhost
   REDIS_PORT: "6379"
   REDIS_DB: "0"
@@ -115,11 +114,11 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_DB: orchestrator
-          POSTGRES_USER: app
-          POSTGRES_PASSWORD: app
+          POSTGRES_USER: ${{ secrets.CI_POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U app -d orchestrator"
+          --health-cmd "pg_isready -d orchestrator"
           --health-interval 5s --health-timeout 5s --health-retries 10
       redis:
         image: redis:7-alpine
