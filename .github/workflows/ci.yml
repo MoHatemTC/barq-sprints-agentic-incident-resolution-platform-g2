@@ -8,10 +8,11 @@ on:
     branches: [main, development]
   workflow_dispatch:
 
-# A newer push to the same branch/PR cancels the run in progress.
+# A newer push to the same PR cancels the run in progress. Pushes to main /
+# development are never cancelled, so every merge gets a full run (and publish).
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -136,6 +137,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+      # The qdrant image has no shell tools for a --health-cmd, so wait here
+      - name: Wait for Qdrant
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS localhost:6333/readyz && exit 0
+            sleep 2
+          done
+          echo "::error::Qdrant did not become ready"
+          exit 1
       - name: Apply database migrations
         run: alembic upgrade head
       - name: pytest (Postgres + Redis + Qdrant)
@@ -174,6 +184,14 @@ jobs:
             echo "::error::LITELLM_API_KEY secret is not set and there is no embedding cache. Add the LITELLM_* repository secrets (docs/CI_CD.md)."
             exit 1
           fi
+      - name: Wait for Qdrant
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS localhost:6333/readyz && exit 0
+            sleep 2
+          done
+          echo "::error::Qdrant did not become ready"
+          exit 1
       - name: Ingest the KB snapshot into a fresh Qdrant
         run: python -m src.retrieval.ingest local
       - name: Score dense / hybrid / hybrid_rerank
