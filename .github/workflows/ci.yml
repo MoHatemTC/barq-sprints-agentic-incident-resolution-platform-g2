@@ -197,6 +197,18 @@ jobs:
         run: python eval/ablation.py --k 5
       - name: Compare against eval/thresholds.json
         run: python eval/gate.py
+      # Sprint 4 DeepEval regression suite: runs as soon as the file lands in
+      # the repo; a non-zero exit (a metric below its threshold) fails the job.
+      - name: DeepEval regression suite
+        env:
+          DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+        run: |
+          if [ ! -f eval/deepeval_regression.py ]; then
+            echo "::notice::eval/deepeval_regression.py not present yet; DeepEval step skipped"
+            exit 0
+          fi
+          pip install deepeval
+          python eval/deepeval_regression.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
