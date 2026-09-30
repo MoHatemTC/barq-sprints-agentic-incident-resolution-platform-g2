@@ -2,6 +2,7 @@
 
 > Every push is checked automatically on a clean machine. If everything passes on `main`, a ready-to-run Docker image is published.
 > PRD: **D-09**, **NFR-10**, **FR-20** (retrieval part).
+> Sprint 4 deliverable (triggers, services, Docker, merge-blocking evidence, runtime): [`sprint4_cicd_pipeline.md`](sprint4_cicd_pipeline.md).
 
 ---
 
@@ -36,7 +37,7 @@ flowchart LR
 
 ## 3. `ci.yml`: the main pipeline
 
-All 5 jobs start **at the same time**. Total time = the slowest job.
+All 5 checks start **at the same time**. Total time = the slowest job. Then the **`CI passed`** gate collects their results.
 
 ```mermaid
 flowchart TD
@@ -45,10 +46,10 @@ flowchart TD
     L[🧹 Lint<br/>ruff]
     U[🧪 Unit tests<br/>no services]
     I[🔌 Integration tests<br/>Postgres · Redis · Qdrant]
-    E[📊 Eval gate<br/>retrieval quality]
+    E[📊 Eval gate<br/>retrieval quality + DeepEval]
     D[🐳 Docker<br/>build + start stack]
 
-    L & U & I & E & D --> OK{all green?}
+    L & U & I & E & D --> OK{🚦 CI passed<br/>all 5 = success?}
     OK -- no --> RED([❌ PR blocked])
     OK -- "yes (PR)" --> GREEN([✅ ready to merge])
     OK -- "yes (main)" --> PUB[📦 Publish<br/>ghcr.io · tags sha-xxx + latest]
@@ -58,10 +59,15 @@ flowchart TD
 |---|---|---|
 | Lint | Syntax errors, undefined names | `ruff check .` |
 | Unit | ~415 tests, no services needed | `pytest -m "not integration" -n auto` |
-| Integration | ~150 tests on real Postgres, Redis, Qdrant | `alembic upgrade head` → `pytest -m integration` |
-| Eval gate | Search quality didn't get worse | `ingest local` → `ablation.py` → `gate.py` |
+| Integration | ~150 tests on real Postgres, Redis, Qdrant | wait for Qdrant → `alembic upgrade head` → `pytest -m integration` |
+| Eval gate | Search quality didn't get worse | wait for Qdrant → `ingest local` → `ablation.py` → `gate.py` → DeepEval (if present) |
 | Docker | Image builds, API starts | `docker build` → `compose up` → `curl /health /ready` |
+| **CI passed** | Every job above ended in `success` (failed, cancelled **or skipped** = ❌) | `jq` over `needs` |
 | Publish | *main only, after all green* | push image to GHCR |
+
+**`CI passed` is the only check branch protection requires.** New job? Add it to the gate's `needs:` in `ci.yml`; the protection rules stay the same.
+
+**Cancelling:** a new push to the same PR cancels the older run. Pushes to `main` / `development` are never cancelled, so every merge gets a full run (and publish).
 
 ---
 
@@ -76,6 +82,7 @@ sequenceDiagram
 
     GH->>R: start job, checkout code
     GH->>S: start Postgres / Redis / Qdrant (if the job needs them)
+    S-->>GH: Postgres + Redis health checks green
     R->>C: restore .venv, models, embeddings
     alt cache hit
         C-->>R: ready in seconds
@@ -84,6 +91,7 @@ sequenceDiagram
         R->>C: save for next time
     end
     R->>R: env: from ci.yml (+ secrets)
+    R->>S: poll Qdrant /readyz (no health-check tools in its image)
     R->>S: run tests against localhost:5432 / 6379 / 6333
     R-->>GH: ✅ or ❌ + reports (artifacts)
 ```
@@ -137,6 +145,9 @@ Current floors: dense hit@5 **0.406** · hybrid **0.375** · hybrid_rerank **0.4
 | Improved retrieval | Raise the floors in `thresholds.json` in the same PR |
 | Changed the KB in ServiceNow | `python -m scripts.export_kb_snapshot` → commit → update floors |
 | Want LLM-judge scores (faithfulness…) | Write them into the results JSON + add floors. `gate.py` needs no change |
+| Add the DeepEval regression suite | Put it at `eval/deepeval_regression.py`, exit non-zero on failure, pin `deepeval` in `requirements.txt` |
+
+**DeepEval step:** runs after `gate.py`, only if `eval/deepeval_regression.py` exists (until then it logs a notice and passes). It installs `deepeval`, runs the file with the `LITELLM_*` secrets, and a non-zero exit fails the eval gate → `CI passed` → merge blocked.
 
 ⚠️ Known: hybrid doesn't beat dense yet (NFR-08), and KB0013–KB0026 aren't published in ServiceNow.
 
@@ -172,6 +183,8 @@ sequenceDiagram
 
 | Secret | Value from | Used by |
 |---|---|---|
+| `CI_POSTGRES_USER` | any name that appears nowhere else, e.g. `barq_ci` (secrets are masked in logs, so `app` would hide every "app") | ci.yml, live-servicenow.yml (throwaway Postgres container) |
+| `CI_POSTGRES_PASSWORD` | random, e.g. `python -c "import secrets; print(secrets.token_urlsafe(24))"` | ci.yml, live-servicenow.yml |
 | `LITELLM_BASE_URL` | `.env` | ci.yml (integration, eval) |
 | `LITELLM_API_KEY` | `.env` | ci.yml (integration, eval) |
 | `LITELLM_EMBEDDING_MODEL` | `.env` | ci.yml (integration, eval) |
@@ -184,11 +197,11 @@ sequenceDiagram
 | `INCIDENT_NUMBER` | `INC0010273` | live-servicenow.yml |
 
 Then:
-1. **Settings → Branches →** protect `main`: *Require status checks* → Lint, Unit tests, Integration tests, Evaluation gate, Docker. (They appear after the first run.)
+1. **Settings → Branches →** protect `main` **and** `development`: *Require a pull request*, *Require status checks* → **`CI passed`** (appears after its first run), *Require branches to be up to date*.
 2. **Settings → Actions → General:** allow actions from GitHub + `docker/*` + `astral-sh/*`.
 3. After the first publish: **Packages** → make the image public if needed.
 
-🔒 Never commit `.env`. Never put a real value in `ci.yml`.
+🔒 Never commit `.env`. Never put a real value (no password, not even a throwaway one) in `ci.yml`.
 
 ---
 
@@ -236,3 +249,5 @@ git restore eval/results/                       # ablation overwrites the Sprint
 | `data/kb_dataset.json` | KB snapshot for the eval gate |
 | `scripts/export_kb_snapshot.py` | Refresh that snapshot |
 | `eval/gate.py` · `eval/thresholds.json` | The gate and its floors |
+| `eval/deepeval_regression.py` | DeepEval regression suite (not added yet; CI runs it once it exists) |
+| `docs/sprint4_cicd_pipeline.md` | Sprint 4 deliverable: evidence + runtime profile |
