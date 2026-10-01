@@ -33,15 +33,18 @@ Usage:
 import sys
 import json
 import html
+import re
+import base64
+import getpass
 import argparse
 
 import httpx
 
 from pathlib import Path
 
-from ..config import SERVICENOW, PATHS
+from ..config import SERVICENOW, PATHS, RETRIEVAL
 from .servicenow_auth import ServiceNowOAuthClient, ServiceNowAuthError
-from .manual_parser import ManualSection, parse_manual
+from .manual_parser import ManualSection, parse_manual, read_pages, read_toc
 from .schema import Article
 from src.servicenow.client import _same
 from src.servicenow.exceptions import ServiceNowWriteNotAppliedError
@@ -66,14 +69,43 @@ def _load_category_mapping(path: str = None) -> dict:
 _CATEGORY_MAPPING = _load_category_mapping()
 
 
-def section_to_article(section: ManualSection) -> Article:
+FORMATTED_PATH = Path("data/manual_formatted.json")   # written by tools/format_manual.py
+
+
+def _load_formatted() -> dict:
+    """section_label -> readable article HTML (sections not yet formatted are missing)."""
+    if not FORMATTED_PATH.exists():
+        return {}
+    entries = json.loads(FORMATTED_PATH.read_text(encoding="utf-8"))
+    return {label: e["html"] for label, e in entries.items() if e.get("html")}
+
+
+def article_title(section: ManualSection, chapters: dict[str, str]) -> str:
+    """'KB0004 – Print jobs…', 'Appendix B.4 – Knowledge article proposal', '9.3 Timeline – Major incident report…'."""
+    if section.kb_number:
+        return section.title
+    name = section.title.lstrip("· ").strip()
+    sid = section.section_id
+    if sid.startswith("Appendix"):
+        name = re.sub(rf"^{re.escape(sid.removeprefix('Appendix '))}\s+", "", name)   # "B.4 Knowledge…" -> "Knowledge…"
+        return f"{sid} – {name}"
+    if not name:
+        return sid                                                        # "Document control"
+    chapter, _, sub = sid.partition(".")
+    if not sub:
+        return f"Chapter {sid} – {name}"
+    return f"{sid} {name} – {chapters[chapter]}" if chapters.get(chapter) else f"{sid} {name}"
+
+
+def section_to_article(section: ManualSection, chapters: dict[str, str] | None = None,
+                       body: str | None = None) -> Article:
     """One manual section -> the canonical Article the payload is built from."""
     return Article(
         sys_id="",
         number=section.kb_number or section.section_label,
         article_id=section.section_label,  # unique per section, incl. "6.13 KB0010 v1" / "v2"
-        title=f"{section.section_label} {section.title}".strip(),
-        body=section.text,
+        title=article_title(section, chapters or {}),
+        body=body or html.escape(section.text, quote=False),   # always HTML
         category=section.category,
         service=section.service,
         workflow_state=section.workflow_state,
@@ -83,7 +115,10 @@ def section_to_article(section: ManualSection) -> Article:
 
 
 def load_manual_articles(pdf_path: str = None) -> list[Article]:
-    return [section_to_article(s) for s in parse_manual(pdf_path)]
+    pdf_path = pdf_path or RETRIEVAL.manual_pdf_path
+    chapters = {sid: title for sid, title in read_toc(read_pages(pdf_path)).items() if sid.isdigit()}
+    formatted = _load_formatted()
+    return [section_to_article(s, chapters, formatted.get(s.section_label)) for s in parse_manual(pdf_path)]
 
 
 def _split_publishable(articles: list[Article]) -> tuple[list[Article], list[Article]]:
@@ -113,15 +148,14 @@ def save_mapping(mapping: dict, path: str = None) -> None:
         json.dump(mapping, f, indent=2, sort_keys=True)
 
 
-def _build_payload(article) -> dict:
+def _build_payload(article, body_is_html: bool = False) -> dict:
     """
     Convert the canonical Article into the ServiceNow kb_knowledge payload.
+    Manual articles are already HTML (body_is_html); other bodies are plain text.
     """
     payload = {
         "short_description": article.title,
-        # kb_knowledge.text is HTML: escape so placeholders like "<name>" in the
-        # manual's templates (Appendix B) are kept, not stripped as unknown tags.
-        "text": html.escape(article.body, quote=False),
+        "text": article.body if body_is_html else html.escape(article.body, quote=False),
         "workflow_state": article.workflow_state,
     }
 
@@ -309,7 +343,7 @@ def _dry_run(articles, mapping: dict, skipped: int) -> dict:
     stats = {"would_create": 0, "would_update": 0, "skipped_dry_run": 0,
              "skipped_not_published": skipped, "failed": []}
     for article in articles:
-        payload = _build_payload(article)
+        payload = _build_payload(article, body_is_html=True)
         action = "UPDATE" if article.article_id in mapping else "CREATE"
         print(f"[dry-run] would {action} {article.article_id} [{payload['workflow_state']}]: "
               f"{payload['short_description']}")
@@ -374,7 +408,16 @@ def publish_article(article) -> dict:
     return {"status": status, "article_number": article.number, "sys_id": sys_id}
 
 
-def publish(pdf_path: str = None, dry_run: bool = False) -> dict:
+class AdminBasicAuth:
+    def __init__(self, username: str, password: str):
+        token = base64.b64encode(f"{username}:{password}".encode()).decode()
+        self._headers = {"Authorization": f"Basic {token}", "Accept": "application/json"}
+
+    def auth_headers(self) -> dict:
+        return dict(self._headers)
+
+
+def publish(pdf_path: str = None, dry_run: bool = False, auth=None) -> dict:
     articles, skipped = _split_publishable(load_manual_articles(pdf_path))
     mapping = load_mapping()
 
@@ -383,7 +426,7 @@ def publish(pdf_path: str = None, dry_run: bool = False) -> dict:
         print(f"\nPublish complete (dry-run): {stats}")
         return stats
 
-    auth = ServiceNowOAuthClient()
+    auth = auth or ServiceNowOAuthClient()
     stats = {"created": 0, "updated": 0, "skipped_unchanged": 0,
              "skipped_not_published": len(skipped), "failed": []}
 
@@ -399,7 +442,7 @@ def _publish_articles(articles, mapping: dict, stats: dict, auth: ServiceNowOAut
     with httpx.Client(timeout=15) as client:
 
         for article in articles:
-            payload = _build_payload(article)
+            payload = _build_payload(article, body_is_html=True)
             known_sys_id = mapping.get(article.article_id)
 
             try:
@@ -485,10 +528,16 @@ if __name__ == "__main__":
                         help="defaults to MANUAL_PDF_PATH")
     parser.add_argument("--dry-run", action="store_true",
                          help="Print what would be published without calling ServiceNow")
+    parser.add_argument("--admin", action="store_true",
+                        help="Prompt for a ServiceNow admin username/password (needed to edit published articles)")
     args = parser.parse_args()
 
+    auth = None
+    if args.admin:
+        auth = AdminBasicAuth(input("ServiceNow admin username: ").strip(),
+                              getpass.getpass("ServiceNow admin password: "))
     try:
-        publish(args.pdf_path, dry_run=args.dry_run)
+        publish(args.pdf_path, dry_run=args.dry_run, auth=auth)
     except ServiceNowAuthError as e:
         print(f"\nCannot publish: {e}")
         sys.exit(1)
