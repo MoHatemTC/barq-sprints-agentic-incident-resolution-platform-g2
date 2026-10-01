@@ -50,13 +50,18 @@ def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
             chunks = search(query=text, filters=filters)
 
         retrieved = [
-            {
-                "id": chunk.number or chunk.point_id,
-                "text": chunk.text,
-                "score": chunk.score,
-            }
-            for chunk in chunks
-        ]
+    {
+        "id": chunk.number or chunk.point_id,
+        "section": chunk.section,
+        "section_id": chunk.payload.get("section_id") or chunk.section,
+        "section_label": chunk.payload.get("section_label", ""),
+        "title": chunk.payload.get("title", ""),
+        "source": chunk.payload.get("source", ""),
+        "text": chunk.text,
+        "score": chunk.score,
+    }
+    for chunk in chunks
+]
 
         if not retrieved:
             logger.warning(f"Retrieval returned no results (query='{text[:60]}')")

@@ -50,3 +50,7 @@ data/servicenow_kb_mapping.bak-*.json
 
 #claude code memory
 CLAUDE.local.md
+# Local evaluation artifacts
+.deepeval/
+.embedding_cache/
+eval/results/
