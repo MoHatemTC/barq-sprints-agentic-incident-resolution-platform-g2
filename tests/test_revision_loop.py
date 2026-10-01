@@ -32,6 +32,7 @@ from src.agent.graph import create_graph
 
 def _fake_chunk(kb_id: str = "KB0001") -> MagicMock:
     chunk = MagicMock()
+    chunk.payload = {"category": "network"}
     chunk.number = kb_id
     chunk.point_id = kb_id
     chunk.text = f"Procedure for issue referenced by {kb_id}."

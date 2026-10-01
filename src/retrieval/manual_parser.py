@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import pymupdf
 
-from ..config import RETRIEVAL
+from ..config import INCIDENT_CATEGORIES, RETRIEVAL
 
 # Repeated on every page -> removed (the dataset forbids "header_footer_noise").
 NOISE = {"BARQ Systems – IT Service Operations Manual", "INTERNAL DOCUMENT", "Edition 4.0"}
@@ -23,9 +23,8 @@ TOC = re.compile(r"^(\d{1,2}(?:\.\d{1,2})?|Appendix [A-E]|Document control)\.?\s
 SUB_APPENDIX = re.compile(r"^([A-E])\.(\d) \S")                   # "B.1 Escalation handover"
 KB_REVISION = re.compile(r"^Version (\d) – (retired|published) ", re.M)  # "Version 1 – retired 02 April 2026"
 
-# Sections are filed under ServiceNow's incident categories (incident.category choices), so the
+# Sections are filed under ServiceNow's incident categories (config.INCIDENT_CATEGORIES), so the
 # retrieval category filter compares an incident's category with an article's like for like.
-INCIDENT_CATEGORIES = ("inquiry", "software", "hardware", "network", "database", "password_reset")
 # Sections whose text has no "Category" line: KB0010 (software in 6.2's symptom finder) and
 # chapter 9, the major incident report on that same order service.
 CATEGORY_FALLBACK = {"6.13": "software", "9": "software"}

@@ -108,6 +108,9 @@ def _csv_env(name: str, default: str) -> tuple[str, ...]:
     return tuple(item.strip() for item in raw.split(",") if item.strip())
 
 
+# ServiceNow's incident.category choices
+INCIDENT_CATEGORIES = ("inquiry", "software", "hardware", "network", "database", "password_reset")
+
 RETRIEVAL_MODES = ("dense", "hybrid", "hybrid_rerank")
 
 

@@ -66,6 +66,7 @@ class FakeServiceNow:
 
 def _chunk():
     chunk = MagicMock()
+    chunk.payload = {"category": "network"}
     chunk.number = "KB0001"
     chunk.point_id = "p1"
     chunk.text = "Reset the VPN credentials"

@@ -16,6 +16,7 @@ def _paused(graph, thread_id):
 
 def _fake_chunk():
     chunk = MagicMock()
+    chunk.payload = {"category": "network"}
     chunk.number = "KB0001"
     chunk.point_id = "p1"
     chunk.text = "Reset the VPN credentials"
@@ -205,6 +206,7 @@ def test_revised_draft_resolves_critic_flagged_issue(
     import json
 
     chunk = MagicMock()
+    chunk.payload = {"category": "network"}
     chunk.number = "KB0001"
     chunk.point_id = "KB0001"
     chunk.text = "Procedure: restart the service to resolve login failures."

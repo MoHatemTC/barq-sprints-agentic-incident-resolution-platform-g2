@@ -16,6 +16,8 @@ from ..config import RETRIEVAL
 class RetrievalFilters:
     # Optional: set any of these to narrow the search (None = don't filter on it).
     category: str | None = None
+    # Any of these categories: the agent's corrected guesses when the incident's category had no match.
+    categories: tuple[str, ...] | None = None
     service: str | None = None
     version: int | None = None
     # S2.6: which half of the corpus to search. The KB articles and the manual's
@@ -61,6 +63,8 @@ def build_qdrant_filter(filters: RetrievalFilters | None = None) -> models.Filte
         value = getattr(f, key)
         if value is not None:
             must.append(_equals(key, value))
+    if f.categories:
+        must.append(_in("category", f.categories))
 
     # S2.6: the two halves of the shared collection. See RetrievalFilters.
     if f.is_stressor is True:
