@@ -8,6 +8,7 @@ from src.agent.nodes.load import load_node
 from src.agent.nodes.validate import validate_node
 from src.agent.nodes.classify import classify_node
 from src.agent.nodes.determine_risk import determine_risk_node
+from src.agent.nodes.formulate_query import formulate_query_node
 from src.agent.nodes.retrieve import retrieve_node
 from src.agent.nodes.diagnose import diagnose_node
 from src.agent.nodes.generate import generate_node
@@ -38,10 +39,17 @@ def route_after_validate(state: AgentState) -> str:
     return "classify"
 
 def route_after_risk(state: AgentState) -> str:
-    """Route high-risk incidents to human review before automated action."""
+    """Route high-risk incidents to human review before automated action.
+
+    After a human approval the gate is already satisfied — do not re-open it
+    when the re-classification loop passes through determine_risk a second time.
+    """
+    decision = state.get("human_decision") or {}
+    if decision.get("decision") == "approve":
+        return "formulate_query"
     if state.get("risk") == "high":
         return "prepare_review"
-    return "retrieve"
+    return "formulate_query"
 
 
 def route_after_retrieve(state: AgentState) -> str:
@@ -101,12 +109,13 @@ def route_after_critic(state: AgentState) -> str:
 
 def route_after_human_review(state: AgentState) -> str:
     """After approval, enrich with KB evidence and generate resolution before writing."""
+
     decision = state.get("human_decision") or {}
     if (
         decision.get("decision") == "approve"
         and state.get("human_solution")
     ):
-        return "retrieve"
+        return "classify"
     return "act"
 
 
@@ -243,6 +252,7 @@ def create_graph():
     workflow.add_node("validate", validate_node)
     workflow.add_node("classify", classify_node)
     workflow.add_node("determine_risk", determine_risk_node)
+    workflow.add_node("formulate_query", formulate_query_node)
     workflow.add_node("retrieve", retrieve_node)
     workflow.add_node("diagnose", diagnose_node)
     workflow.add_node("generate", generate_node)
@@ -277,8 +287,11 @@ def create_graph():
     workflow.add_conditional_edges(
         "determine_risk",
         route_after_risk,
-        {"retrieve": "retrieve", "prepare_review": "prepare_review"},
+        {"formulate_query": "formulate_query", "prepare_review": "prepare_review"},
     )
+
+    # Query formulation always goes to retrieve
+    workflow.add_edge("formulate_query", "retrieve")
 
     # Retrieval routing
     workflow.add_conditional_edges(
@@ -323,7 +336,7 @@ def create_graph():
     workflow.add_conditional_edges(
         "interrupt",
         route_after_human_review,
-        {"retrieve": "retrieve", "act": "act"},
+        {"classify": "classify", "act": "act"},
     )
 
     # act has written the outcome exactly once; an approved human

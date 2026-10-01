@@ -4,8 +4,10 @@ from src.agent.guardrails.input_screening import (
     screen_incident_payload,
     screen_for_injection,
     redact_sensitive_content,
+    mask_sensitive_with_llm,
     InjectionScreeningResult,
     RedactionResult,
+    LLMMaskingResult,
     ScreeningMetadata,
 )
 
@@ -24,8 +26,10 @@ __all__ = [
     "screen_incident_payload",
     "screen_for_injection",
     "redact_sensitive_content",
+    "mask_sensitive_with_llm",
     "InjectionScreeningResult",
     "RedactionResult",
+    "LLMMaskingResult",
     "ScreeningMetadata",
     "validate_agent_output",
     "validate_action",
@@ -36,3 +40,4 @@ __all__ = [
     "OutputScreeningResult",
     "SchemaValidationResult",
 ]
+
