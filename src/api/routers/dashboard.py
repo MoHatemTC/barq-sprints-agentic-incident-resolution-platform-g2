@@ -9,9 +9,11 @@ actual rows while S2.2's async wiring lands.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
@@ -21,6 +23,7 @@ from src.db.database import SessionLocal
 from src.db.models import Event, Execution, Failure, RetryState, WorkflowState
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/executions")
@@ -127,13 +130,40 @@ async def list_recent_executions(limit: int = 30):
 #   - one shared client, so the OAuth token is reused instead of fetched per poll;
 #   - a short server-side cache shared by every open tab, so N tabs polling every
 #     few seconds still cost at most one ServiceNow call per page per TTL;
-#   - if ServiceNow is slow or down, the last page is served (marked stale)
+#   - if ServiceNow is slow or down, the last page is served (marked delayed)
 #     instead of queueing requests behind it;
 #   - AI status comes from Postgres with a fixed 4 indexed queries per page.
+#
+# Freshness: every page carries synced_at, the moment it was read from
+# ServiceNow. Up to the cache TTL it is live; past STALE_AFTER_SECONDS it is
+# stale and the dashboard shows a warning. The last good page is never dropped.
 
 INCIDENT_CACHE_SECONDS = float(os.getenv("DASHBOARD_INCIDENT_CACHE_SECONDS", "10"))
+STALE_AFTER_SECONDS = float(os.getenv("DASHBOARD_STALE_AFTER_SECONDS", "30"))
 MAX_INCIDENT_PAGE = 500  # enough for the whole demo instance history (284 today)
 _MAX_CACHED_PAGES = 32
+
+
+def _sync_error_text(exc: Exception) -> str:
+    """One short line for the dashboard; the full error goes to the API log."""
+    from src.servicenow import exceptions as sn
+
+    if isinstance(exc, sn.ServiceNowNetworkError):
+        text = exc.message.lower()
+        cause = (
+            "timed out" if "timed out" in text or "timeout" in text
+            else "connection refused" if "refused" in text
+            else "address not found" if "resolve" in text or "name or service" in text
+            else "network error"
+        )
+        return f"ServiceNow could not be reached ({cause})"
+    if isinstance(exc, sn.ServiceNowAuthError):
+        return "ServiceNow rejected the integration login (401)"
+    if isinstance(exc, sn.ServiceNowPermissionError):
+        return "ServiceNow denied access to incidents (403)"
+    if isinstance(exc, sn.ServiceNowError):
+        return f"ServiceNow returned an error ({exc.status_code})"
+    return str(exc)[:200] or type(exc).__name__
 
 
 class _PageCache:
@@ -168,8 +198,9 @@ class _PageCache:
             try:
                 value = fetch()
             except Exception as exc:
+                logger.warning("Dashboard refresh from ServiceNow failed: %r", exc)
                 if entry:
-                    return entry[1], str(exc)
+                    return entry[1], _sync_error_text(exc)
                 raise
             with self._lock:
                 if len(self._entries) >= _MAX_CACHED_PAGES:
@@ -268,12 +299,20 @@ def _search_query(q: str | None) -> str | None:
     ) or None
 
 
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def _fetch_incident_page(limit: int, offset: int, query: str | None = None) -> dict:
     fields = _incident_fields()
     rows, total = _servicenow().list_incidents(
         list(fields.values()), limit=limit, offset=offset, query=query
     )
-    return {"incidents": [_incident_from_servicenow(r, fields) for r in rows], "total": total}
+    return {
+        "incidents": [_incident_from_servicenow(r, fields) for r in rows],
+        "total": total,
+        "synced_at": _utcnow(),
+    }
 
 
 def _live_graph():
@@ -402,18 +441,18 @@ def list_incidents(
     """ServiceNow incidents (newest first) with the latest AI run for each, if any.
 
     ``q`` searches the incident number and the words of the descriptions.
+    ``delayed``: the last refresh failed (``sync_error`` says why), so an older
+    copy is shown. ``stale``: that copy is older than STALE_AFTER_SECONDS.
     Plain def on purpose: FastAPI runs it in a worker thread, so a slow
     ServiceNow call never blocks the event loop that serves the webhook.
     """
     query = _search_query(q)
     try:
-        page, stale_error = _incident_pages.get(
+        page, sync_error = _incident_pages.get(
             (limit, offset, query), lambda: _fetch_incident_page(limit, offset, query)
         )
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Could not read incidents from ServiceNow: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=_sync_error_text(exc)) from exc
 
     numbers = [i["number"] for i in page["incidents"] if i["number"]]
     db = SessionLocal()
@@ -422,14 +461,19 @@ def list_incidents(
     finally:
         db.close()
 
+    age = max(0.0, (_utcnow() - page["synced_at"]).total_seconds())
     return {
         "incidents": [{**i, "execution": runs.get(i["number"])} for i in page["incidents"]],
         "total": page["total"],
         "limit": limit,
         "offset": offset,
         "q": q if query else None,
-        "stale": stale_error is not None,
-        "stale_reason": stale_error,
+        "synced_at": page["synced_at"].isoformat(),
+        "age_seconds": round(age, 1),
+        "stale_after_seconds": STALE_AFTER_SECONDS,
+        "stale": age > STALE_AFTER_SECONDS,
+        "delayed": sync_error is not None,
+        "sync_error": sync_error,
     }
 
 

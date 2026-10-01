@@ -333,6 +333,7 @@ h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.
 .review-h small { font-weight: 400; color: var(--ink-3); }
 .brief { padding: 12px 14px; border-radius: var(--radius-sm); background: var(--violet-soft); }
 .notice { padding: 10px 14px; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn-ink); font-size: 13px; }
+.sync-notice { margin-bottom: 12px; }
 .raw { margin-top: 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .raw summary { padding: 9px 12px; cursor: pointer; font-weight: 500; color: var(--ink-2); }
 .raw-body { padding: 0 12px 12px; }

@@ -43,6 +43,7 @@
   }
   function errorMessage(data, fallback) {
     if (!data) return fallback;
+    if (data.error && typeof data.error.message === 'string') return data.error.message; // src/api/exceptions.py
     if (typeof data.detail === 'string') return data.detail;
     if (Array.isArray(data.detail)) return data.detail.map((d) => d.msg).join('; ');
     return fallback;

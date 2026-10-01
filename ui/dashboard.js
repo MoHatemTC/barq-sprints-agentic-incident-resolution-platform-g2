@@ -41,6 +41,7 @@
     rows: new Map(), // sys_id -> row element
     waiting: new Set(), // sys_ids created here whose Business Rule has not fired yet
     latest: [],
+    syncedAt: null,  // when the list on screen was read from ServiceNow
   };
   const shownLimit = () => state.limit + state.extra;
   const statusOf = (item) => {
@@ -318,6 +319,40 @@
     $('m-avg').textContent = durations.length ? fmtDuration(durations.reduce((a, b) => a + b, 0) / durations.length) : '\u2014';
   }
 
+  /* ---------- sync status ----------
+     live: read from ServiceNow within the cache TTL (10s)
+     delayed: last refresh failed, the copy shown is still recent (badge only)
+     stale: the copy shown is older than stale_after_seconds (30s): warning banner */
+  function syncNotice(text) {
+    const box = $('syncNotice');
+    box.textContent = text || '';
+    box.hidden = !text;
+  }
+
+  function showSync(data) {
+    const reason = data.sync_error ? ' Last refresh failed: ' + data.sync_error + '.' : '';
+    if (data.stale) {
+      setConn('warn', 'ServiceNow stale');
+      syncNotice(`Showing ServiceNow data from ${fmtTime(data.synced_at)} (${Math.round(data.age_seconds)}s old).` +
+        reason + ' Retrying automatically.');
+    } else {
+      if (data.delayed) setConn('warn', 'ServiceNow delayed');
+      else setConn(state.live ? 'live' : 'ok', state.live ? 'Live' : 'Connected');
+      syncNotice('');
+    }
+  }
+
+  function showSyncFailure(err) {
+    // No status: the API itself did not answer. 502: the API is up but ServiceNow
+    // is not, and nothing is cached for this page yet (the message says why).
+    const what = !err.status ? 'The API cannot be reached (' + err.message + ')'
+      : err.status === 502 ? err.message : 'API error: ' + err.message;
+    setConn('err', !err.status ? 'API unreachable' : err.status === 502 ? 'ServiceNow unreachable' : 'API error');
+    if (state.syncedAt) {
+      syncNotice(`Showing data last synced at ${fmtTime(state.syncedAt)}. ${what}. Retrying automatically.`);
+    }
+  }
+
   /* ---------- polling ---------- */
   async function poll() {
     if (state.inflight) { state.again = true; return; }
@@ -328,19 +363,20 @@
         (q ? '&q=' + encodeURIComponent(q) : ''));
       if (q !== state.q) return; // the search changed while this was loading; the next poll shows it
       state.latest = data.incidents || [];
-      if (data.stale) setConn('warn', 'ServiceNow delayed');
-      else setConn(state.live ? 'live' : 'ok', state.live ? 'Live' : 'Connected');
+      state.syncedAt = data.synced_at;
+      showSync(data);
       render(state.latest);
       renderMetrics(state.latest);
       const total = data.total ?? state.latest.length;
-      $('updated').textContent = `${state.latest.length} of ${total} ${q ? 'matching' : 'in ServiceNow'} · Updated ` +
-        fmtTime(new Date().toISOString());
+      $('updated').textContent = `${state.latest.length} of ${total} ${q ? 'matching' : 'in ServiceNow'} · Synced ` +
+        fmtTime(data.synced_at);
       $('loadMore').hidden = state.latest.length >= total || shownLimit() >= 500;
     } catch (err) {
-      setConn('err', 'API unreachable');
+      showSyncFailure(err);
       if (state.firstLoad) {
         list.innerHTML = '';
-        showEmpty('Could not reach the API', 'Check the address in Connection settings (top right) and that the API is running.');
+        if (err.status === 502) showEmpty('Could not reach ServiceNow', err.message + '. The list loads as soon as ServiceNow answers.');
+        else showEmpty('Could not reach the API', 'Check the address in Connection settings (top right) and that the API is running.');
       }
     } finally {
       state.inflight = false;
