@@ -1,4 +1,4 @@
-﻿import json
+import json
 import pytest
 from src.agent.guardrails.input_screening import screen_incident_payload
 from src.agent.guardrails.output_validation import validate_agent_output
@@ -19,7 +19,7 @@ def test_adversarial_seed_set():
                 assert '[SCREENED_CONTENT]' in screened_payload['description']
             else:
                 assert meta.redaction_count > 0, f"Failed to flag {adv_type} case: {case['sys_id']}"
-                assert '[REDACTED_' in screened_payload['description']
+                assert '[REDACTED_' in screened_payload['description'] or '****' in screened_payload['description']
             
         elif adv_type == 'disallowed_action':
             state = {

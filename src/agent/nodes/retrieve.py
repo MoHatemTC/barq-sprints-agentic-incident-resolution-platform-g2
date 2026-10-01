@@ -29,7 +29,10 @@ def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
     # Use the formulated search_query if available, else fallback to standard text
     text = state.get("search_query")
     if not text:
-        text = f"{incident_text}\nHuman-provided resolution:\n{human_solution}" if human_solution else incident_text
+        text = incident_text
+        
+    if human_solution:
+        text = f"{text}\nHuman-provided resolution:\n{human_solution}"
 
     if not text.strip():
         logger.warning("Empty incident text; skipping retrieval")

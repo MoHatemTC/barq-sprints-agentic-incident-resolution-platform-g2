@@ -411,7 +411,7 @@ class TestLLMMaskingFunction:
 
         result = mask_sensitive_with_llm("my password is secret123")
         assert result.masked_text == "my password is secret123"
-        assert result.llm_used is True
+        assert result.llm_used is False
         assert "invocation_error" in result.llm_error
 
     @patch("src.agent.llm.get_llm")
@@ -591,8 +591,8 @@ class TestScreenIncidentPayloadWithLLM:
     def test_llm_misses_regex_catches_as_safety_net(self, mock_llm_mask):
         """LLM returns text unchanged; regex catches the API key."""
         original_text = "api_key=MYSUPERKEY12345678"
-        mock_llm_mask.return_value = LLMMaskingResult(
-            masked_text=original_text,  # LLM missed it
+        mock_llm_mask.side_effect = lambda text: LLMMaskingResult(
+            masked_text=text,  # LLM missed it
             detection_count=0,
             detection_types=[],
             llm_used=True,
@@ -610,8 +610,8 @@ class TestScreenIncidentPayloadWithLLM:
     @patch("src.agent.guardrails.input_screening.mask_sensitive_with_llm")
     def test_llm_error_pipeline_still_works(self, mock_llm_mask):
         """If LLM errors, text passes through and regex still runs."""
-        mock_llm_mask.return_value = LLMMaskingResult(
-            masked_text="password=hunter2",
+        mock_llm_mask.side_effect = lambda text: LLMMaskingResult(
+            masked_text=text,
             llm_used=True,
             llm_error="invocation_error: timeout",
         )
@@ -620,7 +620,7 @@ class TestScreenIncidentPayloadWithLLM:
             "description": "password=hunter2",
         }
         screened, meta = screen_incident_payload(payload)
-        assert meta.llm_masking_error == "invocation_error: timeout"
+        assert "invocation_error: timeout" in meta.llm_masking_error
         # Regex still catches it
         assert meta.redaction_count >= 1
         assert "hunter2" not in screened["description"]

@@ -24,14 +24,13 @@ def formulate_query_node(state: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning("Empty incident description. Skipping query formulation.")
         return {"search_query": ""}
 
-    llm = get_llm()
-    prompt = QUERY_GENERATION_PROMPT.format(
-        short_description=short_description,
-        description=description,
-        human_solution=human_solution
-    )
-    
     try:
+        llm = get_llm()
+        prompt = QUERY_GENERATION_PROMPT.format(
+            short_description=short_description,
+            description=description,
+            human_solution=human_solution
+        )
         response = llm.invoke(prompt)
         content = response.content if hasattr(response, "content") else str(response)
         
