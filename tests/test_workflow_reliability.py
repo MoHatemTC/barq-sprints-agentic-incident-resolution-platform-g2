@@ -227,9 +227,17 @@ def test_high_risk_request_skips_automatic_resolution():
     assert route_after_risk({"risk": "high"}) == "prepare_review"
 
 
-def test_approved_high_risk_routes_to_formulate_query():
-    assert route_after_human_review({"risk": "high", "human_decision": {"decision": "approve"}, "human_solution": "Restarted the service."}) == "formulate_query"
+def test_approved_high_risk_routes_to_classify():
+    """Approved high-risk with human_solution loops back through classify for re-evaluation."""
+    assert route_after_human_review({"risk": "high", "human_decision": {"decision": "approve"}, "human_solution": "Restarted the service."}) == "classify"
     assert route_after_human_review({"risk": "high", "human_decision": {"decision": "reject"}}) == "act"
+
+
+def test_approved_decision_bypasses_high_risk_gate():
+    """After an approval, route_after_risk must not re-open the high-risk gate."""
+    assert route_after_risk({"risk": "high", "human_decision": {"decision": "approve"}}) == "formulate_query"
+    # Without approval, the gate still fires
+    assert route_after_risk({"risk": "high"}) == "prepare_review"
 
 
 def test_approved_run_without_evidence_acts_instead_of_pausing_again():

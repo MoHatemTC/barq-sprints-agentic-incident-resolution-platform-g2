@@ -39,7 +39,14 @@ def route_after_validate(state: AgentState) -> str:
     return "classify"
 
 def route_after_risk(state: AgentState) -> str:
-    """Route high-risk incidents to human review before automated action."""
+    """Route high-risk incidents to human review before automated action.
+
+    After a human approval the gate is already satisfied — do not re-open it
+    when the re-classification loop passes through determine_risk a second time.
+    """
+    decision = state.get("human_decision") or {}
+    if decision.get("decision") == "approve":
+        return "formulate_query"
     if state.get("risk") == "high":
         return "prepare_review"
     return "formulate_query"
@@ -101,14 +108,15 @@ def route_after_critic(state: AgentState) -> str:
 
 
 def route_after_human_review(state: AgentState) -> str:
-    """After approval, enrich high-risk work with KB evidence before writing."""
+    """After approval, loop back through classify so the human feedback
+    can steer re-classification before retrieval and resolution."""
     decision = state.get("human_decision") or {}
     if (
         decision.get("decision") == "approve"
         and state.get("risk") == "high"
         and state.get("human_solution")
     ):
-        return "formulate_query"
+        return "classify"
     return "act"
 
 
@@ -329,7 +337,7 @@ def create_graph():
     workflow.add_conditional_edges(
         "interrupt",
         route_after_human_review,
-        {"formulate_query": "formulate_query", "act": "act"},
+        {"classify": "classify", "act": "act"},
     )
 
     # act has written the outcome exactly once; an approved human
