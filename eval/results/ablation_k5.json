@@ -5,173 +5,120 @@
   "deterministic": null,
   "summary": {
     "dense": {
-      "precision": 0.091,
-      "recall": 0.234,
-      "hit_rate": 0.281,
-      "mrr": 0.25,
+      "precision": 0.246,
+      "recall": 0.422,
+      "hit_rate": 0.469,
+      "mrr": 0.396,
       "planted_hits": 0,
-      "p50_ms": 820.8,
-      "p95_ms": 917.9
+      "p50_ms": 1014.0,
+      "p95_ms": 2559.9
     },
     "hybrid": {
-      "precision": 0.082,
-      "recall": 0.234,
-      "hit_rate": 0.281,
-      "mrr": 0.245,
+      "precision": 0.138,
+      "recall": 0.422,
+      "hit_rate": 0.469,
+      "mrr": 0.334,
       "planted_hits": 0,
-      "p50_ms": 821.8,
-      "p95_ms": 954.5
+      "p50_ms": 1032.8,
+      "p95_ms": 1311.6
     },
     "hybrid_rerank": {
-      "precision": 0.07,
-      "recall": 0.25,
-      "hit_rate": 0.281,
-      "mrr": 0.221,
+      "precision": 0.115,
+      "recall": 0.375,
+      "hit_rate": 0.406,
+      "mrr": 0.259,
       "planted_hits": 0,
-      "p50_ms": 3272.2,
-      "p95_ms": 3573.2
+      "p50_ms": 2177.9,
+      "p95_ms": 3603.5
     }
   },
   "by_source": {
     "coverage_matrix": {
       "dense": {
-        "precision": 0.117,
-        "recall": 0.318,
-        "hit_rate": 0.364,
-        "mrr": 0.318,
+        "precision": 0.301,
+        "recall": 0.5,
+        "hit_rate": 0.545,
+        "mrr": 0.462,
         "planted_hits": 0,
-        "p50_ms": 819.0,
-        "p95_ms": 916.6
+        "p50_ms": 1016.2,
+        "p95_ms": 4440.5
       },
       "hybrid": {
-        "precision": 0.098,
-        "recall": 0.295,
-        "hit_rate": 0.318,
-        "mrr": 0.288,
+        "precision": 0.168,
+        "recall": 0.5,
+        "hit_rate": 0.545,
+        "mrr": 0.409,
         "planted_hits": 0,
-        "p50_ms": 818.1,
-        "p95_ms": 928.8
+        "p50_ms": 1029.2,
+        "p95_ms": 1326.7
       },
       "hybrid_rerank": {
-        "precision": 0.081,
-        "recall": 0.295,
-        "hit_rate": 0.318,
-        "mrr": 0.254,
+        "precision": 0.126,
+        "recall": 0.432,
+        "hit_rate": 0.455,
+        "mrr": 0.27,
         "planted_hits": 0,
-        "p50_ms": 3394.1,
-        "p95_ms": 3630.6
+        "p50_ms": 2187.1,
+        "p95_ms": 3664.8
       }
     },
     "identifier_probe": {
       "dense": {
-        "precision": 0.033,
-        "recall": 0.05,
-        "hit_rate": 0.1,
-        "mrr": 0.1,
+        "precision": 0.125,
+        "recall": 0.25,
+        "hit_rate": 0.3,
+        "mrr": 0.25,
         "planted_hits": 0,
-        "p50_ms": 840.2,
-        "p95_ms": 932.6
+        "p50_ms": 996.9,
+        "p95_ms": 1163.2
       },
       "hybrid": {
-        "precision": 0.045,
-        "recall": 0.1,
-        "hit_rate": 0.2,
-        "mrr": 0.15,
+        "precision": 0.07,
+        "recall": 0.25,
+        "hit_rate": 0.3,
+        "mrr": 0.17,
         "planted_hits": 0,
-        "p50_ms": 879.0,
-        "p95_ms": 962.0
+        "p50_ms": 1069.5,
+        "p95_ms": 1306.1
       },
       "hybrid_rerank": {
-        "precision": 0.045,
-        "recall": 0.15,
-        "hit_rate": 0.2,
-        "mrr": 0.15,
+        "precision": 0.092,
+        "recall": 0.25,
+        "hit_rate": 0.3,
+        "mrr": 0.233,
         "planted_hits": 0,
-        "p50_ms": 1585.1,
-        "p95_ms": 3583.2
+        "p50_ms": 2173.2,
+        "p95_ms": 3377.1
       }
     }
   },
-  "sparse_wins": [
-    {
-      "query_id": "INC1011",
-      "query": "User locked out and also cannot connect VPN after password change this morning",
-      "expected": [
-        "KB0005",
-        "KB0001"
-      ],
-      "kind": "rank",
-      "recovered": [],
-      "dense_rank": 2,
-      "hybrid_rank": 1,
-      "dense_returned": [
-        "7.2",
-        "KB0005",
-        "KB0008",
-        "7.4"
-      ],
-      "hybrid_returned": [
-        "KB0005",
-        "7.2",
-        "KB0008"
-      ]
-    },
-    {
-      "query_id": "PROBE-08",
-      "query": "0x8004010F",
-      "expected": [
-        "KB0002",
-        "KB0025"
-      ],
-      "kind": "recovered",
-      "recovered": [
-        "KB0002"
-      ],
-      "dense_rank": null,
-      "hybrid_rank": 2,
-      "dense_returned": [
-        "8.3",
-        "Appendix E",
-        "",
-        "KB0004"
-      ],
-      "hybrid_returned": [
-        "7.3",
-        "KB0002",
-        "7.4",
-        "1.2",
-        "8.3"
-      ]
-    }
-  ],
+  "sparse_wins": [],
   "per_query": {
     "dense": [
       {
         "query_id": "INC0010023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 825.1,
+        "ms": 1070.3,
         "planted_hits": [],
-        "top_score": 0.7457,
+        "top_score": 0.8222,
         "returned": [
-          "7.2",
-          "KB0008",
-          "KB0005",
-          "7.4"
+          "KB0001",
+          "7.2"
         ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
       },
       {
         "query_id": "INC0010047",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 916.1,
+        "ms": 1056.5,
         "planted_hits": [],
-        "top_score": 0.7785,
+        "top_score": 0.7766,
         "returned": [
           "7.3",
           "KB0004"
@@ -181,51 +128,50 @@
         "query_id": "INC0010064",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 813.8,
+        "ms": 951.0,
         "planted_hits": [],
-        "top_score": 0.7502,
+        "top_score": 0.7542,
         "returned": [
           "7.4",
           "KB0003",
-          "6.2"
+          "KB0005"
         ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.3333333333333333,
+        "first_rank": 3
       },
       {
         "query_id": "INC0010052",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 822.9,
+        "ms": 995.9,
         "planted_hits": [],
-        "top_score": 0.723,
+        "top_score": 0.8175,
         "returned": [
+          "KB0010",
           "9.2",
-          "7.5",
-          "Appendix E"
+          "7.5"
         ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
       },
       {
         "query_id": "INC1006",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 819.0,
+        "ms": 956.7,
         "planted_hits": [],
-        "top_score": 0.8058,
+        "top_score": 0.792,
         "returned": [
           "KB0002",
-          "KB0008",
-          "6.2"
+          "KB0008"
         ],
-        "precision": 0.3333333333333333,
+        "precision": 0.5,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -235,13 +181,13 @@
         "query_id": "INC1007",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 817.3,
+        "ms": 951.1,
         "planted_hits": [],
-        "top_score": 0.6879,
+        "top_score": 0.6797,
         "returned": [
           "KB0003",
-          "11.5",
-          "8.3"
+          "6.1",
+          "KB0001"
         ],
         "precision": 0.0,
         "recall": 0.0,
@@ -253,9 +199,9 @@
         "query_id": "INC1008",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 823.0,
+        "ms": 972.7,
         "planted_hits": [],
-        "top_score": 0.6377,
+        "top_score": 0.6765,
         "returned": [
           "KB0009",
           "KB0007"
@@ -270,15 +216,14 @@
         "query_id": "INC1009",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 809.0,
+        "ms": 1050.6,
         "planted_hits": [],
-        "top_score": 0.8414,
+        "top_score": 0.8197,
         "returned": [
           "KB0008",
-          "8.3",
-          "Appendix E"
+          "8.3"
         ],
-        "precision": 0.3333333333333333,
+        "precision": 0.5,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -288,15 +233,13 @@
         "query_id": "INC1010",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 821.8,
+        "ms": 980.6,
         "planted_hits": [],
-        "top_score": 0.7854,
+        "top_score": 0.7767,
         "returned": [
-          "KB0009",
-          "Appendix E",
-          "8.3"
+          "KB0009"
         ],
-        "precision": 0.3333333333333333,
+        "precision": 1.0,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -306,34 +249,30 @@
         "query_id": "INC1011",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 822.4,
+        "ms": 960.1,
         "planted_hits": [],
-        "top_score": 0.7556,
+        "top_score": 0.7963,
         "returned": [
-          "7.2",
-          "KB0005",
-          "KB0008",
-          "7.4"
+          "KB0001",
+          "KB0005"
         ],
-        "precision": 0.25,
-        "recall": 0.5,
+        "precision": 1.0,
+        "recall": 1.0,
         "hit": true,
-        "rr": 0.5,
-        "first_rank": 2
+        "rr": 1.0,
+        "first_rank": 1
       },
       {
         "query_id": "INC1012",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 779.1,
+        "ms": 1015.1,
         "planted_hits": [],
-        "top_score": 0.7848,
+        "top_score": 0.7953,
         "returned": [
-          "KB0006",
-          "7.4",
-          "6.2"
+          "KB0006"
         ],
-        "precision": 0.3333333333333333,
+        "precision": 1.0,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -343,13 +282,14 @@
         "query_id": "INC1013",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 750.1,
+        "ms": 1333.6,
         "planted_hits": [],
-        "top_score": 0.6575,
+        "top_score": 0.681,
         "returned": [
           "KB0006",
+          "6.2",
           "KB0005",
-          "7.4"
+          "7.2"
         ],
         "precision": 0.0,
         "recall": 0.0,
@@ -361,12 +301,11 @@
         "query_id": "INC1014",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 820.0,
+        "ms": 962.4,
         "planted_hits": [],
-        "top_score": 0.6499,
+        "top_score": 0.6388,
         "returned": [
           "KB0007",
-          "Appendix E",
           "KB0009"
         ],
         "precision": 0.0,
@@ -379,55 +318,54 @@
         "query_id": "INC1015",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 835.4,
+        "ms": 976.5,
         "planted_hits": [],
-        "top_score": 0.6033,
+        "top_score": 0.6315,
         "returned": [
           "3.2",
+          "KB0006",
           "3.3",
-          "11",
-          "8.1",
-          "Appendix B.2"
+          "KB0010"
         ]
       },
       {
         "query_id": "INC1016",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 809.1,
+        "ms": 1012.8,
         "planted_hits": [],
-        "top_score": 0.6029,
+        "top_score": 0.603,
         "returned": [
-          "3.2",
-          "8.2",
-          "7.2",
+          "3.5",
           "3.4",
-          "4.1"
+          "1.2",
+          "11.2"
         ]
       },
       {
         "query_id": "INC1017",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 916.9,
+        "ms": 1031.7,
         "planted_hits": [],
-        "top_score": 0.575,
+        "top_score": 0.5858,
         "returned": [
+          "KB0003",
           "7.3",
-          "KB0004",
-          "Appendix B.1"
+          "KB0008",
+          "6.1"
         ]
       },
       {
         "query_id": "INC1018",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 818.9,
+        "ms": 977.1,
         "planted_hits": [],
-        "top_score": 0.6082,
+        "top_score": 0.6243,
         "returned": [
+          "KB0001",
           "KB0008",
-          "KB0005",
           "7.2"
         ]
       },
@@ -435,48 +373,49 @@
         "query_id": "INC1019",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 813.2,
+        "ms": 1028.3,
+        "planted_hits": [],
+        "top_score": 0.6557,
+        "returned": [
+          "7.2",
+          "KB0009",
+          "KB0001"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1020",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1051.1,
+        "planted_hits": [],
+        "top_score": 0.6644,
+        "returned": [
+          "KB0003",
+          "KB0002",
+          "7.4"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1021",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1041.2,
         "planted_hits": [],
         "top_score": 0.6683,
         "returned": [
-          "KB0008",
-          "KB0009",
-          "7.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1020",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 827.5,
-        "planted_hits": [],
-        "top_score": 0.6748,
-        "returned": [
-          "KB0002",
-          "KB0003"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1021",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 909.2,
-        "planted_hits": [],
-        "top_score": 0.6633,
-        "returned": [
+          "KB0001",
           "7.2",
-          "KB0008",
-          "Appendix E"
+          "KB0008"
         ],
         "precision": 0.0,
         "recall": 0.0,
@@ -488,13 +427,12 @@
         "query_id": "INC1022",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 817.3,
+        "ms": 1065.6,
         "planted_hits": [],
-        "top_score": 0.6444,
+        "top_score": 0.6057,
         "returned": [
           "KB0007",
-          "Appendix E",
-          "KB0009"
+          "Appendix E"
         ],
         "precision": 0.0,
         "recall": 0.0,
@@ -506,673 +444,14 @@
         "query_id": "INC1023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 820.8,
+        "ms": 968.7,
         "planted_hits": [],
-        "top_score": 0.8,
+        "top_score": 0.7963,
         "returned": [
           "KB0004",
-          "8.2",
-          "7.3"
-        ],
-        "precision": 0.3333333333333333,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      },
-      {
-        "query_id": "INC1024",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 820.9,
-        "planted_hits": [],
-        "top_score": 0.7662,
-        "returned": [
-          "KB0003",
-          "11.5",
-          "8.3"
-        ],
-        "precision": 0.3333333333333333,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      },
-      {
-        "query_id": "INC1025",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 816.6,
-        "planted_hits": [],
-        "top_score": 0.6106,
-        "returned": [
-          "7.2",
-          "3.2",
-          "KB0008",
-          "7.4"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1026",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 814.8,
-        "planted_hits": [],
-        "top_score": 0.5936,
-        "returned": [
-          "KB0007",
-          "Appendix E",
-          "KB0009"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1027",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 813.4,
-        "planted_hits": [],
-        "top_score": 0.6751,
-        "returned": [
-          "7.4",
-          "KB0005",
-          "KB0003"
-        ],
-        "precision": 0.3333333333333333,
-        "recall": 0.5,
-        "hit": true,
-        "rr": 0.5,
-        "first_rank": 2
-      },
-      {
-        "query_id": "INC1028",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 784.9,
-        "planted_hits": [],
-        "top_score": 0.6813,
-        "returned": [
-          "KB0008",
-          "8.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-01",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 853.9,
-        "planted_hits": [],
-        "top_score": 0.6608,
-        "returned": [
-          "KB0008",
-          "7.2",
-          "KB0005"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-02",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 926.8,
-        "planted_hits": [],
-        "top_score": 0.6061,
-        "returned": [
-          "KB0006",
-          "7.4",
-          "KB0008"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-03",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 813.1,
-        "planted_hits": [],
-        "top_score": 0.6248,
-        "returned": [
-          "",
-          "KB0008",
-          "8.3",
-          "6"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-04",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 829.0,
-        "planted_hits": [],
-        "top_score": 0.6221,
-        "returned": [
-          "KB0008",
-          "7.2",
-          "KB0004",
-          "Appendix E"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-05",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 914.0,
-        "planted_hits": [],
-        "top_score": 0.6355,
-        "returned": [
-          "KB0006",
-          "KB0005",
-          "KB0008"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-06",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 831.4,
-        "planted_hits": [],
-        "top_score": 0.6845,
-        "returned": [
-          "KB0005",
-          "7.4"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-07",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 912.9,
-        "planted_hits": [],
-        "top_score": 0.6204,
-        "returned": [
-          "8.3",
-          "Appendix B.1",
-          "5.3",
-          "7.4"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-08",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 810.5,
-        "planted_hits": [],
-        "top_score": 0.6112,
-        "returned": [
-          "8.3",
-          "Appendix E",
-          "",
-          "KB0004"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-09",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 787.4,
-        "planted_hits": [],
-        "top_score": 0.6149,
-        "returned": [
-          "Appendix B.1",
-          "5.3",
-          "11.3",
-          "",
-          "3.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-10",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 849.0,
-        "planted_hits": [],
-        "top_score": 0.7261,
-        "returned": [
-          "KB0008",
-          "8.3",
-          "KB0004"
-        ],
-        "precision": 0.3333333333333333,
-        "recall": 0.5,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      }
-    ],
-    "hybrid": [
-      {
-        "query_id": "INC0010023",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 811.7,
-        "planted_hits": [],
-        "top_score": 0.0313,
-        "returned": [
-          "7.2",
-          "KB0008",
-          "KB0005"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC0010047",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 817.8,
-        "planted_hits": [],
-        "top_score": 0.032,
-        "returned": [
-          "7.3",
-          "KB0004",
-          ""
-        ]
-      },
-      {
-        "query_id": "INC0010064",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 821.8,
-        "planted_hits": [],
-        "top_score": 0.0328,
-        "returned": [
-          "7.4",
-          "KB0003"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC0010052",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 928.3,
-        "planted_hits": [],
-        "top_score": 0.0325,
-        "returned": [
-          "9.2",
-          "9.3",
-          "7.5",
-          "Appendix E"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1006",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 810.0,
-        "planted_hits": [],
-        "top_score": 0.0323,
-        "returned": [
-          "KB0002",
-          "7.4",
-          "3.2",
-          ""
-        ],
-        "precision": 0.25,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      },
-      {
-        "query_id": "INC1007",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 812.0,
-        "planted_hits": [],
-        "top_score": 0.0298,
-        "returned": [
-          "KB0003",
-          "11.5",
-          "3.2",
-          ""
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1008",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 821.1,
-        "planted_hits": [],
-        "top_score": 0.0323,
-        "returned": [
-          "KB0009",
-          "9.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1009",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 821.9,
-        "planted_hits": [],
-        "top_score": 0.0328,
-        "returned": [
-          "KB0008",
-          "8.3",
-          "Appendix E"
-        ],
-        "precision": 0.3333333333333333,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      },
-      {
-        "query_id": "INC1010",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 802.7,
-        "planted_hits": [],
-        "top_score": 0.0318,
-        "returned": [
-          "8.3",
-          "Appendix E",
-          "KB0009"
-        ],
-        "precision": 0.3333333333333333,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 0.3333333333333333,
-        "first_rank": 3
-      },
-      {
-        "query_id": "INC1011",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 838.8,
-        "planted_hits": [],
-        "top_score": 0.0323,
-        "returned": [
-          "KB0005",
-          "7.2",
-          "KB0008"
-        ],
-        "precision": 0.3333333333333333,
-        "recall": 0.5,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      },
-      {
-        "query_id": "INC1012",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 805.9,
-        "planted_hits": [],
-        "top_score": 0.0325,
-        "returned": [
-          "KB0006",
-          "7.4",
-          "KB0005"
-        ],
-        "precision": 0.3333333333333333,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      },
-      {
-        "query_id": "INC1013",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 831.3,
-        "planted_hits": [],
-        "top_score": 0.0296,
-        "returned": [
-          "KB0005",
-          "6.2",
-          "KB0006",
-          "",
-          "11.6"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1014",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 794.0,
-        "planted_hits": [],
-        "top_score": 0.0282,
-        "returned": [
-          "8.2",
-          "2.1",
-          "KB0007",
-          ""
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1015",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 840.0,
-        "planted_hits": [],
-        "top_score": 0.0306,
-        "returned": [
-          "11",
-          "3.2",
-          "",
-          "3.3"
-        ]
-      },
-      {
-        "query_id": "INC1016",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 929.1,
-        "planted_hits": [],
-        "top_score": 0.0328,
-        "returned": [
-          "3.2",
-          "",
           "8.2"
-        ]
-      },
-      {
-        "query_id": "INC1017",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 811.5,
-        "planted_hits": [],
-        "top_score": 0.031,
-        "returned": [
-          "7.3",
-          ""
-        ]
-      },
-      {
-        "query_id": "INC1018",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 817.8,
-        "planted_hits": [],
-        "top_score": 0.0302,
-        "returned": [
-          "2.2",
-          "7.2",
-          "2.4",
-          "KB0008",
-          "KB0005"
-        ]
-      },
-      {
-        "query_id": "INC1019",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 811.9,
-        "planted_hits": [],
-        "top_score": 0.0318,
-        "returned": [
-          "KB0009",
-          "KB0008",
-          "7.2",
-          "7.4"
         ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1020",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 828.2,
-        "planted_hits": [],
-        "top_score": 0.0307,
-        "returned": [
-          "KB0002",
-          "7.4",
-          "KB0003"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1021",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 837.5,
-        "planted_hits": [],
-        "top_score": 0.032,
-        "returned": [
-          "7.2",
-          "7.4",
-          "KB0008",
-          ""
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1022",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 793.0,
-        "planted_hits": [],
-        "top_score": 0.029,
-        "returned": [
-          "Appendix B.3",
-          "7.2",
-          "KB0007",
-          ""
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1023",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 826.0,
-        "planted_hits": [],
-        "top_score": 0.0325,
-        "returned": [
-          "KB0004",
-          "8.2",
-          "8.3",
-          "Appendix E"
-        ],
-        "precision": 0.25,
+        "precision": 0.5,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -1182,15 +461,14 @@
         "query_id": "INC1024",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 812.8,
+        "ms": 1114.1,
         "planted_hits": [],
-        "top_score": 0.0328,
+        "top_score": 0.7999,
         "returned": [
           "KB0003",
-          "8.3",
-          "11.5"
+          "6.1"
         ],
-        "precision": 0.3333333333333333,
+        "precision": 0.5,
         "recall": 1.0,
         "hit": true,
         "rr": 1.0,
@@ -1200,701 +478,34 @@
         "query_id": "INC1025",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 823.4,
+        "ms": 6660.1,
         "planted_hits": [],
-        "top_score": 0.0308,
+        "top_score": 0.6362,
         "returned": [
-          "3.2",
-          "7.4",
-          "KB0005",
-          "KB0003"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1026",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 819.7,
-        "planted_hits": [],
-        "top_score": 0.0268,
-        "returned": [
-          "9.2",
-          "KB0004",
-          "3.2",
-          "KB0007"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1027",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 813.3,
-        "planted_hits": [],
-        "top_score": 0.0305,
-        "returned": [
-          "7.4",
-          "KB0003",
           "6.2",
-          ""
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1028",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 818.1,
-        "planted_hits": [],
-        "top_score": 0.0328,
-        "returned": [
-          "KB0008",
-          "8.3",
-          "9.2",
-          "Appendix E"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-01",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 819.2,
-        "planted_hits": [],
-        "top_score": 0.0284,
-        "returned": [
           "7.4",
-          "7.3",
-          "KB0008"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-02",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 801.9,
-        "planted_hits": [],
-        "top_score": 0.0302,
-        "returned": [
-          "7.4",
-          "7.3",
-          "KB0006"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-03",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 830.3,
-        "planted_hits": [],
-        "top_score": 0.0164,
-        "returned": [
-          "7.4",
-          "",
-          "KB0008",
-          "9.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-04",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 879.3,
-        "planted_hits": [],
-        "top_score": 0.0274,
-        "returned": [
-          "KB0002",
-          "7.3",
-          "KB0008",
-          "7.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-05",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 878.8,
-        "planted_hits": [],
-        "top_score": 0.0286,
-        "returned": [
-          "7.4",
-          "7.3",
-          "KB0006"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-06",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 953.9,
-        "planted_hits": [],
-        "top_score": 0.0293,
-        "returned": [
-          "7.4",
-          "KB0005",
-          "7.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-07",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 885.0,
-        "planted_hits": [],
-        "top_score": 0.0291,
-        "returned": [
-          "7.4",
-          "7.3",
-          "8.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-08",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 926.6,
-        "planted_hits": [],
-        "top_score": 0.0302,
-        "returned": [
-          "7.3",
-          "KB0002",
-          "7.4",
-          "1.2",
-          "8.3"
+          "KB0001",
+          "6.1",
+          "4.2"
         ],
         "precision": 0.2,
         "recall": 0.5,
-        "hit": true,
-        "rr": 0.5,
-        "first_rank": 2
-      },
-      {
-        "query_id": "PROBE-09",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 959.5,
-        "planted_hits": [],
-        "top_score": 0.0293,
-        "returned": [
-          "7.3",
-          "Appendix B.1",
-          "5.3",
-          "11.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-10",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 857.4,
-        "planted_hits": [],
-        "top_score": 0.0328,
-        "returned": [
-          "KB0008",
-          "8.3",
-          "1.2",
-          "7.3"
-        ],
-        "precision": 0.25,
-        "recall": 0.5,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      }
-    ],
-    "hybrid_rerank": [
-      {
-        "query_id": "INC0010023",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3472.7,
-        "planted_hits": [],
-        "top_score": 6.736,
-        "returned": [
-          "3.2",
-          "",
-          "7.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC0010047",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 3309.9,
-        "planted_hits": [],
-        "top_score": 4.7831,
-        "returned": [
-          "7.3",
-          ""
-        ]
-      },
-      {
-        "query_id": "INC0010064",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 2975.0,
-        "planted_hits": [],
-        "top_score": 5.8747,
-        "returned": [
-          "7.4",
-          "KB0003",
-          "11.5"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC0010052",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3417.0,
-        "planted_hits": [],
-        "top_score": 6.8038,
-        "returned": [
-          "9.2",
-          "9.3",
-          "7.5",
-          "Appendix E",
-          ""
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1006",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3486.1,
-        "planted_hits": [],
-        "top_score": 4.0489,
-        "returned": [
-          "KB0002",
-          "3.2",
-          "",
-          "Appendix E"
-        ],
-        "precision": 0.25,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      },
-      {
-        "query_id": "INC1007",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3676.6,
-        "planted_hits": [],
-        "top_score": -2.7137,
-        "returned": [
-          "",
-          "3.2",
-          "KB0003"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1008",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1690.3,
-        "planted_hits": [],
-        "top_score": -8.3286,
-        "returned": [
-          "KB0009",
-          "9.2",
-          "8.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1009",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3221.0,
-        "planted_hits": [],
-        "top_score": 7.7683,
-        "returned": [
-          "KB0008",
-          "8.3",
-          "Appendix E",
-          ""
-        ],
-        "precision": 0.25,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      },
-      {
-        "query_id": "INC1010",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3380.5,
-        "planted_hits": [],
-        "top_score": 5.1602,
-        "returned": [
-          "8.3",
-          "8.2",
-          "KB0009",
-          "Appendix E",
-          ""
-        ],
-        "precision": 0.2,
-        "recall": 1.0,
         "hit": true,
         "rr": 0.3333333333333333,
         "first_rank": 3
       },
       {
-        "query_id": "INC1011",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3404.1,
-        "planted_hits": [],
-        "top_score": 2.0279,
-        "returned": [
-          "3.2",
-          "",
-          "7.2",
-          "KB0005"
-        ],
-        "precision": 0.25,
-        "recall": 0.5,
-        "hit": true,
-        "rr": 0.25,
-        "first_rank": 4
-      },
-      {
-        "query_id": "INC1012",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3472.9,
-        "planted_hits": [],
-        "top_score": 3.4873,
-        "returned": [
-          "KB0006",
-          "",
-          "KB0005"
-        ],
-        "precision": 0.3333333333333333,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      },
-      {
-        "query_id": "INC1013",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3561.7,
-        "planted_hits": [],
-        "top_score": -7.7496,
-        "returned": [
-          "",
-          "7.4",
-          "KB0006"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1014",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 2844.8,
-        "planted_hits": [],
-        "top_score": -10.9109,
-        "returned": [
-          "",
-          "8.2",
-          "KB0007",
-          "Appendix E",
-          "7.5"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1015",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 3210.6,
-        "planted_hits": [],
-        "top_score": 4.9802,
-        "returned": [
-          "",
-          "3.2"
-        ]
-      },
-      {
-        "query_id": "INC1016",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 3394.1,
-        "planted_hits": [],
-        "top_score": 0.9847,
-        "returned": [
-          "",
-          "3.2",
-          "1.1",
-          "3.4"
-        ]
-      },
-      {
-        "query_id": "INC1017",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 3406.9,
-        "planted_hits": [],
-        "top_score": -6.9259,
-        "returned": [
-          "",
-          "KB0002",
-          "8.3",
-          "7.3"
-        ]
-      },
-      {
-        "query_id": "INC1018",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 2746.9,
-        "planted_hits": [],
-        "top_score": -5.1825,
-        "returned": [
-          "2.4",
-          "",
-          "2.2"
-        ]
-      },
-      {
-        "query_id": "INC1019",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3199.2,
-        "planted_hits": [],
-        "top_score": -2.4305,
-        "returned": [
-          "KB0009",
-          "",
-          "7.4",
-          "7.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1020",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3305.6,
-        "planted_hits": [],
-        "top_score": -2.5963,
-        "returned": [
-          "",
-          "KB0002",
-          "Appendix E",
-          "3.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1021",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3407.9,
-        "planted_hits": [],
-        "top_score": -2.2084,
-        "returned": [
-          "",
-          "7.2",
-          "KB0005"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1022",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3365.1,
-        "planted_hits": [],
-        "top_score": -5.9565,
-        "returned": [
-          "KB0006",
-          "",
-          "7.2",
-          "KB0007",
-          "KB0009"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "INC1023",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3494.0,
-        "planted_hits": [],
-        "top_score": 5.7951,
-        "returned": [
-          "KB0004",
-          "8.2",
-          "8.3",
-          "Appendix E"
-        ],
-        "precision": 0.25,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      },
-      {
-        "query_id": "INC1024",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3543.4,
-        "planted_hits": [],
-        "top_score": 2.6179,
-        "returned": [
-          "KB0003",
-          "8.3",
-          "Appendix E",
-          ""
-        ],
-        "precision": 0.25,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
-      },
-      {
-        "query_id": "INC1025",
-        "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3272.2,
-        "planted_hits": [],
-        "top_score": -3.6693,
-        "returned": [
-          "3.2",
-          "",
-          "KB0005",
-          "7.4"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
         "query_id": "INC1026",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 3408.7,
+        "ms": 988.7,
         "planted_hits": [],
-        "top_score": -9.8241,
+        "top_score": 0.5791,
         "returned": [
-          "",
-          "Appendix E",
           "KB0007",
-          "9.2"
+          "KB0009",
+          "KB0003",
+          "Appendix E"
         ],
         "precision": 0.0,
         "recall": 0.0,
@@ -1906,33 +517,30 @@
         "query_id": "INC1027",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 3409.2,
+        "ms": 952.5,
         "planted_hits": [],
-        "top_score": -3.7229,
+        "top_score": 0.6901,
         "returned": [
-          "",
-          "3.2",
           "7.4",
+          "KB0005",
+          "KB0001",
           "6.2"
         ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        "precision": 0.25,
+        "recall": 0.5,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
       },
       {
         "query_id": "INC1028",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 3221.1,
+        "ms": 1017.4,
         "planted_hits": [],
-        "top_score": -3.5088,
+        "top_score": 0.691,
         "returned": [
           "KB0008",
-          "9.2",
-          "9.6",
-          "Appendix E",
           "8.3"
         ],
         "precision": 0.0,
@@ -1945,36 +553,33 @@
         "query_id": "PROBE-01",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1730.8,
+        "ms": 1025.6,
         "planted_hits": [],
-        "top_score": -5.9497,
+        "top_score": 0.7138,
         "returned": [
-          "7.2",
-          "3.2",
-          "KB0008",
-          "7.4"
+          "KB0001",
+          "KB0008"
         ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
       },
       {
         "query_id": "PROBE-02",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1625.2,
+        "ms": 931.4,
         "planted_hits": [],
-        "top_score": -8.5621,
+        "top_score": 0.6345,
         "returned": [
-          "7.3",
+          "KB0006",
           "KB0005",
-          "7.4",
-          "Appendix E",
-          "7.2"
+          "KB0008",
+          "6.2"
         ],
-        "precision": 0.2,
+        "precision": 0.25,
         "recall": 1.0,
         "hit": true,
         "rr": 0.5,
@@ -1984,88 +589,13 @@
         "query_id": "PROBE-03",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 3008.3,
+        "ms": 933.7,
         "planted_hits": [],
-        "top_score": -10.5931,
+        "top_score": 0.6287,
         "returned": [
-          "",
-          "7.4",
-          "9.2",
-          "KB0005"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-04",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1677.6,
-        "planted_hits": [],
-        "top_score": -4.6032,
-        "returned": [
-          "7.2",
-          "Appendix E",
-          "3.2",
-          "KB0008"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-05",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1397.7,
-        "planted_hits": [],
-        "top_score": -5.3723,
-        "returned": [
-          "KB0006",
           "KB0008",
-          "7.2",
-          "7.4"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-06",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1440.8,
-        "planted_hits": [],
-        "top_score": -5.0678,
-        "returned": [
           "KB0005",
-          "7.4",
-          "KB0004"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-07",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1469.4,
-        "planted_hits": [],
-        "top_score": -5.0194,
-        "returned": [
-          "8.3",
-          "7.3",
-          "7.5",
+          "KB0001",
           "KB0002"
         ],
         "precision": 0.0,
@@ -2075,18 +605,90 @@
         "first_rank": null
       },
       {
+        "query_id": "PROBE-04",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1000.6,
+        "planted_hits": [],
+        "top_score": 0.6671,
+        "returned": [
+          "KB0001",
+          "KB0008",
+          "7.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-05",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 934.0,
+        "planted_hits": [],
+        "top_score": 0.6454,
+        "returned": [
+          "KB0006",
+          "KB0005"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-06",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 901.2,
+        "planted_hits": [],
+        "top_score": 0.7016,
+        "returned": [
+          "KB0001",
+          "KB0005",
+          "7.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-07",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1160.4,
+        "planted_hits": [],
+        "top_score": 0.6248,
+        "returned": [
+          "KB0008",
+          "7.4",
+          "7.3",
+          "8.3"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
         "query_id": "PROBE-08",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1545.0,
+        "ms": 1112.5,
         "planted_hits": [],
-        "top_score": -5.9038,
+        "top_score": 0.6091,
         "returned": [
-          "8.2",
-          "",
           "Appendix E",
-          "7.3",
-          "7.4"
+          "KB0003",
+          "KB0005",
+          "7.2",
+          "8.3"
         ],
         "precision": 0.0,
         "recall": 0.0,
@@ -2098,14 +700,15 @@
         "query_id": "PROBE-09",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1379.1,
+        "ms": 1162.3,
         "planted_hits": [],
-        "top_score": -9.2908,
+        "top_score": 0.6163,
         "returned": [
-          "7.4",
-          "3.2",
-          "KB0002",
-          "7.3"
+          "11.5",
+          "7.3",
+          "KB0007",
+          "KB0003",
+          "3.3"
         ],
         "precision": 0.0,
         "recall": 0.0,
@@ -2117,20 +720,1497 @@
         "query_id": "PROBE-10",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1703.6,
+        "ms": 993.2,
         "planted_hits": [],
-        "top_score": 7.1288,
+        "top_score": 0.7446,
+        "returned": [
+          "KB0008",
+          "8.3"
+        ],
+        "precision": 0.5,
+        "recall": 0.5,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC_ADV_001",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1031.0,
+        "planted_hits": [],
+        "top_score": 0.6631,
+        "returned": [
+          "KB0008",
+          "KB0007",
+          "KB0003",
+          "KB0001"
+        ]
+      },
+      {
+        "query_id": "INC_ADV_002",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 2624.4,
+        "planted_hits": [],
+        "top_score": 0.6377,
+        "returned": [
+          "KBHR-4480891644d9a54a",
+          "KB0010",
+          "9.3"
+        ]
+      },
+      {
+        "query_id": "INC_ADV_003",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1040.4,
+        "planted_hits": [],
+        "top_score": 0.6125,
+        "returned": [
+          "KB0007",
+          "7.3",
+          "6.2",
+          "9.2"
+        ]
+      }
+    ],
+    "hybrid": [
+      {
+        "query_id": "INC0010023",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1099.7,
+        "planted_hits": [],
+        "top_score": 0.0323,
+        "returned": [
+          "KB0001",
+          "7.2",
+          "KB0008"
+        ],
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC0010047",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1045.6,
+        "planted_hits": [],
+        "top_score": 0.0328,
+        "returned": [
+          "7.3",
+          "KB0004"
+        ]
+      },
+      {
+        "query_id": "INC0010064",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1040.9,
+        "planted_hits": [],
+        "top_score": 0.0328,
+        "returned": [
+          "7.4",
+          "KB0003",
+          "KB0005"
+        ],
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.3333333333333333,
+        "first_rank": 3
+      },
+      {
+        "query_id": "INC0010052",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1041.3,
+        "planted_hits": [],
+        "top_score": 0.0323,
+        "returned": [
+          "9.2",
+          "KB0010",
+          "7.5",
+          "9.3"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "INC1006",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1068.1,
+        "planted_hits": [],
+        "top_score": 0.0318,
+        "returned": [
+          "KB0002",
+          "7.4",
+          "5.2",
+          "6.1"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC1007",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1028.9,
+        "planted_hits": [],
+        "top_score": 0.0315,
+        "returned": [
+          "KB0003",
+          "KB0001",
+          "7.4",
+          "6.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1008",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1023.1,
+        "planted_hits": [],
+        "top_score": 0.032,
+        "returned": [
+          "KB0009",
+          "7.5",
+          "KB0010"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1009",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1016.3,
+        "planted_hits": [],
+        "top_score": 0.0325,
+        "returned": [
+          "8.3",
+          "KB0008",
+          "6.1",
+          "Appendix E"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "INC1010",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1021.3,
+        "planted_hits": [],
+        "top_score": 0.0313,
+        "returned": [
+          "KB0009",
+          "Appendix E",
+          "8.3",
+          "8.2"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC1011",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1026.4,
+        "planted_hits": [],
+        "top_score": 0.0328,
+        "returned": [
+          "KB0001",
+          "KB0005",
+          "7.2"
+        ],
+        "precision": 0.6666666666666666,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC1012",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1029.6,
+        "planted_hits": [],
+        "top_score": 0.0325,
+        "returned": [
+          "KB0006",
+          "KB0005",
+          "6.1"
+        ],
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC1013",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1035.9,
+        "planted_hits": [],
+        "top_score": 0.0315,
+        "returned": [
+          "KB0006",
+          "6.2",
+          "KB0005",
+          "11.6",
+          "9.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1014",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1003.8,
+        "planted_hits": [],
+        "top_score": 0.0279,
+        "returned": [
+          "7.4",
+          "7.5",
+          "KB0010",
+          "9.3",
+          "2.1"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1015",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 974.9,
+        "planted_hits": [],
+        "top_score": 0.0328,
+        "returned": [
+          "3.2",
+          "KB0010",
+          "11",
+          "4.2"
+        ]
+      },
+      {
+        "query_id": "INC1016",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1200.5,
+        "planted_hits": [],
+        "top_score": 0.0305,
+        "returned": [
+          "3.2",
+          "3.5",
+          "8.2",
+          "1.3"
+        ]
+      },
+      {
+        "query_id": "INC1017",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 991.3,
+        "planted_hits": [],
+        "top_score": 0.0302,
+        "returned": [
+          "7.3",
+          "KB0008",
+          "KB0001",
+          "KB0003"
+        ]
+      },
+      {
+        "query_id": "INC1018",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1081.3,
+        "planted_hits": [],
+        "top_score": 0.0298,
+        "returned": [
+          "2.2",
+          "2.4",
+          "7.2",
+          "KB0001"
+        ]
+      },
+      {
+        "query_id": "INC1019",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 969.3,
+        "planted_hits": [],
+        "top_score": 0.032,
+        "returned": [
+          "KB0009",
+          "7.2",
+          "KB0008",
+          "8.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1020",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 940.2,
+        "planted_hits": [],
+        "top_score": 0.0308,
+        "returned": [
+          "7.4",
+          "KB0003",
+          "Appendix E"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1021",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1005.8,
+        "planted_hits": [],
+        "top_score": 0.0325,
+        "returned": [
+          "KB0001",
+          "7.2",
+          "7.4"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1022",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1025.5,
+        "planted_hits": [],
+        "top_score": 0.0285,
+        "returned": [
+          "Appendix B.3",
+          "KB0003",
+          "KB0007",
+          "KB0006"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1023",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1289.4,
+        "planted_hits": [],
+        "top_score": 0.0328,
+        "returned": [
+          "KB0004",
+          "8.2",
+          "8.3"
+        ],
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC1024",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 981.5,
+        "planted_hits": [],
+        "top_score": 0.0325,
+        "returned": [
+          "KB0003",
+          "8.3",
+          "Appendix E",
+          "11.5"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC1025",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1344.8,
+        "planted_hits": [],
+        "top_score": 0.0315,
+        "returned": [
+          "4.2",
+          "7.4",
+          "KB0001",
+          "KB0005",
+          "3.2"
+        ],
+        "precision": 0.2,
+        "recall": 0.5,
+        "hit": true,
+        "rr": 0.3333333333333333,
+        "first_rank": 3
+      },
+      {
+        "query_id": "INC1026",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1311.8,
+        "planted_hits": [],
+        "top_score": 0.0293,
+        "returned": [
+          "7.4",
+          "6.1",
+          "3.2",
+          "KB0007",
+          "KB0009"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1027",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1022.5,
+        "planted_hits": [],
+        "top_score": 0.0323,
+        "returned": [
+          "7.4",
+          "KB0001",
+          "KB0005",
+          "6.2"
+        ],
+        "precision": 0.25,
+        "recall": 0.5,
+        "hit": true,
+        "rr": 0.3333333333333333,
+        "first_rank": 3
+      },
+      {
+        "query_id": "INC1028",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 947.0,
+        "planted_hits": [],
+        "top_score": 0.032,
         "returned": [
           "KB0008",
           "8.3",
+          "9.2",
+          "9.5"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-01",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 985.0,
+        "planted_hits": [],
+        "top_score": 0.028,
+        "returned": [
+          "Appendix E",
+          "KB0001",
+          "7.1",
+          "2.1"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "PROBE-02",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1059.6,
+        "planted_hits": [],
+        "top_score": 0.0284,
+        "returned": [
+          "Appendix E",
+          "KB0006",
+          "7.1",
+          "2.1",
+          "KB0005"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.2,
+        "first_rank": 5
+      },
+      {
+        "query_id": "PROBE-03",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1079.5,
+        "planted_hits": [],
+        "top_score": 0.0265,
+        "returned": [
+          "7.5",
           "7.4",
-          "9.2"
+          "KB0008",
+          "KB0005"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-04",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1271.3,
+        "planted_hits": [],
+        "top_score": 0.0164,
+        "returned": [
+          "KB0001",
+          "7.1",
+          "2.1",
+          "KB0008"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-05",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1147.8,
+        "planted_hits": [],
+        "top_score": 0.0164,
+        "returned": [
+          "KB0006",
+          "7.1",
+          "2.1"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-06",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1194.0,
+        "planted_hits": [],
+        "top_score": 0.0164,
+        "returned": [
+          "KB0001",
+          "7.1",
+          "2.1",
+          "KB0005"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-07",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1124.4,
+        "planted_hits": [],
+        "top_score": 0.0258,
+        "returned": [
+          "7.5",
+          "KB0008",
+          "7.1",
+          "2.1"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-08",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1009.1,
+        "planted_hits": [],
+        "top_score": 0.0305,
+        "returned": [
+          "Appendix E",
+          "7.1",
+          "KB0003",
+          "2.1"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-09",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1012.9,
+        "planted_hits": [],
+        "top_score": 0.031,
+        "returned": [
+          "3.3",
+          "Appendix E",
+          "7.5",
+          "7.1",
+          "11.5"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-10",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1029.5,
+        "planted_hits": [],
+        "top_score": 0.0328,
+        "returned": [
+          "KB0008",
+          "8.3",
+          "6.1",
+          "7.5"
         ],
         "precision": 0.25,
         "recall": 0.5,
         "hit": true,
         "rr": 1.0,
         "first_rank": 1
+      },
+      {
+        "query_id": "INC_ADV_001",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1226.6,
+        "planted_hits": [],
+        "top_score": 0.0308,
+        "returned": [
+          "KB0003",
+          "KB0008",
+          "KB0001",
+          "7.2"
+        ]
+      },
+      {
+        "query_id": "INC_ADV_002",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1307.3,
+        "planted_hits": [],
+        "top_score": 0.0325,
+        "returned": [
+          "KBHR-4480891644d9a54a",
+          "KB0010",
+          "9.3",
+          "KB0009"
+        ]
+      },
+      {
+        "query_id": "INC_ADV_003",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1301.2,
+        "planted_hits": [],
+        "top_score": 0.032,
+        "returned": [
+          "7.3",
+          "7.2",
+          "KB0007",
+          "6.2",
+          "7.4"
+        ]
+      }
+    ],
+    "hybrid_rerank": [
+      {
+        "query_id": "INC0010023",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1805.2,
+        "planted_hits": [],
+        "top_score": 6.7458,
+        "returned": [
+          "3.2",
+          "KB0001",
+          "7.2",
+          "6.1"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "INC0010047",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 2561.8,
+        "planted_hits": [],
+        "top_score": 4.2404,
+        "returned": [
+          "7.3",
+          "Appendix E",
+          "KB0004"
+        ]
+      },
+      {
+        "query_id": "INC0010064",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2424.8,
+        "planted_hits": [],
+        "top_score": 8.3676,
+        "returned": [
+          "7.4",
+          "3.2",
+          "KB0003"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC0010052",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 3184.3,
+        "planted_hits": [],
+        "top_score": 7.0298,
+        "returned": [
+          "9.2",
+          "9.3",
+          "KB0010",
+          "7.5"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.3333333333333333,
+        "first_rank": 3
+      },
+      {
+        "query_id": "INC1006",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2453.0,
+        "planted_hits": [],
+        "top_score": 3.548,
+        "returned": [
+          "3.2",
+          "Appendix E",
+          "6.1",
+          "KB0002",
+          "7.4"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.25,
+        "first_rank": 4
+      },
+      {
+        "query_id": "INC1007",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1806.8,
+        "planted_hits": [],
+        "top_score": -8.7644,
+        "returned": [
+          "3.2",
+          "KB0003",
+          "7.4"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1008",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2176.9,
+        "planted_hits": [],
+        "top_score": -8.7487,
+        "returned": [
+          "9.2",
+          "KB0009",
+          "10.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1009",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2291.7,
+        "planted_hits": [],
+        "top_score": 7.0151,
+        "returned": [
+          "8.3",
+          "6.1",
+          "KB0008",
+          "Appendix E"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.3333333333333333,
+        "first_rank": 3
+      },
+      {
+        "query_id": "INC1010",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2292.6,
+        "planted_hits": [],
+        "top_score": 4.9237,
+        "returned": [
+          "8.3",
+          "8.2",
+          "6.1",
+          "Appendix E",
+          "KB0009"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.2,
+        "first_rank": 5
+      },
+      {
+        "query_id": "INC1011",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1913.2,
+        "planted_hits": [],
+        "top_score": 2.7744,
+        "returned": [
+          "KB0001",
+          "3.2",
+          "KB0005",
+          "7.2"
+        ],
+        "precision": 0.5,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC1012",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2196.5,
+        "planted_hits": [],
+        "top_score": 2.9015,
+        "returned": [
+          "KB0006",
+          "3.2",
+          "6.1"
+        ],
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC1013",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1894.2,
+        "planted_hits": [],
+        "top_score": -10.0302,
+        "returned": [
+          "KB0002",
+          "KB0006",
+          "3.5",
+          "9.2",
+          "6.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1014",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2546.8,
+        "planted_hits": [],
+        "top_score": -10.8639,
+        "returned": [
+          "9.3",
+          "8.2",
+          "Appendix E",
+          "3.4",
+          "KB0010"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1015",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1860.2,
+        "planted_hits": [],
+        "top_score": 4.9814,
+        "returned": [
+          "3.2",
+          "2.3",
+          "KB0010",
+          "4.2"
+        ]
+      },
+      {
+        "query_id": "INC1016",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1972.9,
+        "planted_hits": [],
+        "top_score": -0.018,
+        "returned": [
+          "3.2",
+          "1.1",
+          "3.6",
+          "3.4",
+          "Appendix E"
+        ]
+      },
+      {
+        "query_id": "INC1017",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1826.4,
+        "planted_hits": [],
+        "top_score": -10.6056,
+        "returned": [
+          "7.3",
+          "8.3",
+          "KB0008",
+          "7.4"
+        ]
+      },
+      {
+        "query_id": "INC1018",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 1910.7,
+        "planted_hits": [],
+        "top_score": -4.6074,
+        "returned": [
+          "2.4",
+          "3.4",
+          "2.2",
+          "5.2"
+        ]
+      },
+      {
+        "query_id": "INC1019",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2125.2,
+        "planted_hits": [],
+        "top_score": -1.3679,
+        "returned": [
+          "KB0009",
+          "7.2",
+          "10.2",
+          "9.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1020",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2177.6,
+        "planted_hits": [],
+        "top_score": -3.4342,
+        "returned": [
+          "Appendix E",
+          "3.2",
+          "7.4",
+          "KB0002"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1021",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1973.1,
+        "planted_hits": [],
+        "top_score": 0.2634,
+        "returned": [
+          "KB0001",
+          "7.2",
+          "KB0008"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1022",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2255.4,
+        "planted_hits": [],
+        "top_score": -7.5959,
+        "returned": [
+          "KB0003",
+          "KB0006",
+          "Appendix B.3",
+          "KB0002",
+          "Appendix E"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1023",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2443.5,
+        "planted_hits": [],
+        "top_score": 4.9701,
+        "returned": [
+          "KB0004",
+          "8.2",
+          "8.3",
+          "Appendix E"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC1024",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2068.9,
+        "planted_hits": [],
+        "top_score": 0.5867,
+        "returned": [
+          "8.3",
+          "Appendix E",
+          "KB0003"
+        ],
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.3333333333333333,
+        "first_rank": 3
+      },
+      {
+        "query_id": "INC1025",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 1870.3,
+        "planted_hits": [],
+        "top_score": -6.6368,
+        "returned": [
+          "KB0001",
+          "KB0005",
+          "7.4",
+          "7.2",
+          "5.2"
+        ],
+        "precision": 0.2,
+        "recall": 0.5,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC1026",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2322.6,
+        "planted_hits": [],
+        "top_score": -10.8669,
+        "returned": [
+          "Appendix E",
+          "KB0003",
+          "6.1",
+          "9.2",
+          "KB0009"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1027",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2089.6,
+        "planted_hits": [],
+        "top_score": -8.7719,
+        "returned": [
+          "6.2",
+          "7.4",
+          "KB0001",
+          "7.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "INC1028",
+        "source": "coverage_matrix",
+        "answerable": true,
+        "ms": 2691.3,
+        "planted_hits": [],
+        "top_score": -2.1214,
+        "returned": [
+          "9.2",
+          "9.5",
+          "9.6",
+          "Appendix E"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-01",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2030.6,
+        "planted_hits": [],
+        "top_score": -6.1108,
+        "returned": [
+          "KB0001",
+          "7.2",
+          "Appendix E"
+        ],
+        "precision": 0.3333333333333333,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-02",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2178.3,
+        "planted_hits": [],
+        "top_score": -8.571,
+        "returned": [
+          "Appendix E",
+          "7.1",
+          "KB0005",
+          "6.2"
+        ],
+        "precision": 0.25,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.3333333333333333,
+        "first_rank": 3
+      },
+      {
+        "query_id": "PROBE-03",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2048.9,
+        "planted_hits": [],
+        "top_score": -10.2951,
+        "returned": [
+          "7.4",
+          "9.3",
+          "KB0005",
+          "9.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-04",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2168.0,
+        "planted_hits": [],
+        "top_score": -3.8727,
+        "returned": [
+          "7.2",
+          "KB0001",
+          "Appendix E"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-05",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2227.5,
+        "planted_hits": [],
+        "top_score": -4.078,
+        "returned": [
+          "KB0006",
+          "Appendix E",
+          "KB0008",
+          "7.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-06",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2021.4,
+        "planted_hits": [],
+        "top_score": -4.3329,
+        "returned": [
+          "7.4",
+          "KB0005",
+          "KB0001",
+          "7.2"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-07",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1982.1,
+        "planted_hits": [],
+        "top_score": -8.1744,
+        "returned": [
+          "KB0008",
+          "7.3",
+          "Appendix E",
+          "7.1",
+          "7.4"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-08",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2246.8,
+        "planted_hits": [],
+        "top_score": -5.3236,
+        "returned": [
+          "Appendix E",
+          "7.3",
+          "7.4",
+          "8.3"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-09",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2642.5,
+        "planted_hits": [],
+        "top_score": -11.0546,
+        "returned": [
+          "KB0007",
+          "7.3",
+          "Appendix E"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-10",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 3149.1,
+        "planted_hits": [],
+        "top_score": 6.2637,
+        "returned": [
+          "KB0008",
+          "8.3",
+          "6.1"
+        ],
+        "precision": 0.3333333333333333,
+        "recall": 0.5,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "INC_ADV_001",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 2615.1,
+        "planted_hits": [],
+        "top_score": -6.2697,
+        "returned": [
+          "KB0006",
+          "KB0008",
+          "KB0003"
+        ]
+      },
+      {
+        "query_id": "INC_ADV_002",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 3712.7,
+        "planted_hits": [],
+        "top_score": -5.7238,
+        "returned": [
+          "KBHR-4480891644d9a54a",
+          "KB0010",
+          "9.5",
+          "KB0009"
+        ]
+      },
+      {
+        "query_id": "INC_ADV_003",
+        "source": "coverage_matrix",
+        "answerable": false,
+        "ms": 3625.6,
+        "planted_hits": [],
+        "top_score": -7.4864,
+        "returned": [
+          "7.2",
+          "KB0007",
+          "7.3",
+          "7.4",
+          "11.4"
+        ]
       }
     ]
   }
