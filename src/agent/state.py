@@ -2,6 +2,7 @@ from typing import TypedDict, Any, List, Dict, Optional
 
 class AgentState(TypedDict, total=False):
     incident_payload: Dict[str, Any]
+    search_query: str
     retrieved_evidence: List[Dict[str, Any]]
     retrieval_failed: bool
     # Strong match on a human-approved (KBHR-) article: reuse it and skip diagnose/generate
