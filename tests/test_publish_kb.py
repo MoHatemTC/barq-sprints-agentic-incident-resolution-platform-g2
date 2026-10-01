@@ -366,6 +366,15 @@ def test_article_titles_drop_repeated_ids_and_name_the_chapter():
     assert title("Document control", "") == "Document control"
 
 
+def test_whitespace_servicenow_drops_between_tags_is_not_a_mismatch():
+    payload = {"text": "<table>\n<tr>\n<td>P1</td>\n</tr>\n</table>"}
+
+    assert publish_kb._mismatched_fields(payload, {"text": "<table><tr><td>P1</td></tr></table>"}) == []
+    assert publish_kb._mismatched_fields(payload, {"text": "<table><tbody><tr><td>P1</td></tr></tbody></table>"}) == []
+    assert publish_kb._mismatched_fields({"text": "a<br>b"}, {"text": "a<br />b"}) == []
+    assert publish_kb._mismatched_fields(payload, {"text": "<table><tr><td>P2</td></tr></table>"}) == ["text"]
+
+
 def test_formatted_html_is_sent_as_is():
     article = publish_kb.section_to_article(_section(), body="<h2>Cause.</h2><p>A &amp; B</p>")
 

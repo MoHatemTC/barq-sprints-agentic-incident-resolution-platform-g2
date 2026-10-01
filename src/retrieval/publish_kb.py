@@ -202,6 +202,12 @@ def _read_back(
     return resp.json()["result"]
 
 
+def _normalize_html(text: str) -> str:
+    """ServiceNow's rewrite of the same HTML: no whitespace between tags, <br />, implied <tbody>."""
+    text = re.sub(r">\s+<", "><", html.unescape(text)).strip()
+    return re.sub(r"</?tbody>", "", re.sub(r"<br\s*/?>", "<br>", text))
+
+
 def _mismatched_fields(payload: dict, result: dict) -> list[str]:
     """Compare sent values with a Table API read-back using S1.5 normalization."""
     mismatched = []
@@ -213,8 +219,8 @@ def _mismatched_fields(payload: dict, result: dict) -> list[str]:
             got = got.get("value")
 
         if field == "text" and isinstance(got, str):
-            # compare decoded text: ServiceNow may re-encode entities differently
-            got, sent = html.unescape(got), html.unescape(sent)
+            # ServiceNow re-encodes entities and drops whitespace between tags ("<table>\n<tr>")
+            got, sent = _normalize_html(got), _normalize_html(sent)
         if not _same(sent, got):
             mismatched.append(field)
 
