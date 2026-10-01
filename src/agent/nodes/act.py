@@ -90,7 +90,7 @@ def _plan_write(state: Dict[str, Any]) -> Dict[str, Any]:
             "action_taken": "rejected_by_human",
             "action": "escalated_rejected",
             "status": "blocked",
-            "fields": {"processing_state": "failed", "human_review": False, "failure_reason": reason},
+            "fields": {"processing_state": "failed", "human_review": True, "failure_reason": reason},
             "result": reason,
         }
 
@@ -109,10 +109,11 @@ def _plan_write(state: Dict[str, Any]) -> Dict[str, Any]:
                 else "AI draft was not written because critic verification was exhausted"
             )
     else:
-        final_resolution = outputs.get("resolution") or state.get("cached_resolution")
-        if not final_resolution and state.get("human_solution"):
-            human_sol = state.get("human_solution")
-            final_resolution = f"Based on the human comments: {human_sol}, the solution of this incident is:\n{human_sol}"
+        final_resolution = (
+            outputs.get("resolution")
+            or state.get("cached_resolution")
+            or state.get("human_solution")
+        )
     if final_resolution:
         fields["resolution"] = final_resolution
 
