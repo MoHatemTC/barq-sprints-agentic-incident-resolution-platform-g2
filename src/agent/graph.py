@@ -108,12 +108,11 @@ def route_after_critic(state: AgentState) -> str:
 
 
 def route_after_human_review(state: AgentState) -> str:
-    """After approval, loop back through classify so the human feedback
-    can steer re-classification before retrieval and resolution."""
+    """After approval, enrich with KB evidence and generate resolution before writing."""
+
     decision = state.get("human_decision") or {}
     if (
         decision.get("decision") == "approve"
-        and state.get("risk") == "high"
         and state.get("human_solution")
     ):
         return "classify"
