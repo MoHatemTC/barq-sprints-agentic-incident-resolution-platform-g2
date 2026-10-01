@@ -73,8 +73,10 @@ class ServiceNowClient:
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}/{sys_id}"
         return self._request("GET", url)
 
-    def create_incident(self, short_description, description=None, caller_id=None, category=None):
+    def create_incident(self, short_description, description=None, caller_id=None, category=None,
+                        correlation_id=None):
         # Create a new incident, returns the created record (sys_id, number, ...)
+        # correlation_id: the caller's request id, so a retry can find this record
         payload = {"short_description": short_description}
         if description:
             payload["description"] = description
@@ -82,8 +84,24 @@ class ServiceNowClient:
             payload["caller_id"] = caller_id
         if category:
             payload["category"] = category
+        if correlation_id:
+            payload["correlation_id"] = correlation_id
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
         return self._request("POST", url, json=payload)
+
+    def find_incident_by_correlation(self, correlation_id):
+        # The incident created with this correlation_id (sys_id, number), or None
+        url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
+        rows = self._request(
+            "GET",
+            url,
+            params={
+                "sysparm_query": f"correlation_id={correlation_id}",
+                "sysparm_fields": "sys_id,number",
+                "sysparm_limit": "1",
+            },
+        )
+        return rows[0] if rows else None
 
     def get_choices(self, table, element):
         # Choices of one choice field exactly as the ServiceNow form lists them.

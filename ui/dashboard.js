@@ -466,6 +466,13 @@
 
   const categorySelect = $('f-category');
   let categoriesLoaded = false;
+  // One id per opened form, sent with every Create click. If ServiceNow created
+  // the incident but the answer was lost, the retry gets that incident back
+  // instead of a duplicate (the API stores it in correlation_id).
+  let requestId = null;
+  const newRequestId = () => (window.crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
 
   function showFormError(message, focusId) {
     errEl.textContent = message;
@@ -496,6 +503,7 @@
     ['f-short', 'f-desc'].forEach((id) => { $(id).value = ''; });
     categorySelect.value = '';
     errEl.classList.remove('show');
+    requestId = newRequestId();
     openOverlay(modal);
     loadCategories();
   });
@@ -552,14 +560,18 @@
           short_description: short,
           description: $('f-desc').value.trim() || null,
           category,
+          request_id: requestId,
         }),
       });
-      toast(`${data.number} created in ServiceNow. Waiting for the Business Rule...`);
+      toast(data.status === 'already_created'
+        ? `${data.number} was already created by your earlier attempt; no duplicate made.`
+        : `${data.number} created in ServiceNow. Waiting for the Business Rule...`);
       closeOverlay(modal);
       poll();
       watchBusinessRule(data.sys_id, data.number);
     } catch (err) {
-      toast('Could not create incident: ' + err.message, 'err');
+      // The form stays open with the same request id, so trying again is safe.
+      toast('Could not create incident: ' + err.message + '. Try again; it will not create a duplicate.', 'err', 10000);
     } finally {
       btn.disabled = false;
       btn.textContent = 'Create in ServiceNow';

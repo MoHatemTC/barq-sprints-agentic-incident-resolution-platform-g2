@@ -15,7 +15,7 @@ import threading
 import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, desc
 
@@ -496,9 +496,7 @@ def list_incident_categories():
     try:
         return {"categories": _category_choices(ServiceNowClient())}
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Could not read categories from ServiceNow: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=_sync_error_text(exc)) from exc
 
 
 class NewIncidentRequest(BaseModel):
@@ -507,15 +505,22 @@ class NewIncidentRequest(BaseModel):
     short_description: str = Field(..., min_length=1)
     description: str | None = None
     category: str = Field(..., min_length=1)
+    # One id per New incident form, reused on every retry of that form.
+    request_id: str | None = Field(None, pattern=r"^[A-Za-z0-9-]{8,64}$")
 
 
 @router.post("/incidents", status_code=201)
-def create_incident_via_dashboard(payload: NewIncidentRequest):
+def create_incident_via_dashboard(payload: NewIncidentRequest, response: Response):
     """Create an incident in ServiceNow, the same as filling in the ServiceNow form.
 
     Nothing is stored or queued here. The insert fires the AI Eligibility Check
     Business Rule (servicenow/ai_incident_orchestrator/update_set.xml),
     which alone decides whether the incident reaches the webhook.
+
+    No duplicates on retry: ``request_id`` is saved in the incident's
+    correlation_id. If ServiceNow created the incident but the answer never
+    arrived (timeout), the retry finds it and returns it (200) instead of
+    creating a second one.
     """
     import os
 
@@ -525,9 +530,7 @@ def create_incident_via_dashboard(payload: NewIncidentRequest):
     try:
         categories = {c["value"] for c in _category_choices(client)}
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Could not read categories from ServiceNow: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=_sync_error_text(exc)) from exc
     # The Table API stores any string in a choice field; the form does not.
     if payload.category not in categories:
         raise HTTPException(
@@ -535,18 +538,27 @@ def create_incident_via_dashboard(payload: NewIncidentRequest):
             detail=f"'{payload.category}' is not an incident category in ServiceNow",
         )
 
+    correlation_id = f"barq-dashboard-{payload.request_id}" if payload.request_id else None
+    if correlation_id:
+        try:
+            existing = client.find_incident_by_correlation(correlation_id)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=_sync_error_text(exc)) from exc
+        if existing:
+            response.status_code = 200
+            _incident_pages.clear()
+            return {"status": "already_created", "sys_id": existing["sys_id"], "number": existing["number"]}
+
     try:
         created = client.create_incident(
             payload.short_description,
             description=payload.description or None,
             caller_id=os.environ.get("SERVICENOW_DEFAULT_CALLER_SYS_ID") or None,
             category=payload.category,
+            correlation_id=correlation_id,
         )
     except Exception as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Could not create incident in ServiceNow: {exc}",
-        ) from exc
+        raise HTTPException(status_code=502, detail=_sync_error_text(exc)) from exc
 
     _incident_pages.clear()  # show it on the next poll, not after the cache TTL
     return {"status": "created", "sys_id": created["sys_id"], "number": created["number"]}

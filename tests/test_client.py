@@ -88,6 +88,27 @@ def test_create_incident_sends_category_and_description(client):
     }
 
 
+def test_create_incident_sends_correlation_id_when_given(client):
+    with patch("src.servicenow.client.requests.request", return_value=_response(200)) as req:
+        client.create_incident("VPN down", category="network", correlation_id="barq-dashboard-abc12345")
+
+    assert req.call_args.kwargs["json"]["correlation_id"] == "barq-dashboard-abc12345"
+
+
+def test_find_incident_by_correlation(client):
+    row = {"sys_id": "s1", "number": "INC0010100"}
+    with patch("src.servicenow.client.requests.request", return_value=_response(200, [row])) as req:
+        assert client.find_incident_by_correlation("barq-dashboard-abc12345") == row
+
+    assert req.call_args.args[0] == "GET"
+    assert req.call_args.kwargs["params"]["sysparm_query"] == "correlation_id=barq-dashboard-abc12345"
+
+    none = _response(200)
+    none.json.return_value = {"result": []}
+    with patch("src.servicenow.client.requests.request", return_value=none):
+        assert client.find_incident_by_correlation("barq-dashboard-none0000") is None
+
+
 def test_get_choices_reads_the_form_choice_list_from_ui_meta(client):
     meta = {"columns": {"category": {"choices": [
         {"label": "-- None --", "value": ""},
