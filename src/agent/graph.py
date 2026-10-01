@@ -100,11 +100,10 @@ def route_after_critic(state: AgentState) -> str:
 
 
 def route_after_human_review(state: AgentState) -> str:
-    """After approval, enrich high-risk work with KB evidence before writing."""
+    """After approval, enrich with KB evidence and generate resolution before writing."""
     decision = state.get("human_decision") or {}
     if (
         decision.get("decision") == "approve"
-        and state.get("risk") == "high"
         and state.get("human_solution")
     ):
         return "retrieve"

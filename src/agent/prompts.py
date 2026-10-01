@@ -58,7 +58,11 @@ STRICT RULES:
 - Do NOT include steps unsupported by the evidence.
 - Number every step (1. 2. 3. …).
 - Be specific and actionable.
-- Do not add a preamble or closing summary — output the numbered steps only.
+- When a human-provided resolution or comments are provided:
+  Start the resolution with:
+  "Based on the human comments: <concise summary of human comments>, the solution of this incident is:"
+  followed by the numbered steps with citations.
+- When no human resolution is provided, do not add a preamble or closing summary — output the numbered steps only.
 
 EXAMPLE CITATION FORMAT:
 1. Restart the VPN gateway service using the admin console. [Source: KB0023]
