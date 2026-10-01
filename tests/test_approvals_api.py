@@ -12,6 +12,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from src.agent.checkpointer import is_paused, thread_config
 from src.agent.graph import create_graph
 from src.api.app import create_app
+from src.api.auth import verify_token
 from src.api.dependencies import get_db_session, get_redis
 from src.api.routers import approvals
 from src.workers import tasks
@@ -81,9 +82,13 @@ class FakeStore:
         self.claimed = set()
         self.records = []
         self.solutions = {}
+        self.incidents = {}  # incident sys_id -> execution ids, newest first
 
     def awaiting_execution_ids(self):
         return list(self.awaiting)
+
+    def executions_for_incident(self, incident_sys_id):
+        return list(self.incidents.get(incident_sys_id, []))
 
     def claim_decision(self, execution_id):
         if execution_id in self.claimed:
@@ -349,6 +354,97 @@ def test_retry_while_broker_still_down_is_503_again(setup, graph):
     assert client.post("/api/v1/approvals/down-4/decide", json=body).status_code == 503
     assert client.post("/api/v1/approvals/down-4/decide", json=body).status_code == 503
     assert len(store.records) == 1
+
+
+# ServiceNow Approve AI / Reject AI buttons (by incident sys_id, Bearer token)
+
+SN_URL = "/api/v1/approvals/by-incident/{}/decide"
+
+
+@pytest.fixture
+def servicenow(setup):
+    """The ServiceNow button client: same app, token check satisfied."""
+    client, store, dispatcher = setup
+    client.app.dependency_overrides[verify_token] = lambda: None
+    return client, store, dispatcher
+
+
+def test_servicenow_approve_resumes_the_paused_run(servicenow, graph, offline_resume):
+    client, store, dispatcher = servicenow
+    _pause(graph, "sn-1")
+    store.incidents["sys-abc"] = ["sn-1"]
+
+    response = client.post(SN_URL.format("sys-abc"), json={
+        "action": "approve", "reviewer": "hady.servicenow", "rationale": "checked", "human_solution": SOLUTION,
+    })
+
+    assert response.status_code == 200
+    assert response.json()["approval_id"] == "sn-1" and response.json()["resumed"] is True
+    assert store.records[0][2:] == ("approved", "hady.servicenow")  # the real ServiceNow user
+    assert dispatcher.calls == [("sn-1", {"decision": "approve", "reviewer": "hady.servicenow",
+                                          "comment": "checked", "human_solution": SOLUTION})]
+    assert graph.get_state(thread_config("sn-1")).next == ()
+
+
+def test_servicenow_high_risk_approve_without_solution_is_refused(servicenow, graph):
+    client, store, dispatcher = servicenow
+    _pause(graph, "sn-2")
+    store.incidents["sys-abc"] = ["sn-2"]
+
+    response = client.post(SN_URL.format("sys-abc"), json={"action": "approve", "reviewer": "hady"})
+
+    assert response.status_code == 422
+    assert "human solution is required" in response.json()["error"]["message"]
+    assert store.records == [] and dispatcher.calls == []
+
+
+def test_servicenow_reject_with_comment(servicenow, graph):
+    client, store, _ = servicenow
+    _pause(graph, "sn-3")
+    store.incidents["sys-abc"] = ["sn-3"]
+
+    response = client.post(SN_URL.format("sys-abc"), json={
+        "action": "reject", "reviewer": "hady", "rationale": "wrong server"})
+
+    assert response.json()["status"] == "rejected"
+    assert graph.get_state(thread_config("sn-3")).values["action_taken"] == "rejected_by_human"
+
+
+def test_servicenow_picks_the_paused_run_among_older_ones(servicenow, graph, offline_resume):
+    client, store, dispatcher = servicenow
+    _pause(graph, "old-done")
+    tasks.continue_run(graph, "old-done", {"decision": "approve", "human_solution": SOLUTION})
+    _pause(graph, "new-paused")
+    store.incidents["sys-abc"] = ["new-paused", "old-done"]
+
+    client.post(SN_URL.format("sys-abc"), json={"action": "approve", "reviewer": "hady",
+                                                 "human_solution": SOLUTION})
+
+    assert [c[0] for c in dispatcher.calls] == ["new-paused"]
+
+
+def test_servicenow_unknown_or_not_waiting_incident(servicenow, graph):
+    client, store, _ = servicenow
+    body = {"action": "approve", "reviewer": "hady", "human_solution": SOLUTION}
+    assert client.post(SN_URL.format("sys-none"), json=body).status_code == 404
+
+    _pause(graph, "finished")
+    tasks.continue_run(graph, "finished", {"decision": "reject"})
+    store.incidents["sys-done"] = ["finished"]
+    assert client.post(SN_URL.format("sys-done"), json=body).status_code == 409
+    assert store.records == []
+
+
+def test_servicenow_decide_requires_the_webhook_token(setup, graph):
+    client, store, dispatcher = setup  # no token override
+    _pause(graph, "sn-4")
+    store.incidents["sys-abc"] = ["sn-4"]
+
+    response = client.post(SN_URL.format("sys-abc"), json={
+        "action": "approve", "reviewer": "anyone", "human_solution": SOLUTION})
+
+    assert response.status_code == 401
+    assert store.records == [] and dispatcher.calls == []
 
 
 #  worker side tests

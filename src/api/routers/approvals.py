@@ -17,7 +17,8 @@ from src.db.approval_service import create_approval, get_approvals
 from src.db.database import SessionLocal
 from src.db.execution_service import update_execution_status
 from src.db.idempotency import check_and_create_idempotency_key
-from src.db.models import Execution
+from src.db.models import Event, Execution
+from src.api.auth import verify_token
 from src.api.schemas import (
     ApprovalBrief,
     ApprovalDecision,
@@ -44,6 +45,31 @@ class SqlApprovalStore:
                 db.query(Execution.execution_identifier)
                 .filter(Execution.status == "awaiting_approval")
                 .order_by(Execution.started_at.desc())
+                .all()
+            )
+        return [row[0] for row in rows]
+
+    def executions_for_incident(self, incident_sys_id: str) -> list[str]:
+        """This incident's executions, newest first (sys_id -> number via its webhook events).
+
+        Not filtered on status: deciding sets it back to 'started' before the resume
+        is queued, and a retry after a failed dispatch must still find the run.
+        """
+        with SessionLocal() as db:
+            number = (
+                db.query(Event.incident_number)
+                .filter(Event.incident_sys_id == incident_sys_id)
+                .order_by(Event.received_at.desc())
+                .limit(1)
+                .scalar()
+            )
+            if not number:
+                return []
+            rows = (
+                db.query(Execution.execution_identifier)
+                .filter(Execution.incident_reference == number)
+                .order_by(Execution.started_at.desc())
+                .limit(10)
                 .all()
             )
         return [row[0] for row in rows]
@@ -267,3 +293,30 @@ def decide_approval(
         decided_at=datetime.now(timezone.utc),
         resumed=True,
     )
+
+
+@router.post(
+    "/api/v1/approvals/by-incident/{incident_sys_id}/decide",
+    response_model=ApprovalDecisionResponse,
+    dependencies=[Depends(verify_token)],
+)
+def decide_approval_for_incident(
+    incident_sys_id: str,
+    decision: ApprovalDecision,
+    store=Depends(get_approval_store),
+    graph=Depends(get_approval_graph),
+    dispatch=Depends(get_resume_dispatcher),
+):
+    """Approve / Reject AI buttons on the ServiceNow incident form (Human Governance tab).
+
+    ServiceNow knows the incident, not our execution id, and sends the same Bearer
+    token as the webhook. The decision then goes through decide_approval unchanged:
+    same checks (solution required for high risk, first decision wins), same resume.
+    """
+    execution_ids = store.executions_for_incident(incident_sys_id)
+    if not execution_ids:
+        raise HTTPException(status_code=404, detail="No AI run found for this incident")
+    for execution_id in execution_ids:
+        if is_paused(get_run_state(graph, execution_id)):
+            return decide_approval(execution_id, decision, store, graph, dispatch)
+    raise HTTPException(status_code=409, detail="This incident has no AI run waiting for approval")
