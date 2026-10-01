@@ -22,7 +22,7 @@
   const CHEVRON = '<svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 
   let articles = [];
-  let options = { categories: ['software', 'network', 'hardware', 'identity'], security_levels: ['public', 'internal', 'confidential'] };
+  let options = { categories: ['inquiry', 'software', 'hardware', 'network', 'database', 'password_reset'], security_levels: ['public', 'internal', 'confidential'] };
 
   const savedSize = store.get('barq.kbsize', '10');
   const state = {
