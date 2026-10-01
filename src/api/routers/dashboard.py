@@ -17,10 +17,10 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, tuple_
 
 from src.db.database import SessionLocal
-from src.db.models import Event, Execution, Failure, RetryState, WorkflowState
+from src.db.models import Approval, Event, Execution, Failure, RetryState, WorkflowState
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
 logger = logging.getLogger(__name__)
@@ -588,6 +588,136 @@ def list_incident_events(sys_id: str):
                 }
                 for e in events
             ],
+        }
+    finally:
+        db.close()
+
+
+# --- Run history: every past run of one incident, with its logs ---------------
+#
+# One page = the newest RUN_PAGE runs before a cursor, in a fixed 5 indexed
+# queries (runs, log entries, failures, retries, approvals) whatever the volume.
+# Log entries are listed without their payload (up to tens of KB each); one
+# payload is fetched only when it is opened.
+
+RUN_PAGE = 10
+MAX_RUN_PAGE = 50
+
+
+def _iso(moment):
+    return moment.isoformat() if moment else None
+
+
+def _run_page(db, number: str, limit: int, before: int | None) -> dict:
+    query = select(Execution).where(Execution.incident_reference == number)
+    if before is not None:
+        cursor = db.get(Execution, before)
+        if cursor is None or cursor.incident_reference != number:
+            raise HTTPException(status_code=400, detail="Unknown 'before' cursor for this incident")
+        query = query.where(
+            tuple_(Execution.started_at, Execution.id) < tuple_(cursor.started_at, cursor.id)
+        )
+    runs = (
+        db.execute(query.order_by(desc(Execution.started_at), desc(Execution.id)).limit(limit + 1))
+        .scalars()
+        .all()
+    )
+    has_more = len(runs) > limit
+    runs = runs[:limit]
+    ids = [run.execution_identifier for run in runs]
+
+    entries, failures, approvals = {}, {}, {}
+    retries = {}
+    if ids:
+        for row in db.execute(
+            select(WorkflowState.id, WorkflowState.execution_reference,
+                   WorkflowState.node_name, WorkflowState.created_at)
+            .where(WorkflowState.execution_reference.in_(ids))
+            .order_by(WorkflowState.created_at, WorkflowState.id)
+        ):
+            entries.setdefault(row.execution_reference, []).append(
+                {"entry_id": row.id, "node_name": row.node_name, "created_at": _iso(row.created_at)}
+            )
+        for f in db.execute(
+            select(Failure).where(Failure.execution_reference.in_(ids)).order_by(Failure.id)
+        ).scalars():
+            failures.setdefault(f.execution_reference, []).append(
+                {"failing_node": f.failing_node, "error_class": f.error_class,
+                 "message": f.message, "retry_count": f.retry_count}
+            )
+        retries = {
+            r.execution_reference: r.attempt_count
+            for r in db.execute(select(RetryState).where(RetryState.execution_reference.in_(ids))).scalars()
+        }
+        for a in db.execute(
+            select(Approval).where(Approval.execution_reference.in_(ids)).order_by(Approval.decision_timestamp)
+        ).scalars():
+            approvals.setdefault(a.execution_reference, []).append(
+                {"decision": a.reviewer_decision, "reviewer": a.reviewer_identity,
+                 "decided_at": _iso(a.decision_timestamp), "human_solution": a.human_solution}
+            )
+
+    return {
+        "incident_number": number,
+        "runs": [
+            {
+                "execution_id": run.execution_identifier,
+                "status": run.status,
+                "node_reached": run.node_reached,
+                "model_name": run.model_name,
+                "agent_version": run.agent_version,
+                "started_at": _iso(run.started_at),
+                "ended_at": _iso(run.ended_at),
+                "duration_seconds": (
+                    (run.ended_at - run.started_at).total_seconds()
+                    if run.ended_at and run.started_at else None
+                ),
+                "log": entries.get(run.execution_identifier, []),
+                "failures": failures.get(run.execution_identifier, []),
+                "approvals": approvals.get(run.execution_identifier, []),
+                "retry_attempt_count": retries.get(run.execution_identifier, 0),
+            }
+            for run in runs
+        ],
+        "next_before": runs[-1].id if has_more else None,
+    }
+
+
+@router.get("/incidents/{number}/runs")
+def list_incident_runs(
+    number: str,
+    limit: int = Query(RUN_PAGE, ge=1, le=MAX_RUN_PAGE),
+    before: int | None = Query(None, ge=1),
+):
+    """Past and current runs of one incident, newest first, one page at a time.
+
+    Pass ``next_before`` from the previous page as ``before`` to get older runs.
+    """
+    db = SessionLocal()
+    try:
+        return _run_page(db, number, limit, before)
+    finally:
+        db.close()
+
+
+@router.get("/runs/{execution_id}/log/{entry_id}")
+def get_run_log_entry(execution_id: str, entry_id: int):
+    """The full payload of one log entry of one run."""
+    db = SessionLocal()
+    try:
+        entry = db.get(WorkflowState, entry_id)
+        if entry is None or entry.execution_reference != execution_id:
+            raise HTTPException(status_code=404, detail="Log entry not found for this run")
+        try:
+            payload = json.loads(entry.checkpoint)
+        except (json.JSONDecodeError, TypeError):
+            payload = {"raw": entry.checkpoint}
+        return {
+            "execution_id": execution_id,
+            "entry_id": entry.id,
+            "node_name": entry.node_name,
+            "created_at": _iso(entry.created_at),
+            "payload": payload,
         }
     finally:
         db.close()

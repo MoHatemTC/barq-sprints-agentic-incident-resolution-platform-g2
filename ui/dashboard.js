@@ -157,9 +157,13 @@
     return `<dt>${label}</dt><dd${mono ? ' class="mono"' : ''}>${escapeHtml(shown)}</dd>`;
   }
 
-  function openInServiceNowHtml(item) {
-    if (!item.servicenow_url) return '';
-    return `<div class="dialog-actions"><div class="right"><a class="btn btn-sm" href="${escapeHtml(item.servicenow_url)}" target="_blank" rel="noopener noreferrer">Open in ServiceNow \u2197</a></div></div>`;
+  function actionsHtml(item) {
+    const history = item.execution && item.number
+      ? `<button class="btn btn-sm" type="button" data-history="${escapeHtml(item.number)}">Run history</button>` : '';
+    const servicenow = item.servicenow_url
+      ? `<a class="btn btn-sm" href="${escapeHtml(item.servicenow_url)}" target="_blank" rel="noopener noreferrer">Open in ServiceNow \u2197</a>` : '';
+    if (!history && !servicenow) return '';
+    return `<div class="dialog-actions"><div class="right">${history}${servicenow}</div></div>`;
   }
 
   function incidentFacts(item) {
@@ -236,7 +240,7 @@
     const classes = exec ? pipelineStages(exec) : STAGES.map(() => 'pending');
     el.querySelectorAll('.track li').forEach((li, i) => { li.className = classes[i]; });
 
-    const html = openInServiceNowHtml(item) + incidentFacts(item) + (exec ? detailsHtml(exec) : notSentHtml(item));
+    const html = actionsHtml(item) + incidentFacts(item) + (exec ? detailsHtml(exec) : notSentHtml(item));
     if (el._details !== html) {
       el._details = html;
       el.querySelector('.inner-pad').innerHTML = html;
@@ -459,6 +463,135 @@
       label.textContent = 'Update Vector DB';
     }
   });
+
+  /* ---------- run history drawer ----------
+     GET /api/v1/dashboard/incidents/{number}/runs?before=<cursor>  (one page, no payloads)
+     GET /api/v1/dashboard/runs/{execution_id}/log/{entry_id}      (one payload, on demand) */
+  const drawer = $('historyDrawer');
+  const historyRuns = $('historyRuns');
+  const historyMore = $('historyMore');
+  const history = { number: null, before: null, loading: false, seq: 0 }; // seq: drops answers for a closed drawer
+  const LOG_LABELS = {
+    interrupt: 'Paused for human review',
+    human_review_required: 'Human review required',
+    'resume:human': 'Resumed after the human decision',
+    'resume:crash_recovery': 'Resumed after a worker crash',
+    resolved_automatically: 'Resolved automatically',
+    result: 'Final result',
+  };
+  const fmtDateTime = (iso) => {
+    if (!iso) return '\u2014';
+    const d = new Date(iso);
+    return isNaN(d) ? '\u2014' : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  function runHtml(run, current) {
+    const [tone, label] = STATUS[run.status] || ['', run.status || 'unknown'];
+    let html = `<article class="run-card${current ? ' current' : ''}">
+      <div class="run-head"><span class="chip${tone ? ' ' + tone : ''}">${escapeHtml(label)}</span>
+        <span class="when">${escapeHtml(fmtDateTime(run.started_at))}${run.duration_seconds != null ? ' \u00b7 ' + escapeHtml(fmtDuration(run.duration_seconds)) : ''}</span>
+        <span class="mono">${escapeHtml(run.execution_id)}</span></div>
+      <dl class="facts">` +
+      fact('Node reached', run.node_reached) +
+      fact('Retry attempts', run.retry_attempt_count) +
+      (run.model_name ? fact('Model', run.model_name) : '') +
+      '</dl>';
+    (run.approvals || []).forEach((a) => {
+      html += `<div class="result"><b>Human decision</b><span>${escapeHtml(a.decision)} by ${escapeHtml(a.reviewer)} at ${escapeHtml(fmtDateTime(a.decided_at))}</span>` +
+        (a.human_solution ? `<b>Human solution</b><span>${escapeHtml(a.human_solution)}</span>` : '') + '</div>';
+    });
+    (run.failures || []).forEach((f) => {
+      html += `<div class="fail"><strong>${escapeHtml(f.failing_node)}</strong> \u2014 ${escapeHtml(f.error_class)}: ${escapeHtml(f.message)}</div>`;
+    });
+    if ((run.log || []).length) {
+      html += '<ul class="run-log">' + run.log.map((e) => `<li>
+        <div class="step"><time>${escapeHtml(fmtTime(e.created_at))}</time>
+          <span>${escapeHtml(LOG_LABELS[e.node_name] || e.node_name)} <span class="mono">${escapeHtml(e.node_name)}</span></span>
+          <button class="btn btn-sm" type="button" aria-expanded="false" data-log="${escapeHtml(run.execution_id)}" data-entry="${e.entry_id}">View log</button></div>
+      </li>`).join('') + '</ul>';
+    } else {
+      html += '<p class="hint">No log entries saved for this run yet.</p>';
+    }
+    return html + '</article>';
+  }
+
+  async function loadHistoryPage() {
+    if (history.loading) return;
+    history.loading = true;
+    const seq = history.seq;
+    const first = history.before === null;
+    historyMore.disabled = true;
+    try {
+      const data = await api('/api/v1/dashboard/incidents/' + encodeURIComponent(history.number) + '/runs?limit=10' +
+        (first ? '' : '&before=' + history.before));
+      if (seq !== history.seq) return;
+      const runs = data.runs || [];
+      const html = runs.map((r, i) => runHtml(r, first && i === 0)).join('');
+      if (first) historyRuns.innerHTML = html || '<p class="hint">No AI runs recorded for this incident.</p>';
+      else historyRuns.insertAdjacentHTML('beforeend', html);
+      history.before = data.next_before;
+      historyMore.hidden = data.next_before === null;
+    } catch (err) {
+      if (seq !== history.seq) return;
+      const fail = `<div class="fail">Could not load run history: ${escapeHtml(err.message)}</div>`;
+      if (first) historyRuns.innerHTML = fail;
+      else historyRuns.insertAdjacentHTML('beforeend', fail);
+      historyMore.hidden = first; // older pages can be retried with the same button
+    } finally {
+      if (seq === history.seq) {
+        history.loading = false;
+        historyMore.disabled = false;
+      }
+    }
+  }
+
+  function openHistory(number) {
+    history.seq += 1;
+    history.number = number;
+    history.before = null;
+    history.loading = false;
+    historyRuns.innerHTML = '<p class="hint">Loading runs...</p>';
+    historyMore.hidden = true;
+    $('historyTitle').textContent = number + ' \u00b7 Run history';
+    openOverlay(drawer);
+    loadHistoryPage();
+  }
+
+  async function toggleLog(btn) {
+    const li = btn.closest('li');
+    const open = li.querySelector('.log-payload');
+    if (open) {
+      open.hidden = !open.hidden;
+      btn.setAttribute('aria-expanded', String(!open.hidden));
+      btn.textContent = open.hidden ? 'View log' : 'Hide log';
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const data = await api('/api/v1/dashboard/runs/' + encodeURIComponent(btn.dataset.log) + '/log/' + btn.dataset.entry);
+      const pre = document.createElement('pre');
+      pre.className = 'log-payload mono';
+      pre.textContent = JSON.stringify(data.payload, null, 2);
+      li.appendChild(pre);
+      btn.setAttribute('aria-expanded', 'true');
+      btn.textContent = 'Hide log';
+    } catch (err) {
+      toast('Could not load this log entry: ' + err.message, 'err');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-history]');
+    if (btn) openHistory(btn.dataset.history);
+  });
+  historyRuns.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-log]');
+    if (btn) toggleLog(btn);
+  });
+  historyMore.addEventListener('click', loadHistoryPage);
+  $('historyClose').addEventListener('click', () => closeOverlay(drawer));
 
   /* ---------- new incident dialog ---------- */
   const modal = $('modal');
