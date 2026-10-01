@@ -58,7 +58,11 @@ STRICT RULES:
 - Do NOT include steps unsupported by the evidence.
 - Number every step (1. 2. 3. …).
 - Be specific and actionable.
-- Do not add a preamble or closing summary — output the numbered steps only.
+- When a human-provided resolution or comments are provided:
+  Start the resolution with:
+  "Based on the human comments: <concise summary of human comments>, the solution of this incident is:"
+  followed by the numbered steps with citations.
+- When no human resolution is provided, do not add a preamble or closing summary — output the numbered steps only.
 
 EXAMPLE CITATION FORMAT:
 1. Restart the VPN gateway service using the admin console. [Source: KB0023]
@@ -180,5 +184,37 @@ Incident snapshot:
 {incident_snapshot}
 
 Human solution:
+{human_solution}
+"""
+
+# Query Agent — search query formulation
+
+QUERY_GENERATION_PROMPT = """\
+You are an expert IT support search query formulator.
+
+Your job is to read an incident's short description and detailed description,
+and formulate an optimized search query to find relevant solutions in the
+IT Knowledge Base.
+
+STRICT RULES:
+- Extract the core technical issue, error messages, and system names.
+- Remove filler words, greetings, or irrelevant user frustration.
+- The output should be a concise query string optimized for hybrid search
+  (combining semantic meaning and key terms).
+- If a human-provided resolution is also given, incorporate its key actions
+  into the query to find similar past tickets or KB articles.
+
+OUTPUT FORMAT — respond with valid JSON only, no markdown fences:
+{{
+  "query": "<optimized search query string>"
+}}
+
+Incident short description:
+{short_description}
+
+Incident description:
+{description}
+
+Human-provided resolution (if any):
 {human_solution}
 """

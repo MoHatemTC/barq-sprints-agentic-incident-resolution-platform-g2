@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import time
@@ -289,6 +290,150 @@ def redact_sensitive_content(text: str) -> RedactionResult:
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# 2b. LLM-based Sensitive Data Masking
+# ═══════════════════════════════════════════════════════════════════════════
+
+_LLM_MASKING_PROMPT = """\
+You are a security-aware text preprocessor.  Your ONLY job is to find \
+sensitive data in the text below and mask the *value* with asterisks (****).
+
+Sensitive data includes but is not limited to:
+  - Passwords, passphrases, PINs, passcodes
+  - API keys, secret keys, access tokens, bearer tokens
+  - Usernames, login credentials
+  - Social Security Numbers (SSN)
+  - Credit/debit card numbers
+  - Email addresses used as identifiers
+  - Private keys, certificates, connection strings
+  - Any value the user explicitly labels as secret or confidential
+
+Rules:
+  1. Replace ONLY the sensitive *value* with "****".  Keep the label/key \
+     so the reader still understands what was there.
+     Example:  "password = catfish42"  →  "password = ****"
+     Example:  "my password is catfish42"  →  "my password is ****"
+     Example:  "api_key: sk-abc123xyz"  →  "api_key: ****"
+  2. Do NOT alter, rephrase, or remove any other part of the text.
+  3. If nothing is sensitive, return the text unchanged.
+
+Respond with a JSON object exactly like this (no markdown, no extra text):
+{
+  "masked_text": "<the full text with sensitive values replaced by ****>",
+  "detections": [
+    {"type": "<category e.g. password, api_key, ssn>"}
+  ]
+}
+If nothing was detected, set "detections" to an empty list.
+
+--- TEXT START ---
+%s
+--- TEXT END ---
+"""
+
+
+@dataclass
+class LLMMaskingResult:
+    """Result of LLM-based sensitive data masking on a single text field."""
+    masked_text: str = ""
+    detection_count: int = 0
+    detection_types: List[str] = field(default_factory=list)
+    llm_used: bool = False
+    llm_error: str = ""
+
+
+def _parse_llm_masking_response(raw_response: str, original_text: str) -> LLMMaskingResult:
+    """Parse the JSON response from the LLM masking call.
+
+    Falls back to the original text if parsing fails — the regex layer
+    downstream will still catch anything obvious.
+    """
+    try:
+        # Strip markdown code fences if the model wrapped the response
+        cleaned = raw_response.strip()
+        if cleaned.startswith("```"):
+            # Remove opening ```json or ``` line
+            cleaned = re.sub(r"^```(?:json)?\s*\n?", "", cleaned)
+            cleaned = re.sub(r"\n?```\s*$", "", cleaned)
+
+        data = json.loads(cleaned)
+        masked_text = data.get("masked_text", "")
+        if not isinstance(masked_text, str) or not masked_text.strip():
+            logger.warning("LLM returned empty or invalid masked_text; keeping original.")
+            masked_text = original_text
+        else:
+            orig_len = len(original_text)
+            new_len = len(masked_text)
+            if orig_len > 0 and (new_len < 0.5 * orig_len or new_len > 1.5 * orig_len):
+                logger.warning(
+                    "LLM masked_text length anomaly (orig: %d, new: %d); keeping original.",
+                    orig_len, new_len
+                )
+                masked_text = original_text
+
+        detections = data.get("detections", [])
+
+        types: List[str] = []
+        for d in detections:
+            t = d.get("type", "unknown")
+            if t not in types:
+                types.append(t)
+
+        return LLMMaskingResult(
+            masked_text=masked_text,
+            detection_count=len(detections),
+            detection_types=types,
+            llm_used=True,
+        )
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        logger.warning("LLM masking response parse failed: %s", exc)
+        return LLMMaskingResult(
+            masked_text=original_text,
+            llm_used=True,
+            llm_error=f"parse_error: {exc}",
+        )
+
+
+def mask_sensitive_with_llm(text: str) -> LLMMaskingResult:
+    """Use the project LLM to detect and mask sensitive data in *text*.
+
+    The LLM replaces sensitive *values* with ``****`` while preserving the
+    surrounding context.  If the LLM is unavailable or errors out, the
+    original text is returned unchanged — the downstream regex layer will
+    still run.
+
+    This function imports ``get_llm`` lazily to avoid circular imports.
+    """
+    if not text or not text.strip():
+        return LLMMaskingResult(masked_text=text)
+
+    try:
+        from src.agent.llm import get_llm
+        llm = get_llm()
+    except Exception as exc:
+        logger.warning("Cannot load LLM for masking, skipping: %s", exc)
+        return LLMMaskingResult(
+            masked_text=text,
+            llm_error=f"llm_unavailable: {exc}",
+        )
+
+    try:
+        prompt = _LLM_MASKING_PROMPT % text
+        response = llm.invoke(prompt)
+
+        # LangChain models return AIMessage; plain mocks return str
+        raw = response.content if hasattr(response, "content") else str(response)
+
+        result = _parse_llm_masking_response(raw, text)
+        return result
+    except Exception as exc:
+        logger.warning("LLM masking call failed, falling back to regex only: %s", exc)
+        return LLMMaskingResult(
+            masked_text=text,
+            llm_used=False,
+            llm_error=f"invocation_error: {exc}",
+        )
+
+# ═══════════════════════════════════════════════════════════════════════════
 # 3. Composite screening function (used by load.py)
 # ═══════════════════════════════════════════════════════════════════════════
 
@@ -307,6 +452,12 @@ class ScreeningMetadata:
     screened: bool = True
     injection_flagged: bool = False
     injection_labels: List[str] = field(default_factory=list)
+    # LLM-based masking (Layer 1)
+    llm_masking_count: int = 0
+    llm_masking_types: List[str] = field(default_factory=list)
+    llm_masking_used: bool = False
+    llm_masking_error: str = ""
+    # Regex-based redaction (Layer 2 — safety net)
     redaction_count: int = 0
     redaction_types: List[str] = field(default_factory=list)
     latency_ms: float = 0.0
@@ -317,14 +468,24 @@ def screen_incident_payload(
     payload: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], ScreeningMetadata]:
     """
-    Run injection screening and PII redaction over the text fields of an
-    incident payload.
+    Run injection screening, LLM-based masking, and regex redaction over
+    the text fields of an incident payload.
+
+    Pipeline per text field
+    -----------------------
+    1. **Injection screening** — neutralise prompt-injection patterns.
+    2. **LLM masking (Layer 1)** — the LLM detects passwords, secrets,
+       PII, etc. and replaces the *value* with ``****`` while keeping the
+       surrounding context intact.
+    3. **Regex redaction (Layer 2)** — deterministic regex patterns run on
+       the LLM's output as a safety net, catching anything the model may
+       have missed.
 
     Returns
     -------
     (screened_payload, metadata)
-        The screened payload with neutralised / redacted text, and an
-        audit metadata object suitable for recording on the execution
+        The screened payload with neutralised / masked / redacted text, and
+        an audit metadata object suitable for recording on the execution
         record.  The metadata contains **no** raw sensitive strings.
 
     The incident is **never** silently dropped.  Even if injection is
@@ -335,6 +496,8 @@ def screen_incident_payload(
     meta = ScreeningMetadata()
 
     all_injection_labels: List[str] = []
+    total_llm_detections = 0
+    all_llm_types: List[str] = []
     total_redactions = 0
     all_redaction_types: List[str] = []
 
@@ -354,17 +517,35 @@ def screen_incident_payload(
                 if lbl not in all_injection_labels:
                     all_injection_labels.append(lbl)
 
-        # Step 2: PII / credential redaction
+        # Step 2: Regex-based redaction (Layer 1 - deterministic)
         red = redact_sensitive_content(working_text)
+        working_text = red.redacted_text
         total_redactions += red.redaction_count
         for t in red.redaction_types:
             if t not in all_redaction_types:
                 all_redaction_types.append(t)
 
-        # Replace the field with the cleaned text
-        payload[field_name] = red.redacted_text
+        # Step 3: LLM-based masking (Layer 2 - recall for unusual cases)
+        llm_result = mask_sensitive_with_llm(working_text)
+        working_text = llm_result.masked_text
+        total_llm_detections += llm_result.detection_count
+        for t in llm_result.detection_types:
+            if t not in all_llm_types:
+                all_llm_types.append(t)
+        if llm_result.llm_used:
+            meta.llm_masking_used = True
+        if llm_result.llm_error:
+            if meta.llm_masking_error:
+                meta.llm_masking_error += f" | {field_name}: {llm_result.llm_error}"
+            else:
+                meta.llm_masking_error = f"{field_name}: {llm_result.llm_error}"
+
+        # Replace the field with the fully cleaned text
+        payload[field_name] = working_text
 
     meta.injection_labels = all_injection_labels
+    meta.llm_masking_count = total_llm_detections
+    meta.llm_masking_types = all_llm_types
     meta.redaction_count = total_redactions
     meta.redaction_types = all_redaction_types
 
@@ -372,13 +553,20 @@ def screen_incident_payload(
     meta.latency_ms = round(elapsed_ms, 2)
 
     # --- Langfuse guardrail span ---
-    verdict = "flagged" if meta.injection_flagged or meta.redaction_count > 0 else "pass"
+    verdict = (
+        "flagged"
+        if meta.injection_flagged or meta.llm_masking_count > 0 or meta.redaction_count > 0
+        else "pass"
+    )
     _emit_guardrail_span(
         name="input_screening",
         verdict=verdict,
         details={
             "injection_flagged": meta.injection_flagged,
             "injection_labels": meta.injection_labels,
+            "llm_masking_count": meta.llm_masking_count,
+            "llm_masking_types": meta.llm_masking_types,
+            "llm_masking_used": meta.llm_masking_used,
             "redaction_count": meta.redaction_count,
             "redaction_types": meta.redaction_types,
             "fields_screened": meta.fields_screened,
@@ -387,9 +575,10 @@ def screen_incident_payload(
     )
 
     logger.info(
-        "[input_screening] verdict=%s injection=%s redactions=%d latency=%.1fms",
+        "[input_screening] verdict=%s injection=%s llm_masks=%d regex_redactions=%d latency=%.1fms",
         verdict,
         meta.injection_flagged,
+        meta.llm_masking_count,
         meta.redaction_count,
         meta.latency_ms,
     )
