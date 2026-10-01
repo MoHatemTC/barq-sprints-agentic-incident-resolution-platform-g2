@@ -49,9 +49,15 @@
   }
 
   /* ---------- API ---------- */
-  function apiBase() { return String(store.get('barq.api', 'http://localhost:8000')).replace(/\/$/, ''); }
-  async function api(path, opts) {
-    const res = await fetch(apiBase() + path, opts);
+  // Deployed backend (ngrok tunnel); change it per browser in Connection settings, e.g. http://localhost:8000
+  const DEFAULT_API = 'https://revolving-snippet-sketch.ngrok-free.dev';
+  function apiBase() { return String(store.get('barq.api', DEFAULT_API)).replace(/\/$/, ''); }
+  async function api(path, opts = {}) {
+    const headers = Object.assign(
+      { 'ngrok-skip-browser-warning': 'true' },
+      opts.headers || {}
+    );
+    const res = await fetch(apiBase() + path, { ...opts, headers });
     let data = null;
     try { data = await res.json(); } catch (e) { /* not json */ }
     if (!res.ok) {

@@ -64,6 +64,9 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
 
   worker:
     image: barq-g2:latest
@@ -74,6 +77,9 @@ services:
       # Downloaded once, not on the first ticket after every restart: that
       # download used up the task time limit and failed retrieval.
       - model_cache:/tmp/fastembed_cache
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       # DEMO ONLY: before_write | after_write kills the worker once per run (empty = off)
       DEMO_CRASH_AT: ${DEMO_CRASH_AT:-}
@@ -95,6 +101,9 @@ services:
   consumer:
     image: barq-g2:latest
     command: python run_consumer.py
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     environment:
       POSTGRES_HOST: postgres
       DATABASE_URL: postgresql://app:app@postgres:5432/orchestrator
@@ -115,7 +124,10 @@ services:
 
   ui:
     image: python:3.12-slim
-    command: python -m http.server 8080
+    # Only API_BASE_URL from the main .env reaches the browser (via ui/.env), no secrets
+    command: sh -c 'echo "API_BASE_URL=$${API_BASE_URL}" > .env && exec python -m http.server 8080'
+    environment:
+      API_BASE_URL: ${API_BASE_URL:-}
     working_dir: /app/ui
     volumes:
       - ./ui:/app/ui
