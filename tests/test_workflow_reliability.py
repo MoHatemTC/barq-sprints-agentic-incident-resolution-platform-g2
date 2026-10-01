@@ -227,8 +227,8 @@ def test_high_risk_request_skips_automatic_resolution():
     assert route_after_risk({"risk": "high"}) == "prepare_review"
 
 
-def test_approved_high_risk_retrieves_before_acting():
-    assert route_after_human_review({"risk": "high", "human_decision": {"decision": "approve"}, "human_solution": "Restarted the service."}) == "retrieve"
+def test_approved_high_risk_routes_to_formulate_query():
+    assert route_after_human_review({"risk": "high", "human_decision": {"decision": "approve"}, "human_solution": "Restarted the service."}) == "formulate_query"
     assert route_after_human_review({"risk": "high", "human_decision": {"decision": "reject"}}) == "act"
 
 

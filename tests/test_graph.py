@@ -161,6 +161,7 @@ def test_compiled_graph_nodes_match_baseline():
         "validate",
         "classify",
         "determine_risk",
+        "formulate_query",
         "retrieve",
         "diagnose",
         "generate",
