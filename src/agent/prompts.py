@@ -174,7 +174,7 @@ Return ONLY valid JSON in this exact structure:
     "Step 1",
     "Step 2"
   ]
-}
+}}
 
 Incident snapshot:
 {incident_snapshot}
@@ -201,9 +201,9 @@ STRICT RULES:
   into the query to find similar past tickets or KB articles.
 
 OUTPUT FORMAT — respond with valid JSON only, no markdown fences:
-{
+{{
   "query": "<optimized search query string>"
-}
+}}
 
 Incident short description:
 {short_description}
