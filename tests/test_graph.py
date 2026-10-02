@@ -162,6 +162,7 @@ def test_compiled_graph_nodes_match_baseline():
         "validate",
         "classify",
         "determine_risk",
+        "formulate_query",
         "retrieve",
         "diagnose",
         "generate",
@@ -291,5 +292,113 @@ def test_revised_draft_resolves_critic_flagged_issue(
     assert result["action_taken"] == "resolved_automatically"
 
 
+@patch("src.agent.nodes.retrieve.search", return_value=[_fake_chunk()])
+def test_approved_high_risk_reclassifies_with_human_feedback(mock_search):
+    """
+    When a high-risk incident is approved with a human solution, the graph
+    loops back through classify, feeding the reviewer's comment into the
+    LLM prompt.  The model re-evaluates the category using the feedback.
 
+    Scenario:
+      - Initial classification: "software" (vague description).
+      - Human reviewer provides: "The PostgreSQL connection pool was
+        exhausted.  Restart the database service."
+      - Re-classification: "database" (human feedback steered it).
 
+    Verifies:
+      - classification changed from "software" to "database".
+      - The full resolution pipeline ran successfully after re-classification.
+      - action_taken == "resolved_automatically".
+    """
+    from langgraph.types import Command
+
+    # Phase 1 returns "software"; phase 2 (with human feedback) returns "database"
+    classify_call_count = {"n": 0}
+
+    def _classify_llm_factory():
+        classify_call_count["n"] += 1
+        if classify_call_count["n"] == 1:
+            return _build_static_llm("software")
+        return _build_static_llm("database")
+
+    # After approval determine_risk will still say "high", but the
+    # anti-loop guard in route_after_risk lets it through.
+    risk_responses = iter(["high", "high"])
+
+    def _risk_llm_factory():
+        return _build_static_llm(next(risk_responses))
+
+    with (
+        patch("src.agent.nodes.validate.get_llm",
+              return_value=_build_static_llm("valid")),
+        patch("src.agent.nodes.classify.get_llm",
+              side_effect=_classify_llm_factory),
+        patch("src.agent.nodes.determine_risk.get_llm",
+              side_effect=_risk_llm_factory),
+        patch("src.agent.nodes.formulate_query.get_llm",
+              return_value=_build_static_llm(
+                  '{"query": "database connection pool exhausted"}')),
+        patch("src.agent.nodes.diagnose.get_llm",
+              return_value=_build_static_llm(json.dumps({
+                  "root_cause": "PostgreSQL connection pool exhausted.",
+                  "reasoning": "KB0001 describes the same failure pattern.",
+                  "supporting_evidence": ["KB0001"],
+                  "confidence": 0.9,
+              }))),
+        patch("src.agent.nodes.generate.get_llm",
+              return_value=_build_static_llm(
+                  "1. Restart the PostgreSQL service. [Source: KB0001]")),
+        patch("src.agent.nodes.verify_evidence.get_llm",
+              return_value=_build_static_llm(json.dumps({
+                  "passed": True,
+                  "feedback": "",
+                  "invalid_steps": [],
+                  "citation_findings": [],
+              }))),
+    ):
+        graph = create_graph().compile(checkpointer=MemorySaver())
+
+        # ---- Phase 1: run until high-risk pause ----
+        graph.invoke(
+            {
+                "execution_id": "test_reclass",
+                "incident_number": "INC_RECLASS_01",
+                "incident_payload": {
+                    "description": "System is slow and unresponsive",
+                },
+            },
+            config={"configurable": {"thread_id": "test_reclass"}},
+        )
+
+        paused = _paused(graph, "test_reclass")
+        assert paused["classification"] == "software", (
+            "Initial classification should be 'software' (no human feedback)"
+        )
+        assert paused["risk"] == "high"
+
+        # ---- Phase 2: resume with human solution ----
+        result = graph.invoke(
+            Command(resume={
+                "decision": "approve",
+                "reviewer": "senior_dba",
+                "comment": "This is clearly a database issue.",
+                "human_solution": (
+                    "The PostgreSQL connection pool was exhausted. "
+                    "Restart the database service and increase max_connections."
+                ),
+            }),
+            config={"configurable": {"thread_id": "test_reclass"}},
+        )
+
+    # ---- Assertions ----
+    # Re-classification happened
+    assert classify_call_count["n"] == 2, (
+        "classify_node should have been called twice (initial + re-classification)"
+    )
+    assert result["classification"] == "database", (
+        "Human feedback should have steered re-classification to 'database'"
+    )
+
+    # Full pipeline completed
+    assert result["action_taken"] == "approved_by_human"
+    assert "PostgreSQL" in result["outputs"]["resolution"]

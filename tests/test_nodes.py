@@ -698,6 +698,81 @@ def test_safety_check_node_invalid_content():
     assert "OUTPUT_CONTENT_FLAGGED" in result["failure_reason"]
 
 
+def test_formulate_query_fallback_includes_human_solution(monkeypatch):
+    """Fallback search query must preserve human_solution when LLM fails."""
+    from src.agent.nodes.formulate_query import formulate_query_node
+
+    class FailingLLM:
+        def invoke(self, *args, **kwargs):
+            raise RuntimeError("LLM service unavailable")
+
+    monkeypatch.setattr("src.agent.nodes.formulate_query.get_llm", lambda: FailingLLM())
+
+    state = {
+        "incident_payload": {
+            "short_description": "VPN issue",
+            "description": "User cannot connect to gateway",
+        },
+        "human_solution": "Restart VPN concentrator daemon.",
+    }
+    result = formulate_query_node(state)
+    assert "Restart VPN concentrator daemon." in result["search_query"]
+    assert "VPN issue" in result["search_query"]
+
+
+def test_formulate_query_combines_short_description_and_description(monkeypatch):
+    """One query line written from both texts; greetings and signatures are the LLM's to drop."""
+    from src.agent.nodes import formulate_query as fq
+
+    llm = MagicMock()
+    llm.invoke.return_value = MagicMock(content="VPN authentication failed after password reset")
+    monkeypatch.setattr(fq, "get_llm", lambda: llm)
+
+    result = fq.formulate_query_node({"incident_payload": {
+        "short_description": "VPN broken!!",
+        "description": "Hi team, since my password reset this morning the VPN says authentication failed. Thanks"}})
+
+    prompt = llm.invoke.call_args[0][0]
+    assert "VPN broken!!" in prompt and "authentication failed" in prompt
+    assert result["search_query"] == "VPN authentication failed after password reset"
+
+
+def test_formulate_query_accepts_a_json_answer(monkeypatch):
+    from src.agent.nodes import formulate_query as fq
+
+    llm = MagicMock()
+    llm.invoke.return_value = MagicMock(content='```json\n{"query": "printer queue stuck"}\n```')
+    monkeypatch.setattr(fq, "get_llm", lambda: llm)
+
+    result = fq.formulate_query_node({"incident_payload": {"short_description": "Printer", "description": "stuck"}})
+
+    assert result["search_query"] == "printer queue stuck"
+
+
+def test_formulate_query_falls_back_to_both_texts(monkeypatch):
+    from src.agent.nodes import formulate_query as fq
+
+    llm = MagicMock()
+    llm.invoke.return_value = MagicMock(content="")
+    monkeypatch.setattr(fq, "get_llm", lambda: llm)
+
+    result = fq.formulate_query_node({"incident_payload": {"short_description": "VPN broken", "description": "Auth fails"}})
+
+    assert result["search_query"] == "VPN broken\nAuth fails"
+
+
+def test_act_node_tracing_output():
+    """build_node_output for act node must capture servicenow_write."""
+    from src.observability.tracing import build_node_output
+
+    act_result = {
+        "action_taken": "resolved_automatically",
+        "servicenow_write": "written",
+    }
+    output = build_node_output("act", act_result)
+    assert output["action_taken"] == "resolved_automatically"
+    assert output["servicenow_write"] == "written"
+
 
 
 def _scored(number, score, category):
@@ -750,33 +825,22 @@ def test_no_corrected_category_keeps_the_original_results(mock_search, _llm):
     assert [e["id"] for e in result["retrieved_evidence"]] == ["KB0003"]
 
 
-@pytest.mark.llm_search_query
-@patch("src.agent.nodes.retrieve.get_llm", return_value=_llm_says("VPN authentication failed after password reset"))
-def test_search_query_is_written_from_short_description_and_description(mock_llm):
-    from src.agent.nodes.retrieve import _search_query
+@patch("src.agent.nodes.retrieve.search")
+def test_retrieve_searches_with_the_formulated_query(mock_search):
+    mock_search.return_value = [_scored("KB0001", 3.0, "network")]
 
-    query = _search_query({"short_description": "VPN broken!!", "description": "Hi team, since my password reset this morning the VPN says authentication failed. Thanks"})
+    retrieve_node({"search_query": "VPN authentication failed after password reset",
+                   "incident_payload": {"short_description": "VPN down", "description": "auth fails"}})
 
-    prompt = mock_llm.return_value.invoke.call_args[0][0]
-    assert "VPN broken!!" in prompt and "authentication failed" in prompt
-    assert query == "VPN authentication failed after password reset"
-
-
-@pytest.mark.llm_search_query
-@patch("src.agent.nodes.retrieve.get_llm", side_effect=RuntimeError("LLM down"))
-def test_search_query_falls_back_to_the_incident_text(_llm):
-    from src.agent.nodes.retrieve import _search_query
-
-    assert _search_query({"short_description": "VPN broken", "description": "Auth fails"}) == "VPN broken\nAuth fails"
+    assert mock_search.call_args.kwargs["query"] == "VPN authentication failed after password reset"
 
 
 @patch("src.agent.nodes.retrieve.search")
-def test_retrieve_returns_the_search_query_for_the_ui(mock_search):
+def test_retrieve_falls_back_to_the_incident_text_without_a_formulated_query(mock_search):
     mock_search.return_value = [_scored("KB0001", 3.0, "network")]
 
-    result = retrieve_node({"incident_payload": {"short_description": "VPN down", "description": "auth fails"}})
+    retrieve_node({"incident_payload": {"short_description": "VPN down", "description": "auth fails"}})
 
-    assert result["search_query"] == "VPN down\nauth fails"
     assert mock_search.call_args.kwargs["query"] == "VPN down\nauth fails"
 
 
