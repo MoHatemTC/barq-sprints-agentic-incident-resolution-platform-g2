@@ -104,59 +104,6 @@ class ChunkingConfig:
 
 def _csv_env(name: str, default: str) -> tuple[str, ...]:
 
-    raw = os.environ.get(name, default)
-    return tuple(item.strip() for item in raw.split(",") if item.strip())
-
-
-# ServiceNow's incident.category choices
-INCIDENT_CATEGORIES = ("inquiry", "software", "hardware", "network", "database", "password_reset")
-
-RETRIEVAL_MODES = ("dense", "hybrid", "hybrid_rerank")
-
-
-@dataclass(frozen=True)
-class RetrievalConfig:
-    mode: str = os.environ.get("RETRIEVAL_MODE", "hybrid_rerank")
-    top_k: int = int(os.environ.get("RETRIEVAL_TOP_K", "5"))
-    candidate_k: int = int(os.environ.get("RETRIEVAL_CANDIDATE_K", "20"))
-    rrf_k: int = int(os.environ.get("RRF_K", "60"))
-    rerank_model: str = os.environ.get("RERANK_MODEL", "Xenova/ms-marco-MiniLM-L-6-v2")
-    allowed_workflow_states: tuple[str, ...] = field(
-        default_factory=lambda: _csv_env("ALLOWED_WORKFLOW_STATES", "published")
-    )
-    blocked_security_levels: tuple[str, ...] = field(
-        default_factory=lambda: _csv_env("BLOCKED_SECURITY_LEVELS", "restricted")
-    )
-    latency_budget_ms: int = int(os.environ.get("LATENCY_BUDGET_MS", "500"))
-    qdrant_local_path: str = os.environ.get("QDRANT_LOCAL_PATH", "")
-    manual_collection_name: str = os.environ.get("MANUAL_COLLECTION_NAME", "barq_manual")
-    manual_pdf_path: str = os.environ.get(
-        "MANUAL_PDF_PATH", "data/BARQ_IT_Service_Desk_Manual_Ed5.1.pdf"
-    )
-    eval_dataset_path: str = os.environ.get(
-        "EVAL_DATASET_PATH", "eval/barq_rag_eval_dataset.json"
-    )
-
-    def __post_init__(self):
-        if self.mode not in RETRIEVAL_MODES:
-            raise ValueError(
-                f"RETRIEVAL_MODE must be one of {RETRIEVAL_MODES}, got {self.mode!r}"
-            )
-        if self.top_k <= 0:
-            raise ValueError(f"RETRIEVAL_TOP_K must be > 0, got {self.top_k}")
-        if self.candidate_k < self.top_k:
-            raise ValueError(
-                "RETRIEVAL_CANDIDATE_K must be >= RETRIEVAL_TOP_K, "
-                f"got {self.candidate_k} < {self.top_k}"
-            )
-        if self.rrf_k <= 0:
-            raise ValueError(f"RRF_K must be > 0, got {self.rrf_k}")
-        if not self.allowed_workflow_states:
-            raise ValueError("ALLOWED_WORKFLOW_STATES must list at least one state")
-
-
-def _csv_env(name: str, default: str) -> tuple[str, ...]:
-
     """Read a comma-separated env var into a tuple, e.g. "a, b" -> ("a", "b")."""
     raw = os.environ.get(name, default)
     return tuple(item.strip() for item in raw.split(",") if item.strip())
@@ -166,7 +113,8 @@ def _csv_env(name: str, default: str) -> tuple[str, ...]:
 # config change only -- no code changes anywhere.
 RETRIEVAL_MODES = ("dense", "hybrid", "hybrid_rerank")
 
-
+# ServiceNow's incident.category choices
+INCIDENT_CATEGORIES = ("inquiry", "software", "hardware", "network", "database", "password_reset")
 
 
 # S2.4 query-side settings: mode switch, fusion, filters, reranking
@@ -224,6 +172,8 @@ class RetrievalConfig:
             raise ValueError(f"RRF_K must be > 0, got {self.rrf_k}")
         if not self.allowed_workflow_states:
             raise ValueError("ALLOWED_WORKFLOW_STATES must list at least one state")
+
+
 @dataclass(frozen=True)
 class WorkerConfig:
     """Validated S2.3 worker settings, loaded only when a worker is configured."""
