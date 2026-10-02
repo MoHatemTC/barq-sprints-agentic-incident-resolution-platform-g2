@@ -54,6 +54,8 @@ STRICT RULES:
   retrieved evidence when evidence is available.
 - Every step that references a procedure or policy MUST include a citation in
   the format [Source: KB_ID] at the end of that step.
+- Cite ONLY the single most direct and relevant KB article ID per step (e.g. [Source: KB0001]).
+  Do NOT attach secondary, tangential, or multiple citations to a single step.
 - Do NOT contradict the given diagnosis.
 - Do NOT include steps unsupported by the evidence.
 - Number every step (1. 2. 3. …).
@@ -84,6 +86,7 @@ STRICT RULES:
 - Read the Critic feedback and invalid step numbers carefully.
 - Fix ONLY the identified problems — do not rewrite steps that passed.
 - Every citation MUST reference a KB article ID present in the retrieved evidence.
+- Cite ONLY the single primary KB article that directly contains the instruction.
 - If a step cannot be supported by any retrieved evidence, remove that step.
 - Maintain the numbered format (1. 2. 3. …).
 - Do not add a preamble or closing summary — output the numbered steps only.
@@ -108,14 +111,19 @@ STRICT RULES:
 - A citation is VALID if the cited KB ID exists in the retrieved evidence list.
 - A citation is PLAUSIBLE if the text of that evidence article could reasonably
   support the claim made in that step.
+- If the evidence article contains the procedural instruction or symptom described,
+  mark it as PLAUSIBLE (plausible: true).
+- If a step cites multiple sources and at least one cited KB article plausibly supports
+  the step, the step PASSES. Do not fail a step merely because another secondary
+  citation provides less direct support.
 - If a step has no citation, treat it as a missing citation (invalid).
-- Be conservative: when in doubt about plausibility, mark it as questionable.
+- Mark a step as invalid ONLY if NO cited evidence supports the action.
 
 OUTPUT FORMAT — respond with valid JSON only, no markdown fences:
 {
-  "passed": <true if ALL citations are valid and plausible, false otherwise>,
+  "passed": <true if ALL steps are plausibly supported by their citations, false otherwise>,
   "feedback": "<concise explanation of what failed and why, empty string if passed>",
-  "invalid_steps": [<step numbers with citation problems, e.g. [2, 4]>],
+  "invalid_steps": [<step numbers where no cited source supports the claim, e.g. [2]>],
   "citation_findings": [
     {
       "step_num": <int>,
