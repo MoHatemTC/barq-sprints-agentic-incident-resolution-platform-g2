@@ -336,8 +336,8 @@ def test_manual_section_maps_to_article_keyed_by_section_label():
 
     assert article.article_id == "6.13 KB0010 v1"
     assert article.number == "KB0010"
-    assert article.title == "6.13 KB0010 v1 KB0010 Order sync stalls"
-    assert article.body == "Version 1 – retired 02 April 2026\n"
+    assert article.title == "KB0010 Order sync stalls"
+    assert article.body == "Version 1 – retired 02 April 2026\n"   # unformatted: escaped raw text
     assert (article.category, article.service, article.version) == ("chapter-6", "order-processing", 1)
     assert article.workflow_state == "retired"
     assert article.security_level == "internal"
@@ -350,6 +350,35 @@ def test_non_kb_section_uses_section_label_as_number():
     )
 
     assert article.number == article.article_id == "3.4"
+
+
+def test_article_titles_drop_repeated_ids_and_name_the_chapter():
+    chapters = {"3": "Incident management", "9": "Major incident report MIR-2026-03"}
+
+    def title(section_id, raw):
+        return publish_kb.article_title(_section(section_id=section_id, title=raw, kb_number=""), chapters)
+
+    assert title("3.4", "Response and resolution targets") == "3.4 Response and resolution targets – Incident management"
+    assert title("9", "Major incident report MIR-2026-03") == "Chapter 9 – Major incident report MIR-2026-03"
+    assert title("Appendix B.4", "B.4 Knowledge article proposal") == "Appendix B.4 – Knowledge article proposal"
+    assert title("Appendix A", "· Glossary") == "Appendix A – Glossary"
+    assert title("Appendix D", "· Directory") == "Appendix D – Directory"
+    assert title("Document control", "") == "Document control"
+
+
+def test_whitespace_servicenow_drops_between_tags_is_not_a_mismatch():
+    payload = {"text": "<table>\n<tr>\n<td>P1</td>\n</tr>\n</table>"}
+
+    assert publish_kb._mismatched_fields(payload, {"text": "<table><tr><td>P1</td></tr></table>"}) == []
+    assert publish_kb._mismatched_fields(payload, {"text": "<table><tbody><tr><td>P1</td></tr></tbody></table>"}) == []
+    assert publish_kb._mismatched_fields({"text": "a<br>b"}, {"text": "a<br />b"}) == []
+    assert publish_kb._mismatched_fields(payload, {"text": "<table><tr><td>P2</td></tr></table>"}) == ["text"]
+
+
+def test_formatted_html_is_sent_as_is():
+    article = publish_kb.section_to_article(_section(), body="<h2>Cause.</h2><p>A &amp; B</p>")
+
+    assert publish_kb._build_payload(article, body_is_html=True)["text"] == "<h2>Cause.</h2><p>A &amp; B</p>"
 
 
 def test_non_published_sections_are_skipped_without_calling_servicenow(monkeypatch, publish_env):

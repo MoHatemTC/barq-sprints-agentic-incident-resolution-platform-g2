@@ -190,31 +190,13 @@ Human solution:
 # Query Agent — search query formulation
 
 QUERY_GENERATION_PROMPT = """\
-You are an expert IT support search query formulator.
+Write one search query for an IT knowledge base from this incident.
+Keep error codes, product and system names, and the symptoms the user describes.
+Drop greetings, signatures, urgency words and anything not about the fault.
+If a human-provided resolution is given, include its key actions.
+Answer with the query only, on one line.
 
-Your job is to read an incident's short description and detailed description,
-and formulate an optimized search query to find relevant solutions in the
-IT Knowledge Base.
-
-STRICT RULES:
-- Extract the core technical issue, error messages, and system names.
-- Remove filler words, greetings, or irrelevant user frustration.
-- The output should be a concise query string optimized for hybrid search
-  (combining semantic meaning and key terms).
-- If a human-provided resolution is also given, incorporate its key actions
-  into the query to find similar past tickets or KB articles.
-
-OUTPUT FORMAT — respond with valid JSON only, no markdown fences:
-{{
-  "query": "<optimized search query string>"
-}}
-
-Incident short description:
-{short_description}
-
-Incident description:
-{description}
-
-Human-provided resolution (if any):
-{human_solution}
+Short description: {short_description}
+Description: {description}
+Human-provided resolution (if any): {human_solution}
 """

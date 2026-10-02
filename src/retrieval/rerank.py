@@ -22,7 +22,9 @@ def rerank(query: str, chunks: list[RetrievedChunk], top_k: int) -> list[Retriev
     if not chunks:
         return []
 
-    scores = list(_get_model().rerank(query, [c.text for c in chunks]))
+    # The title tells the cross-encoder what a "Resolution." chunk is the resolution of.
+    texts = [f"{c.payload.get('title', '')}\n{c.text}".strip() for c in chunks]
+    scores = list(_get_model().rerank(query, texts))
 
     rescored = [
         RetrievedChunk(**{**c.__dict__, "score": float(s)})

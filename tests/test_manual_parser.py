@@ -1,6 +1,8 @@
 # unit tests for the manual parser on small hand-made pages. No PDF, no models
 # Run: pytest tests/test_manual_parser.py -v
-from src.retrieval.manual_parser import ManualSection, heading_id, ids_for, read_toc, split_sections, tag_kb
+from src.retrieval.manual_parser import (
+    ManualSection, heading_id, ids_for, incident_category, read_toc, split_sections, tag_kb,
+)
 
 # A miniature manual: page 1 cover, pages 2-4 contents, page 5+ body (the parser skips pages 1-4)
 TOC_PAGE = [
@@ -63,3 +65,21 @@ def test_two_revisions_become_two_sections_with_their_own_state():
 def test_ids_for_includes_label_and_parent_appendix():
     assert ids_for("6.13", "6.13 KB0010 v1") == {"6.13", "6.13 KB0010 v1"}
     assert ids_for("Appendix B.1", "Appendix B.1") == {"Appendix B.1", "Appendix B"}
+
+
+def _section(section_id, text):
+    return ManualSection(section_id, section_id, "", text, 1)
+
+
+def test_incident_category_reads_the_sections_own_category_line():
+    # KB header ("hardware") and worked-record forms ("Network · VPN", "Inquiry → Identity")
+    assert incident_category(_section("6.7", "State\nPublished\nCategory\nhardware\n")) == "hardware"
+    assert incident_category(_section("7.2", "Category\nNetwork · VPN\n")) == "network"
+    assert incident_category(_section("7.4", "Category\nInquiry → Identity\n")) == "inquiry"
+
+
+def test_incident_category_falls_back_for_sections_without_one():
+    assert incident_category(_section("6.13", "Version 2 – published\n")) == "software"   # KB0010
+    assert incident_category(_section("9.3", "Timeline.\n")) == "software"                 # order-service MIR
+    assert incident_category(_section("3.4", "Category is in the supported set\n")) == "inquiry"
+    assert incident_category(_section("Appendix B.1", "Paste into the work note.\n")) == "inquiry"
