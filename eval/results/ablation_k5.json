@@ -1,94 +1,123 @@
 {
-  "evaluation_set_version": "1.2",
+  "evaluation_set_version": "2.0",
   "k": 5,
   "runs": 1,
   "deterministic": null,
   "summary": {
     "dense": {
-      "precision": 0.106,
-      "recall": 0.438,
-      "hit_rate": 0.5,
-      "mrr": 0.438,
+      "precision": 0.265,
+      "recall": 0.807,
+      "hit_rate": 0.882,
+      "mrr": 0.773,
       "planted_hits": 0,
-      "p50_ms": 1020.9,
-      "p95_ms": 1259.4
+      "p50_ms": 1056.2,
+      "p95_ms": 1213.1
     },
     "hybrid": {
-      "precision": 0.106,
-      "recall": 0.438,
-      "hit_rate": 0.5,
-      "mrr": 0.411,
+      "precision": 0.318,
+      "recall": 0.955,
+      "hit_rate": 1,
+      "mrr": 0.922,
       "planted_hits": 0,
-      "p50_ms": 1029.8,
-      "p95_ms": 1585.7
+      "p50_ms": 1036.0,
+      "p95_ms": 1185.0
     },
     "hybrid_rerank": {
-      "precision": 0.1,
-      "recall": 0.422,
-      "hit_rate": 0.469,
-      "mrr": 0.308,
+      "precision": 0.318,
+      "recall": 0.955,
+      "hit_rate": 1,
+      "mrr": 0.799,
       "planted_hits": 0,
-      "p50_ms": 2347.3,
-      "p95_ms": 2936.9
+      "p50_ms": 2203.8,
+      "p95_ms": 4089.8
     }
   },
   "by_source": {
     "coverage_matrix": {
       "dense": {
-        "precision": 0.118,
-        "recall": 0.5,
-        "hit_rate": 0.545,
-        "mrr": 0.489,
+        "precision": 0.217,
+        "recall": 1.0,
+        "hit_rate": 1,
+        "mrr": 0.896,
         "planted_hits": 0,
-        "p50_ms": 1022.5,
-        "p95_ms": 1236.1
+        "p50_ms": 1044.0,
+        "p95_ms": 1133.1
       },
       "hybrid": {
-        "precision": 0.118,
-        "recall": 0.5,
-        "hit_rate": 0.545,
-        "mrr": 0.47,
+        "precision": 0.217,
+        "recall": 1.0,
+        "hit_rate": 1,
+        "mrr": 0.861,
         "planted_hits": 0,
-        "p50_ms": 1029.8,
-        "p95_ms": 1576.6
+        "p50_ms": 1050.1,
+        "p95_ms": 1275.7
       },
       "hybrid_rerank": {
-        "precision": 0.118,
-        "recall": 0.5,
-        "hit_rate": 0.545,
-        "mrr": 0.371,
+        "precision": 0.217,
+        "recall": 1.0,
+        "hit_rate": 1,
+        "mrr": 0.681,
         "planted_hits": 0,
-        "p50_ms": 2368.7,
-        "p95_ms": 3051.7
+        "p50_ms": 2344.7,
+        "p95_ms": 5075.9
       }
     },
     "identifier_probe": {
       "dense": {
-        "precision": 0.08,
-        "recall": 0.3,
-        "hit_rate": 0.4,
-        "mrr": 0.325,
+        "precision": 0.367,
+        "recall": 0.453,
+        "hit_rate": 0.667,
+        "mrr": 0.461,
         "planted_hits": 0,
-        "p50_ms": 1018.0,
-        "p95_ms": 1427.0
+        "p50_ms": 1115.4,
+        "p95_ms": 1248.1
       },
       "hybrid": {
-        "precision": 0.08,
-        "recall": 0.3,
-        "hit_rate": 0.4,
-        "mrr": 0.283,
+        "precision": 0.517,
+        "recall": 0.872,
+        "hit_rate": 1,
+        "mrr": 0.958,
         "planted_hits": 0,
-        "p50_ms": 1086.5,
-        "p95_ms": 2328.5
+        "p50_ms": 1012.1,
+        "p95_ms": 1139.6
       },
       "hybrid_rerank": {
-        "precision": 0.06,
-        "recall": 0.25,
-        "hit_rate": 0.3,
-        "mrr": 0.17,
+        "precision": 0.517,
+        "recall": 0.872,
+        "hit_rate": 1,
+        "mrr": 0.958,
         "planted_hits": 0,
-        "p50_ms": 2259.1,
-        "p95_ms": 2873.9
+        "p50_ms": 2113.4,
+        "p95_ms": 2536.8
+      }
+    },
+    "manual_reported_as": {
+      "dense": {
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit_rate": 1,
+        "mrr": 1.0,
+        "planted_hits": 0,
+        "p50_ms": 998.0,
+        "p95_ms": 1142.0
+      },
+      "hybrid": {
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit_rate": 1,
+        "mrr": 0.95,
+        "planted_hits": 0,
+        "p50_ms": 1006.8,
+        "p95_ms": 1177.2
+      },
+      "hybrid_rerank": {
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit_rate": 1,
+        "mrr": 0.75,
+        "planted_hits": 0,
+        "p50_ms": 2353.6,
+        "p95_ms": 2868.1
       }
     }
   },
@@ -119,29 +148,323 @@
       ]
     },
     {
-      "query_id": "PROBE-08",
-      "query": "0x8004010F",
+      "query_id": "PROBE-11",
+      "query": "PRB0040012",
       "expected": [
+        "1.2",
+        "10.2",
+        "7.4",
+        "8.2",
+        "8.3",
+        "Appendix E",
+        "KB0001",
+        "KB0005"
+      ],
+      "kind": "recovered",
+      "recovered": [
+        "1.2",
+        "KB0001"
+      ],
+      "dense_rank": 1,
+      "hybrid_rank": 1,
+      "dense_returned": [
+        "8.3",
+        "8.2",
+        "Appendix E",
+        "7.5",
+        "10.2"
+      ],
+      "hybrid_returned": [
+        "8.2",
+        "Appendix E",
+        "8.3",
+        "1.2",
+        "KB0001"
+      ]
+    },
+    {
+      "query_id": "PROBE-12",
+      "query": "INC0010024",
+      "expected": [
+        "KB0002"
+      ],
+      "kind": "recovered",
+      "recovered": [
+        "KB0002"
+      ],
+      "dense_rank": null,
+      "hybrid_rank": 1,
+      "dense_returned": [
+        "7.4",
+        "7.3",
+        "7.5",
+        "8.3",
+        "10.4"
+      ],
+      "hybrid_returned": [
         "KB0002",
-        "KB0025"
+        "7.4",
+        "6.2",
+        "7.3",
+        "7.5"
+      ]
+    },
+    {
+      "query_id": "PROBE-13",
+      "query": "INC0010025",
+      "expected": [
+        "KB0003"
+      ],
+      "kind": "recovered",
+      "recovered": [
+        "KB0003"
+      ],
+      "dense_rank": null,
+      "hybrid_rank": 2,
+      "dense_returned": [
+        "7.5",
+        "8.3",
+        "7.4",
+        "10.4",
+        "7.3"
+      ],
+      "hybrid_returned": [
+        "7.5",
+        "KB0003",
+        "6.2",
+        "8.3",
+        "4.1"
+      ]
+    },
+    {
+      "query_id": "PROBE-14",
+      "query": "INC0010026",
+      "expected": [
+        "KB0004"
       ],
       "kind": "rank",
       "recovered": [],
-      "dense_rank": 4,
-      "hybrid_rank": 3,
+      "dense_rank": 5,
+      "hybrid_rank": 1,
+      "dense_returned": [
+        "7.5",
+        "8.3",
+        "7.4",
+        "9.3",
+        "KB0004"
+      ],
+      "hybrid_returned": [
+        "KB0004",
+        "7.5",
+        "6.2",
+        "8.3",
+        "4.1"
+      ]
+    },
+    {
+      "query_id": "PROBE-15",
+      "query": "INC0010027",
+      "expected": [
+        "KB0005"
+      ],
+      "kind": "recovered",
+      "recovered": [
+        "KB0005"
+      ],
+      "dense_rank": null,
+      "hybrid_rank": 1,
       "dense_returned": [
         "8.3",
-        "Appendix E",
+        "7.3",
         "7.4",
-        "KB0002",
-        "8.2"
+        "7.5",
+        "10.4"
+      ],
+      "hybrid_returned": [
+        "KB0005",
+        "8.3",
+        "6.2",
+        "7.3",
+        "7.4"
+      ]
+    },
+    {
+      "query_id": "PROBE-16",
+      "query": "RITM0010877",
+      "expected": [
+        "1.2",
+        "Appendix E",
+        "KB0006"
+      ],
+      "kind": "recovered",
+      "recovered": [
+        "KB0006"
+      ],
+      "dense_rank": 1,
+      "hybrid_rank": 1,
+      "dense_returned": [
+        "Appendix E",
+        "1.2",
+        "8.3",
+        "7.4",
+        "7.3"
+      ],
+      "hybrid_returned": [
+        "Appendix E",
+        "1.2",
+        "KB0006",
+        "8.3",
+        "7.4"
+      ]
+    },
+    {
+      "query_id": "PROBE-17",
+      "query": "INC0010029",
+      "expected": [
+        "KB0007"
+      ],
+      "kind": "recovered",
+      "recovered": [
+        "KB0007"
+      ],
+      "dense_rank": null,
+      "hybrid_rank": 1,
+      "dense_returned": [
+        "8.3",
+        "7.5",
+        "7.4",
+        "8.2",
+        "10.4"
+      ],
+      "hybrid_returned": [
+        "KB0007",
+        "8.3",
+        "6.2",
+        "7.5",
+        "7.4"
+      ]
+    },
+    {
+      "query_id": "PROBE-18",
+      "query": "KE0000034",
+      "expected": [
+        "1.2",
+        "5.2",
+        "8.3",
+        "Appendix E",
+        "KB0008"
+      ],
+      "kind": "recovered",
+      "recovered": [
+        "1.2"
+      ],
+      "dense_rank": 1,
+      "hybrid_rank": 1,
+      "dense_returned": [
+        "Appendix E",
+        "8.3",
+        "KB0008",
+        "Appendix B.4",
+        "5.2"
       ],
       "hybrid_returned": [
         "8.3",
-        "7.3",
-        "KB0002",
-        "KB0007",
-        "Appendix E"
+        "KB0008",
+        "Appendix E",
+        "1.2",
+        "5.2"
+      ]
+    },
+    {
+      "query_id": "PROBE-19",
+      "query": "PRB0040021",
+      "expected": [
+        "10.2",
+        "5.2",
+        "8.2",
+        "Appendix E",
+        "KB0009"
+      ],
+      "kind": "recovered",
+      "recovered": [
+        "5.2"
+      ],
+      "dense_rank": 2,
+      "hybrid_rank": 1,
+      "dense_returned": [
+        "8.3",
+        "8.2",
+        "Appendix E",
+        "7.5",
+        "10.2"
+      ],
+      "hybrid_returned": [
+        "8.2",
+        "10.2",
+        "Appendix E",
+        "5.2",
+        "8.3"
+      ]
+    },
+    {
+      "query_id": "PROBE-20",
+      "query": "PRB0040018",
+      "expected": [
+        "10.2",
+        "7.5",
+        "8.2",
+        "9.6",
+        "Appendix E",
+        "KB0010"
+      ],
+      "kind": "recovered",
+      "recovered": [
+        "KB0010"
+      ],
+      "dense_rank": 2,
+      "hybrid_rank": 1,
+      "dense_returned": [
+        "8.3",
+        "7.5",
+        "Appendix E",
+        "8.2",
+        "10.2"
+      ],
+      "hybrid_returned": [
+        "7.5",
+        "10.2",
+        "Appendix E",
+        "8.2",
+        "KB0010"
+      ]
+    },
+    {
+      "query_id": "PROBE-21",
+      "query": "MIR-2026-03",
+      "expected": [
+        "1.2",
+        "7.5",
+        "9.1",
+        "Appendix E",
+        "KB0010"
+      ],
+      "kind": "rank",
+      "recovered": [],
+      "dense_rank": 3,
+      "hybrid_rank": 1,
+      "dense_returned": [
+        "9.3",
+        "9",
+        "9.1",
+        "9.6",
+        "9.4"
+      ],
+      "hybrid_returned": [
+        "9.1",
+        "9",
+        "9.3",
+        "9.6",
+        "9.2"
       ]
     }
   ],
@@ -151,7 +474,7 @@
         "query_id": "INC0010023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1215.1,
+        "ms": 954.2,
         "planted_hits": [],
         "top_score": 0.8146,
         "returned": [
@@ -171,7 +494,7 @@
         "query_id": "INC0010047",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 984.0,
+        "ms": 1069.4,
         "planted_hits": [],
         "top_score": 0.72,
         "returned": [
@@ -186,7 +509,7 @@
         "query_id": "INC0010064",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1178.1,
+        "ms": 1059.0,
         "planted_hits": [],
         "top_score": 0.7588,
         "returned": [
@@ -206,7 +529,7 @@
         "query_id": "INC0010052",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1119.6,
+        "ms": 1024.3,
         "planted_hits": [],
         "top_score": 0.7983,
         "returned": [
@@ -226,7 +549,7 @@
         "query_id": "INC1006",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 996.2,
+        "ms": 1065.4,
         "planted_hits": [],
         "top_score": 0.8202,
         "returned": [
@@ -245,8 +568,8 @@
       {
         "query_id": "INC1007",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 937.1,
+        "answerable": false,
+        "ms": 1124.5,
         "planted_hits": [],
         "top_score": 0.711,
         "returned": [
@@ -255,18 +578,13 @@
           "KB0005",
           "KB0002",
           "6.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1008",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 911.5,
+        "answerable": false,
+        "ms": 1127.6,
         "planted_hits": [],
         "top_score": 0.6533,
         "returned": [
@@ -275,18 +593,13 @@
           "Appendix E",
           "KB0003",
           "KB0002"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1009",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1040.2,
+        "ms": 993.7,
         "planted_hits": [],
         "top_score": 0.8305,
         "returned": [
@@ -306,7 +619,7 @@
         "query_id": "INC1010",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 932.8,
+        "ms": 1092.4,
         "planted_hits": [],
         "top_score": 0.8078,
         "returned": [
@@ -326,7 +639,7 @@
         "query_id": "INC1011",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 958.4,
+        "ms": 945.2,
         "planted_hits": [],
         "top_score": 0.8085,
         "returned": [
@@ -346,7 +659,7 @@
         "query_id": "INC1012",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1014.8,
+        "ms": 1019.5,
         "planted_hits": [],
         "top_score": 0.7934,
         "returned": [
@@ -365,8 +678,8 @@
       {
         "query_id": "INC1013",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 976.9,
+        "answerable": false,
+        "ms": 1002.8,
         "planted_hits": [],
         "top_score": 0.6546,
         "returned": [
@@ -375,18 +688,13 @@
           "KB0001",
           "6.2",
           "7.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1014",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1009.4,
+        "answerable": false,
+        "ms": 987.3,
         "planted_hits": [],
         "top_score": 0.6716,
         "returned": [
@@ -395,18 +703,13 @@
           "7.5",
           "KB0002",
           "KB0010"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1015",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1042.9,
+        "ms": 968.3,
         "planted_hits": [],
         "top_score": 0.5931,
         "returned": [
@@ -421,7 +724,7 @@
         "query_id": "INC1016",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1126.1,
+        "ms": 1127.3,
         "planted_hits": [],
         "top_score": 0.5842,
         "returned": [
@@ -436,7 +739,7 @@
         "query_id": "INC1017",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1008.7,
+        "ms": 1008.1,
         "planted_hits": [],
         "top_score": 0.5592,
         "returned": [
@@ -451,7 +754,7 @@
         "query_id": "INC1018",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1108.5,
+        "ms": 1136.7,
         "planted_hits": [],
         "top_score": 0.6081,
         "returned": [
@@ -465,8 +768,8 @@
       {
         "query_id": "INC1019",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1039.6,
+        "answerable": false,
+        "ms": 1026.1,
         "planted_hits": [],
         "top_score": 0.6465,
         "returned": [
@@ -474,18 +777,13 @@
           "KB0001",
           "7.2",
           "KB0008"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1020",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1032.6,
+        "answerable": false,
+        "ms": 1086.1,
         "planted_hits": [],
         "top_score": 0.6928,
         "returned": [
@@ -494,18 +792,13 @@
           "Appendix D",
           "Appendix E",
           "6.1"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1021",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1039.3,
+        "answerable": false,
+        "ms": 1080.8,
         "planted_hits": [],
         "top_score": 0.6844,
         "returned": [
@@ -514,18 +807,13 @@
           "8.3",
           "KB0008",
           "Appendix E"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1022",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1003.5,
+        "answerable": false,
+        "ms": 995.2,
         "planted_hits": [],
         "top_score": 0.6738,
         "returned": [
@@ -534,18 +822,13 @@
           "KB0001",
           "7.2",
           "KB0005"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1261.7,
+        "ms": 1076.4,
         "planted_hits": [],
         "top_score": 0.8089,
         "returned": [
@@ -565,7 +848,7 @@
         "query_id": "INC1024",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 941.2,
+        "ms": 1062.5,
         "planted_hits": [],
         "top_score": 0.7965,
         "returned": [
@@ -585,7 +868,7 @@
         "query_id": "INC1025",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 970.9,
+        "ms": 1044.0,
         "planted_hits": [],
         "top_score": 0.6258,
         "returned": [
@@ -596,7 +879,7 @@
           "KB0003"
         ],
         "precision": 0.2,
-        "recall": 0.5,
+        "recall": 1.0,
         "hit": true,
         "rr": 1.0,
         "first_rank": 1
@@ -604,8 +887,8 @@
       {
         "query_id": "INC1026",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1033.8,
+        "answerable": false,
+        "ms": 1039.0,
         "planted_hits": [],
         "top_score": 0.6192,
         "returned": [
@@ -614,18 +897,13 @@
           "KB0009",
           "KB0005",
           "Appendix E"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1027",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1023.3,
+        "ms": 1105.2,
         "planted_hits": [],
         "top_score": 0.6816,
         "returned": [
@@ -636,7 +914,7 @@
           "6.2"
         ],
         "precision": 0.2,
-        "recall": 0.5,
+        "recall": 1.0,
         "hit": true,
         "rr": 0.5,
         "first_rank": 2
@@ -644,8 +922,8 @@
       {
         "query_id": "INC1028",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1121.7,
+        "answerable": false,
+        "ms": 1029.2,
         "planted_hits": [],
         "top_score": 0.6856,
         "returned": [
@@ -654,18 +932,13 @@
           "Appendix E",
           "9.5",
           "9.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "PROBE-01",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1035.3,
+        "answerable": false,
+        "ms": 1211.4,
         "planted_hits": [],
         "top_score": 0.7231,
         "returned": [
@@ -674,18 +947,13 @@
           "KB0005",
           "KB0008",
           "Appendix E"
-        ],
-        "precision": 0.2,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
+        ]
       },
       {
         "query_id": "PROBE-02",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1020.0,
+        "answerable": false,
+        "ms": 1054.1,
         "planted_hits": [],
         "top_score": 0.591,
         "returned": [
@@ -694,18 +962,13 @@
           "Appendix E",
           "KB0003",
           "7.2"
-        ],
-        "precision": 0.2,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 1.0,
-        "first_rank": 1
+        ]
       },
       {
         "query_id": "PROBE-03",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1305.9,
+        "answerable": false,
+        "ms": 1115.6,
         "planted_hits": [],
         "top_score": 0.6021,
         "returned": [
@@ -714,18 +977,13 @@
           "11.7",
           "7.5",
           "7.4"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "PROBE-04",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1036.9,
+        "answerable": false,
+        "ms": 1149.6,
         "planted_hits": [],
         "top_score": 0.6395,
         "returned": [
@@ -734,18 +992,13 @@
           "KB0008",
           "Appendix E",
           "8.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "PROBE-05",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 916.3,
+        "answerable": false,
+        "ms": 1058.3,
         "planted_hits": [],
         "top_score": 0.6341,
         "returned": [
@@ -754,18 +1007,13 @@
           "KB0008",
           "7.2",
           "7.4"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "PROBE-06",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1016.0,
+        "answerable": false,
+        "ms": 1174.3,
         "planted_hits": [],
         "top_score": 0.6793,
         "returned": [
@@ -774,18 +1022,13 @@
           "7.2",
           "7.4",
           "8.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "PROBE-07",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1026.7,
+        "answerable": false,
+        "ms": 1248.3,
         "planted_hits": [],
         "top_score": 0.636,
         "returned": [
@@ -794,18 +1037,13 @@
           "9.5",
           "9.1",
           "Appendix B.1"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "PROBE-08",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 988.0,
+        "answerable": false,
+        "ms": 1120.1,
         "planted_hits": [],
         "top_score": 0.6048,
         "returned": [
@@ -814,18 +1052,13 @@
           "7.4",
           "KB0002",
           "8.2"
-        ],
-        "precision": 0.2,
-        "recall": 0.5,
-        "hit": true,
-        "rr": 0.25,
-        "first_rank": 4
+        ]
       },
       {
         "query_id": "PROBE-09",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 953.3,
+        "answerable": false,
+        "ms": 1115.4,
         "planted_hits": [],
         "top_score": 0.5872,
         "returned": [
@@ -834,18 +1067,13 @@
           "8.3",
           "KB0008",
           "4.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "PROBE-10",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 921.7,
+        "ms": 1040.8,
         "planted_hits": [],
         "top_score": 0.7378,
         "returned": [
@@ -855,56 +1083,431 @@
           "KB0007",
           "KB0010"
         ],
-        "precision": 0.2,
+        "precision": 0.6,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-11",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1037.9,
+        "planted_hits": [],
+        "top_score": 0.6843,
+        "returned": [
+          "8.3",
+          "8.2",
+          "Appendix E",
+          "7.5",
+          "10.2"
+        ],
+        "precision": 0.8,
         "recall": 0.5,
         "hit": true,
         "rr": 1.0,
         "first_rank": 1
       },
       {
-        "query_id": "INC_ADV_001",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 1021.8,
+        "query_id": "PROBE-12",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1068.5,
         "planted_hits": [],
-        "top_score": 0.6077,
+        "top_score": 0.6115,
         "returned": [
-          "KB0001",
-          "KB0007",
-          "Appendix E",
-          "KB0008",
-          "Appendix B.3"
-        ]
+          "7.4",
+          "7.3",
+          "7.5",
+          "8.3",
+          "10.4"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
       },
       {
-        "query_id": "INC_ADV_002",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 1029.7,
+        "query_id": "PROBE-13",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1141.6,
         "planted_hits": [],
-        "top_score": 0.6355,
+        "top_score": 0.6092,
         "returned": [
-          "KBHR-4480891644d9a54a",
+          "7.5",
+          "8.3",
+          "7.4",
+          "10.4",
+          "7.3"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-14",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1112.5,
+        "planted_hits": [],
+        "top_score": 0.608,
+        "returned": [
+          "7.5",
+          "8.3",
+          "7.4",
           "9.3",
-          "KB0010",
-          "KB0004",
-          "9.2"
-        ]
+          "KB0004"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.2,
+        "first_rank": 5
       },
       {
-        "query_id": "INC_ADV_003",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 1013.2,
+        "query_id": "PROBE-15",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1004.8,
         "planted_hits": [],
         "top_score": 0.6068,
         "returned": [
-          "11.6",
+          "8.3",
+          "7.3",
+          "7.4",
+          "7.5",
+          "10.4"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-16",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1246.3,
+        "planted_hits": [],
+        "top_score": 0.6246,
+        "returned": [
+          "Appendix E",
+          "1.2",
+          "8.3",
+          "7.4",
+          "7.3"
+        ],
+        "precision": 0.4,
+        "recall": 0.6666666666666666,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-17",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1142.1,
+        "planted_hits": [],
+        "top_score": 0.6451,
+        "returned": [
+          "8.3",
+          "7.5",
+          "7.4",
+          "8.2",
+          "10.4"
+        ],
+        "precision": 0.0,
+        "recall": 0.0,
+        "hit": false,
+        "rr": 0.0,
+        "first_rank": null
+      },
+      {
+        "query_id": "PROBE-18",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1133.7,
+        "planted_hits": [],
+        "top_score": 0.6361,
+        "returned": [
+          "Appendix E",
+          "8.3",
+          "KB0008",
+          "Appendix B.4",
+          "5.2"
+        ],
+        "precision": 0.8,
+        "recall": 0.8,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-19",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1114.8,
+        "planted_hits": [],
+        "top_score": 0.6948,
+        "returned": [
+          "8.3",
+          "8.2",
+          "Appendix E",
+          "7.5",
+          "10.2"
+        ],
+        "precision": 0.6,
+        "recall": 0.6,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "PROBE-20",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1015.8,
+        "planted_hits": [],
+        "top_score": 0.6767,
+        "returned": [
+          "8.3",
+          "7.5",
+          "Appendix E",
+          "8.2",
+          "10.2"
+        ],
+        "precision": 0.8,
+        "recall": 0.6666666666666666,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "PROBE-21",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 937.9,
+        "planted_hits": [],
+        "top_score": 0.6529,
+        "returned": [
+          "9.3",
+          "9",
+          "9.1",
+          "9.6",
+          "9.4"
+        ],
+        "precision": 0.2,
+        "recall": 0.2,
+        "hit": true,
+        "rr": 0.3333333333333333,
+        "first_rank": 3
+      },
+      {
+        "query_id": "REPORTED-01",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 996.9,
+        "planted_hits": [],
+        "top_score": 0.847,
+        "returned": [
+          "KB0001",
+          "7.2",
+          "KB0005",
+          "KB0006",
+          "KB0003"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-02",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 985.2,
+        "planted_hits": [],
+        "top_score": 0.8244,
+        "returned": [
+          "KB0002",
+          "KB0008",
+          "KB0003",
+          "8.3",
+          "KB0001"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-03",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 976.5,
+        "planted_hits": [],
+        "top_score": 0.8311,
+        "returned": [
+          "KB0003",
+          "8.3",
+          "KB0001",
+          "7.2",
+          "Appendix E"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-04",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 1009.3,
+        "planted_hits": [],
+        "top_score": 0.8109,
+        "returned": [
+          "KB0004",
+          "7.3",
+          "8.2",
+          "8.3",
+          "KB0007"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-05",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 939.1,
+        "planted_hits": [],
+        "top_score": 0.7037,
+        "returned": [
+          "KB0005",
+          "7.4",
+          "KB0001",
+          "KB0006",
+          "7.2"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-06",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 999.0,
+        "planted_hits": [],
+        "top_score": 0.7756,
+        "returned": [
+          "KB0006",
+          "KB0001",
+          "6.2",
+          "KB0005",
+          "7.4"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-07",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 1027.3,
+        "planted_hits": [],
+        "top_score": 0.7706,
+        "returned": [
           "KB0007",
-          "11.1",
-          "11.7",
+          "Appendix E",
+          "Appendix B.2",
+          "6.1",
+          "KB0004"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-08",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 1039.1,
+        "planted_hits": [],
+        "top_score": 0.8012,
+        "returned": [
+          "KB0008",
+          "8.3",
+          "6.1",
+          "KB0010",
+          "KB0007"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-09",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 1110.1,
+        "planted_hits": [],
+        "top_score": 0.8226,
+        "returned": [
+          "KB0009",
+          "8.2",
+          "Appendix E",
+          "8.3",
           "6.2"
-        ]
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-10",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 962.0,
+        "planted_hits": [],
+        "top_score": 0.7961,
+        "returned": [
+          "KB0010",
+          "9.2",
+          "KBHR-4480891644d9a54a",
+          "7.5",
+          "9.5"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
       }
     ],
     "hybrid": [
@@ -912,7 +1515,7 @@
         "query_id": "INC0010023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1015.7,
+        "ms": 1127.3,
         "planted_hits": [],
         "top_score": 0.0318,
         "returned": [
@@ -932,7 +1535,7 @@
         "query_id": "INC0010047",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 942.2,
+        "ms": 1057.7,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -947,7 +1550,7 @@
         "query_id": "INC0010064",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1014.1,
+        "ms": 1182.9,
         "planted_hits": [],
         "top_score": 0.0318,
         "returned": [
@@ -967,7 +1570,7 @@
         "query_id": "INC0010052",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 994.7,
+        "ms": 1061.2,
         "planted_hits": [],
         "top_score": 0.0323,
         "returned": [
@@ -987,7 +1590,7 @@
         "query_id": "INC1006",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1043.3,
+        "ms": 986.1,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1006,8 +1609,8 @@
       {
         "query_id": "INC1007",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1101.5,
+        "answerable": false,
+        "ms": 1037.0,
         "planted_hits": [],
         "top_score": 0.0311,
         "returned": [
@@ -1016,18 +1619,13 @@
           "KB0005",
           "6.2",
           "2.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1008",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1242.3,
+        "answerable": false,
+        "ms": 1310.0,
         "planted_hits": [],
         "top_score": 0.032,
         "returned": [
@@ -1036,18 +1634,13 @@
           "9.2",
           "KB0007",
           "9.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1009",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1214.2,
+        "ms": 1050.1,
         "planted_hits": [],
         "top_score": 0.032,
         "returned": [
@@ -1067,7 +1660,7 @@
         "query_id": "INC1010",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1035.2,
+        "ms": 1078.3,
         "planted_hits": [],
         "top_score": 0.0315,
         "returned": [
@@ -1087,7 +1680,7 @@
         "query_id": "INC1011",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1107.0,
+        "ms": 1046.3,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1107,7 +1700,7 @@
         "query_id": "INC1012",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1040.7,
+        "ms": 1047.6,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1126,28 +1719,23 @@
       {
         "query_id": "INC1013",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1024.5,
+        "answerable": false,
+        "ms": 1028.3,
         "planted_hits": [],
-        "top_score": 0.0313,
+        "top_score": 0.0315,
         "returned": [
           "KB0006",
           "KB0005",
           "6.2",
           "KB0002",
           "11.6"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1014",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1022.6,
+        "answerable": false,
+        "ms": 1056.9,
         "planted_hits": [],
         "top_score": 0.0313,
         "returned": [
@@ -1156,18 +1744,13 @@
           "KB0010",
           "2.1",
           "2.4"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1015",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1016.0,
+        "ms": 1003.1,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1182,22 +1765,22 @@
         "query_id": "INC1016",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1042.3,
+        "ms": 1072.0,
         "planted_hits": [],
         "top_score": 0.0317,
         "returned": [
           "12.1",
           "3.2",
+          "4.1",
           "3.5",
-          "3.4",
-          "3.6"
+          "3.4"
         ]
       },
       {
         "query_id": "INC1017",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 975.9,
+        "ms": 1061.0,
         "planted_hits": [],
         "top_score": 0.0296,
         "returned": [
@@ -1212,7 +1795,7 @@
         "query_id": "INC1018",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1096.2,
+        "ms": 1046.5,
         "planted_hits": [],
         "top_score": 0.0305,
         "returned": [
@@ -1226,8 +1809,8 @@
       {
         "query_id": "INC1019",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1568.4,
+        "answerable": false,
+        "ms": 1054.4,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1236,18 +1819,13 @@
           "KB0001",
           "KB0008",
           "4.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1020",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1122.9,
+        "answerable": false,
+        "ms": 1004.0,
         "planted_hits": [],
         "top_score": 0.0301,
         "returned": [
@@ -1256,18 +1834,13 @@
           "KB0003",
           "5.3",
           "7.4"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1021",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1023.0,
+        "answerable": false,
+        "ms": 1075.3,
         "planted_hits": [],
         "top_score": 0.0323,
         "returned": [
@@ -1276,18 +1849,13 @@
           "6.1",
           "8.3",
           "KB0005"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1022",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 984.9,
+        "answerable": false,
+        "ms": 996.4,
         "planted_hits": [],
         "top_score": 0.0291,
         "returned": [
@@ -1296,18 +1864,13 @@
           "KB0003",
           "KB0006",
           "12.1"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 957.9,
+        "ms": 1066.6,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1327,7 +1890,7 @@
         "query_id": "INC1024",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 976.9,
+        "ms": 935.3,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
@@ -1347,7 +1910,7 @@
         "query_id": "INC1025",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 963.9,
+        "ms": 1001.9,
         "planted_hits": [],
         "top_score": 0.031,
         "returned": [
@@ -1358,7 +1921,7 @@
           "3.2"
         ],
         "precision": 0.2,
-        "recall": 0.5,
+        "recall": 1.0,
         "hit": true,
         "rr": 0.5,
         "first_rank": 2
@@ -1366,8 +1929,8 @@
       {
         "query_id": "INC1026",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1020.3,
+        "answerable": false,
+        "ms": 1005.5,
         "planted_hits": [],
         "top_score": 0.0323,
         "returned": [
@@ -1376,18 +1939,13 @@
           "3.2",
           "7.4",
           "KB0002"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1027",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 1058.2,
+        "ms": 1224.2,
         "planted_hits": [],
         "top_score": 0.0309,
         "returned": [
@@ -1398,7 +1956,7 @@
           "6.2"
         ],
         "precision": 0.2,
-        "recall": 0.5,
+        "recall": 1.0,
         "hit": true,
         "rr": 0.5,
         "first_rank": 2
@@ -1406,8 +1964,8 @@
       {
         "query_id": "INC1028",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1112.0,
+        "answerable": false,
+        "ms": 1040.0,
         "planted_hits": [],
         "top_score": 0.0325,
         "returned": [
@@ -1416,26 +1974,196 @@
           "9.5",
           "8.3",
           "Appendix E"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "PROBE-01",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1994.3,
+        "answerable": false,
+        "ms": 1093.4,
         "planted_hits": [],
         "top_score": 0.0164,
         "returned": [
           "KB0001",
           "KB0007",
-          "Appendix B.2",
-          "7.2",
-          "7.3"
+          "6.2",
+          "KB0004",
+          "Appendix D"
+        ]
+      },
+      {
+        "query_id": "PROBE-02",
+        "source": "identifier_probe",
+        "answerable": false,
+        "ms": 1019.1,
+        "planted_hits": [],
+        "top_score": 0.0164,
+        "returned": [
+          "KB0005",
+          "KB0007",
+          "6.2",
+          "KB0004",
+          "Appendix D"
+        ]
+      },
+      {
+        "query_id": "PROBE-03",
+        "source": "identifier_probe",
+        "answerable": false,
+        "ms": 1029.9,
+        "planted_hits": [],
+        "top_score": 0.0252,
+        "returned": [
+          "Appendix D",
+          "7.4",
+          "Appendix E",
+          "KB0005",
+          "8.3"
+        ]
+      },
+      {
+        "query_id": "PROBE-04",
+        "source": "identifier_probe",
+        "answerable": false,
+        "ms": 1129.6,
+        "planted_hits": [],
+        "top_score": 0.0164,
+        "returned": [
+          "KB0001",
+          "KB0007",
+          "6.2",
+          "KB0004",
+          "Appendix D"
+        ]
+      },
+      {
+        "query_id": "PROBE-05",
+        "source": "identifier_probe",
+        "answerable": false,
+        "ms": 965.9,
+        "planted_hits": [],
+        "top_score": 0.0278,
+        "returned": [
+          "KB0008",
+          "KB0006",
+          "KB0007",
+          "6.2",
+          "KB0005"
+        ]
+      },
+      {
+        "query_id": "PROBE-06",
+        "source": "identifier_probe",
+        "answerable": false,
+        "ms": 953.4,
+        "planted_hits": [],
+        "top_score": 0.0164,
+        "returned": [
+          "KB0005",
+          "KB0007",
+          "6.2",
+          "KB0004",
+          "Appendix D"
+        ]
+      },
+      {
+        "query_id": "PROBE-07",
+        "source": "identifier_probe",
+        "answerable": false,
+        "ms": 1044.7,
+        "planted_hits": [],
+        "top_score": 0.0164,
+        "returned": [
+          "8.3",
+          "KB0007",
+          "6.2",
+          "7.4",
+          "KB0004"
+        ]
+      },
+      {
+        "query_id": "PROBE-08",
+        "source": "identifier_probe",
+        "answerable": false,
+        "ms": 1044.5,
+        "planted_hits": [],
+        "top_score": 0.0164,
+        "returned": [
+          "8.3",
+          "KB0007",
+          "6.2",
+          "Appendix E",
+          "KB0004"
+        ]
+      },
+      {
+        "query_id": "PROBE-09",
+        "source": "identifier_probe",
+        "answerable": false,
+        "ms": 1008.9,
+        "planted_hits": [],
+        "top_score": 0.0296,
+        "returned": [
+          "KB0004",
+          "KB0007",
+          "6.2",
+          "9.5",
+          "8.3"
+        ]
+      },
+      {
+        "query_id": "PROBE-10",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1140.7,
+        "planted_hits": [],
+        "top_score": 0.0325,
+        "returned": [
+          "KB0008",
+          "8.3",
+          "6.1",
+          "KB0010",
+          "2.1"
+        ],
+        "precision": 0.6,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-11",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1009.5,
+        "planted_hits": [],
+        "top_score": 0.0305,
+        "returned": [
+          "8.2",
+          "Appendix E",
+          "8.3",
+          "1.2",
+          "KB0001"
+        ],
+        "precision": 1.0,
+        "recall": 0.625,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-12",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1012.1,
+        "planted_hits": [],
+        "top_score": 0.0297,
+        "returned": [
+          "KB0002",
+          "7.4",
+          "6.2",
+          "7.3",
+          "7.5"
         ],
         "precision": 0.2,
         "recall": 1.0,
@@ -1444,18 +2172,18 @@
         "first_rank": 1
       },
       {
-        "query_id": "PROBE-02",
+        "query_id": "PROBE-13",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1179.8,
+        "ms": 991.0,
         "planted_hits": [],
-        "top_score": 0.027,
+        "top_score": 0.0164,
         "returned": [
+          "7.5",
+          "KB0003",
+          "6.2",
           "8.3",
-          "KB0005",
-          "KB0007",
-          "KB0006",
-          "Appendix E"
+          "4.1"
         ],
         "precision": 0.2,
         "recall": 1.0,
@@ -1464,209 +2192,364 @@
         "first_rank": 2
       },
       {
-        "query_id": "PROBE-03",
+        "query_id": "PROBE-14",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 1151.0,
+        "ms": 1035.0,
         "planted_hits": [],
-        "top_score": 0.0274,
+        "top_score": 0.0315,
         "returned": [
-          "Appendix B.1",
-          "7.4",
-          "Appendix E",
-          "KB0005",
-          "8.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-04",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1021.9,
-        "planted_hits": [],
-        "top_score": 0.0274,
-        "returned": [
+          "KB0004",
+          "7.5",
+          "6.2",
           "8.3",
-          "KB0001",
-          "KB0007",
-          "7.2",
-          "Appendix B.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-05",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 950.7,
-        "planted_hits": [],
-        "top_score": 0.0164,
-        "returned": [
-          "KB0006",
-          "KB0007",
-          "KB0005",
-          "KB0008",
-          "Appendix B.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-06",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1016.5,
-        "planted_hits": [],
-        "top_score": 0.026,
-        "returned": [
-          "8.3",
-          "KB0007",
-          "KB0005",
-          "KB0001",
-          "Appendix B.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-07",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 993.3,
-        "planted_hits": [],
-        "top_score": 0.0303,
-        "returned": [
-          "8.3",
-          "Appendix B.1",
-          "KB0007",
-          "7.4",
-          "9.5"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-08",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1006.3,
-        "planted_hits": [],
-        "top_score": 0.0303,
-        "returned": [
-          "8.3",
-          "7.3",
-          "KB0002",
-          "KB0007",
-          "Appendix E"
+          "4.1"
         ],
         "precision": 0.2,
-        "recall": 0.5,
-        "hit": true,
-        "rr": 0.3333333333333333,
-        "first_rank": 3
-      },
-      {
-        "query_id": "PROBE-09",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1251.7,
-        "planted_hits": [],
-        "top_score": 0.0298,
-        "returned": [
-          "8.3",
-          "7.3",
-          "Appendix B.1",
-          "KB0002",
-          "KB0004"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
-      },
-      {
-        "query_id": "PROBE-10",
-        "source": "identifier_probe",
-        "answerable": true,
-        "ms": 1210.6,
-        "planted_hits": [],
-        "top_score": 0.0325,
-        "returned": [
-          "KB0008",
-          "8.3",
-          "6.1",
-          "KB0007",
-          "KB0002"
-        ],
-        "precision": 0.2,
-        "recall": 0.5,
+        "recall": 1.0,
         "hit": true,
         "rr": 1.0,
         "first_rank": 1
       },
       {
-        "query_id": "INC_ADV_001",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 1586.6,
+        "query_id": "PROBE-15",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1065.2,
         "planted_hits": [],
-        "top_score": 0.0299,
+        "top_score": 0.0164,
         "returned": [
-          "KB0003",
-          "KB0008",
-          "KB0001",
-          "8.2",
-          "4.2"
-        ]
+          "KB0005",
+          "8.3",
+          "6.2",
+          "7.3",
+          "7.4"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
       },
       {
-        "query_id": "INC_ADV_002",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 1039.1,
+        "query_id": "PROBE-16",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 987.0,
+        "planted_hits": [],
+        "top_score": 0.0323,
+        "returned": [
+          "Appendix E",
+          "1.2",
+          "KB0006",
+          "8.3",
+          "7.4"
+        ],
+        "precision": 0.6,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-17",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 948.9,
+        "planted_hits": [],
+        "top_score": 0.0305,
+        "returned": [
+          "KB0007",
+          "8.3",
+          "6.2",
+          "7.5",
+          "7.4"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-18",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1038.0,
+        "planted_hits": [],
+        "top_score": 0.0323,
+        "returned": [
+          "8.3",
+          "KB0008",
+          "Appendix E",
+          "1.2",
+          "5.2"
+        ],
+        "precision": 1.0,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-19",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 994.3,
+        "planted_hits": [],
+        "top_score": 0.0318,
+        "returned": [
+          "8.2",
+          "10.2",
+          "Appendix E",
+          "5.2",
+          "8.3"
+        ],
+        "precision": 0.8,
+        "recall": 0.8,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-20",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 936.8,
+        "planted_hits": [],
+        "top_score": 0.0323,
+        "returned": [
+          "7.5",
+          "10.2",
+          "Appendix E",
+          "8.2",
+          "KB0010"
+        ],
+        "precision": 1.0,
+        "recall": 0.8333333333333334,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-21",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 981.2,
+        "planted_hits": [],
+        "top_score": 0.0323,
+        "returned": [
+          "9.1",
+          "9",
+          "9.3",
+          "9.6",
+          "9.2"
+        ],
+        "precision": 0.2,
+        "recall": 0.2,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-01",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 1025.7,
+        "planted_hits": [],
+        "top_score": 0.0325,
+        "returned": [
+          "KB0001",
+          "7.2",
+          "KB0005",
+          "KB0006",
+          "6.1"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-02",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 1059.6,
         "planted_hits": [],
         "top_score": 0.0328,
         "returned": [
-          "KBHR-4480891644d9a54a",
-          "KB0010",
-          "9.3",
-          "KB0009",
-          "9.5"
-        ]
+          "KB0002",
+          "8.3",
+          "KB0003",
+          "3.2",
+          "6.1"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
       },
       {
-        "query_id": "INC_ADV_003",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 1023.9,
+        "query_id": "REPORTED-03",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 1029.9,
         "planted_hits": [],
-        "top_score": 0.0308,
+        "top_score": 0.0318,
+        "returned": [
+          "KB0003",
+          "8.3",
+          "KB0001",
+          "Appendix E",
+          "KB0005"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-04",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 984.3,
+        "planted_hits": [],
+        "top_score": 0.0325,
+        "returned": [
+          "KB0004",
+          "7.3",
+          "8.3",
+          "8.2",
+          "Appendix E"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-05",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 968.5,
+        "planted_hits": [],
+        "top_score": 0.0312,
+        "returned": [
+          "KB0005",
+          "7.4",
+          "8.3",
+          "KB0001",
+          "KB0003"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-06",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 1078.9,
+        "planted_hits": [],
+        "top_score": 0.0293,
+        "returned": [
+          "7.4",
+          "KB0006",
+          "KB0001",
+          "7.2",
+          "6.1"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "REPORTED-07",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 1146.7,
+        "planted_hits": [],
+        "top_score": 0.0325,
         "returned": [
           "KB0007",
-          "11.3",
-          "11.1",
-          "11.9",
-          "11.6"
-        ]
+          "6.1",
+          "Appendix E",
+          "Appendix B.2",
+          "8.2"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-08",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 941.1,
+        "planted_hits": [],
+        "top_score": 0.0325,
+        "returned": [
+          "KB0008",
+          "6.1",
+          "8.3",
+          "KB0010",
+          "Appendix E"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-09",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 911.6,
+        "planted_hits": [],
+        "top_score": 0.0323,
+        "returned": [
+          "KB0009",
+          "6.1",
+          "8.2",
+          "Appendix E",
+          "KB0008"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-10",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 987.8,
+        "planted_hits": [],
+        "top_score": 0.0325,
+        "returned": [
+          "KB0010",
+          "9.2",
+          "9.5",
+          "6.1",
+          "9.3"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
       }
     ],
     "hybrid_rerank": [
@@ -1674,7 +2557,7 @@
         "query_id": "INC0010023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2921.3,
+        "ms": 2069.9,
         "planted_hits": [],
         "top_score": 6.582,
         "returned": [
@@ -1694,7 +2577,7 @@
         "query_id": "INC0010047",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 2409.5,
+        "ms": 2656.4,
         "planted_hits": [],
         "top_score": 4.5738,
         "returned": [
@@ -1709,7 +2592,7 @@
         "query_id": "INC0010064",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2298.7,
+        "ms": 2312.4,
         "planted_hits": [],
         "top_score": 8.2493,
         "returned": [
@@ -1729,7 +2612,7 @@
         "query_id": "INC0010052",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2393.0,
+        "ms": 2155.0,
         "planted_hits": [],
         "top_score": 6.4397,
         "returned": [
@@ -1749,7 +2632,7 @@
         "query_id": "INC1006",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2321.7,
+        "ms": 2168.6,
         "planted_hits": [],
         "top_score": 4.2732,
         "returned": [
@@ -1768,8 +2651,8 @@
       {
         "query_id": "INC1007",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 2211.5,
+        "answerable": false,
+        "ms": 1953.7,
         "planted_hits": [],
         "top_score": -8.5053,
         "returned": [
@@ -1778,18 +2661,13 @@
           "KB0005",
           "7.4",
           "2.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1008",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 2858.2,
+        "answerable": false,
+        "ms": 3247.3,
         "planted_hits": [],
         "top_score": -9.1661,
         "returned": [
@@ -1798,18 +2676,13 @@
           "KB0010",
           "10.2",
           "Appendix E"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1009",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2340.5,
+        "ms": 2335.0,
         "planted_hits": [],
         "top_score": 8.2873,
         "returned": [
@@ -1829,7 +2702,7 @@
         "query_id": "INC1010",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2937.7,
+        "ms": 2503.5,
         "planted_hits": [],
         "top_score": 5.2099,
         "returned": [
@@ -1849,7 +2722,7 @@
         "query_id": "INC1011",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2616.4,
+        "ms": 5443.7,
         "planted_hits": [],
         "top_score": 4.672,
         "returned": [
@@ -1869,7 +2742,7 @@
         "query_id": "INC1012",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2650.2,
+        "ms": 2502.3,
         "planted_hits": [],
         "top_score": 2.9047,
         "returned": [
@@ -1888,8 +2761,8 @@
       {
         "query_id": "INC1013",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 2168.4,
+        "answerable": false,
+        "ms": 3223.9,
         "planted_hits": [],
         "top_score": -9.9469,
         "returned": [
@@ -1898,18 +2771,13 @@
           "KB0006",
           "KB0010",
           "9.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1014",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 3191.1,
+        "answerable": false,
+        "ms": 3294.4,
         "planted_hits": [],
         "top_score": -8.6067,
         "returned": [
@@ -1918,18 +2786,13 @@
           "7.4",
           "KB0010",
           "7.5"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1015",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 2320.9,
+        "ms": 2271.2,
         "planted_hits": [],
         "top_score": 5.2221,
         "returned": [
@@ -1944,7 +2807,7 @@
         "query_id": "INC1016",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1956.9,
+        "ms": 1976.6,
         "planted_hits": [],
         "top_score": 0.2634,
         "returned": [
@@ -1959,7 +2822,7 @@
         "query_id": "INC1017",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 1937.1,
+        "ms": 2180.1,
         "planted_hits": [],
         "top_score": -10.0176,
         "returned": [
@@ -1974,7 +2837,7 @@
         "query_id": "INC1018",
         "source": "coverage_matrix",
         "answerable": false,
-        "ms": 2418.0,
+        "ms": 2383.5,
         "planted_hits": [],
         "top_score": -5.6916,
         "returned": [
@@ -1988,8 +2851,8 @@
       {
         "query_id": "INC1019",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 2316.0,
+        "answerable": false,
+        "ms": 2263.0,
         "planted_hits": [],
         "top_score": -2.762,
         "returned": [
@@ -1998,18 +2861,13 @@
           "KB0001",
           "KB0008",
           "10.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1020",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 2282.6,
+        "answerable": false,
+        "ms": 2043.0,
         "planted_hits": [],
         "top_score": -2.3935,
         "returned": [
@@ -2018,18 +2876,13 @@
           "3.2",
           "7.4",
           "KB0003"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1021",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 2113.1,
+        "answerable": false,
+        "ms": 2436.0,
         "planted_hits": [],
         "top_score": 1.7771,
         "returned": [
@@ -2038,18 +2891,13 @@
           "Appendix E",
           "KB0008",
           "KB0005"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1022",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 1834.4,
+        "answerable": false,
+        "ms": 2270.8,
         "planted_hits": [],
         "top_score": -7.1816,
         "returned": [
@@ -2058,18 +2906,13 @@
           "7.2",
           "KB0003",
           "Appendix B.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1023",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2417.8,
+        "ms": 4066.9,
         "planted_hits": [],
         "top_score": 6.1342,
         "returned": [
@@ -2089,7 +2932,7 @@
         "query_id": "INC1024",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2217.4,
+        "ms": 4524.3,
         "planted_hits": [],
         "top_score": 3.5873,
         "returned": [
@@ -2109,7 +2952,7 @@
         "query_id": "INC1025",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2168.3,
+        "ms": 2288.7,
         "planted_hits": [],
         "top_score": -4.0939,
         "returned": [
@@ -2120,7 +2963,7 @@
           "7.4"
         ],
         "precision": 0.2,
-        "recall": 0.5,
+        "recall": 1.0,
         "hit": true,
         "rr": 0.5,
         "first_rank": 2
@@ -2128,8 +2971,8 @@
       {
         "query_id": "INC1026",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 2636.7,
+        "answerable": false,
+        "ms": 2672.0,
         "planted_hits": [],
         "top_score": -10.0853,
         "returned": [
@@ -2138,18 +2981,13 @@
           "Appendix E",
           "KB0004",
           "7.4"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "INC1027",
         "source": "coverage_matrix",
         "answerable": true,
-        "ms": 2354.1,
+        "ms": 2344.7,
         "planted_hits": [],
         "top_score": -7.3707,
         "returned": [
@@ -2160,7 +2998,7 @@
           "7.2"
         ],
         "precision": 0.2,
-        "recall": 0.5,
+        "recall": 1.0,
         "hit": true,
         "rr": 0.3333333333333333,
         "first_rank": 3
@@ -2168,8 +3006,8 @@
       {
         "query_id": "INC1028",
         "source": "coverage_matrix",
-        "answerable": true,
-        "ms": 2665.7,
+        "answerable": false,
+        "ms": 2611.2,
         "planted_hits": [],
         "top_score": -2.0896,
         "returned": [
@@ -2178,58 +3016,43 @@
           "KB0008",
           "9.6",
           "Appendix E"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "PROBE-01",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 2212.2,
+        "answerable": false,
+        "ms": 2174.4,
         "planted_hits": [],
         "top_score": -4.7756,
         "returned": [
           "7.2",
           "KB0001",
-          "7.3",
           "KB0005",
-          "KB0007"
-        ],
-        "precision": 0.2,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 0.5,
-        "first_rank": 2
+          "Appendix D",
+          "12.2"
+        ]
       },
       {
         "query_id": "PROBE-02",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 2415.4,
+        "answerable": false,
+        "ms": 2168.5,
         "planted_hits": [],
-        "top_score": -6.0667,
+        "top_score": -8.6509,
         "returned": [
-          "7.3",
-          "8.3",
+          "12.2",
           "Appendix E",
           "KB0006",
-          "KB0005"
-        ],
-        "precision": 0.2,
-        "recall": 1.0,
-        "hit": true,
-        "rr": 0.2,
-        "first_rank": 5
+          "KB0005",
+          "7.2"
+        ]
       },
       {
         "query_id": "PROBE-03",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 2752.0,
+        "answerable": false,
+        "ms": 2103.0,
         "planted_hits": [],
         "top_score": -10.5134,
         "returned": [
@@ -2238,197 +3061,537 @@
           "9.3",
           "KB0005",
           "5.2"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+        ]
       },
       {
         "query_id": "PROBE-04",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 2414.4,
+        "answerable": false,
+        "ms": 1912.9,
         "planted_hits": [],
-        "top_score": -3.4879,
+        "top_score": -3.3869,
         "returned": [
           "7.2",
           "KB0001",
-          "8.3",
-          "KB0007",
-          "7.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+          "Appendix D",
+          "KB0008",
+          "KB0010"
+        ]
       },
       {
         "query_id": "PROBE-05",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 2148.3,
+        "answerable": false,
+        "ms": 2069.4,
         "planted_hits": [],
         "top_score": -2.3799,
         "returned": [
           "KB0006",
           "7.2",
-          "7.3",
           "KB0005",
-          "KB0008"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+          "KB0008",
+          "4.1"
+        ]
       },
       {
         "query_id": "PROBE-06",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 2154.4,
+        "answerable": false,
+        "ms": 2189.7,
         "planted_hits": [],
         "top_score": -2.4443,
         "returned": [
           "7.2",
           "KB0005",
           "KB0001",
-          "8.3",
-          "7.3"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+          "4.1",
+          "KB0007"
+        ]
       },
       {
         "query_id": "PROBE-07",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 2481.1,
+        "answerable": false,
+        "ms": 2024.6,
         "planted_hits": [],
-        "top_score": -8.4526,
+        "top_score": -8.1828,
         "returned": [
-          "7.3",
+          "12.2",
+          "6.2",
           "7.4",
-          "8.3",
-          "KB0007",
-          "9.1"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+          "KB0010",
+          "8.3"
+        ]
       },
       {
         "query_id": "PROBE-08",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 2306.0,
+        "answerable": false,
+        "ms": 2202.2,
         "planted_hits": [],
         "top_score": -4.3918,
         "returned": [
           "Appendix E",
           "8.3",
-          "7.3",
           "7.4",
-          "KB0007"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+          "12.2",
+          "KB0010"
+        ]
       },
       {
         "query_id": "PROBE-09",
         "source": "identifier_probe",
-        "answerable": true,
-        "ms": 2151.6,
+        "answerable": false,
+        "ms": 1948.3,
         "planted_hits": [],
-        "top_score": -10.8338,
+        "top_score": -11.025,
         "returned": [
-          "7.3",
           "KB0008",
           "9.5",
-          "KB0004",
-          "KB0002"
-        ],
-        "precision": 0.0,
-        "recall": 0.0,
-        "hit": false,
-        "rr": 0.0,
-        "first_rank": null
+          "KB0010",
+          "7.3",
+          "7.4"
+        ]
       },
       {
         "query_id": "PROBE-10",
         "source": "identifier_probe",
         "answerable": true,
-        "ms": 2013.7,
+        "ms": 2008.9,
         "planted_hits": [],
         "top_score": 7.3152,
         "returned": [
           "KB0008",
           "6.1",
           "8.3",
-          "7.3",
+          "Appendix D",
           "KB0010"
         ],
-        "precision": 0.2,
-        "recall": 0.5,
+        "precision": 0.6,
+        "recall": 1.0,
         "hit": true,
         "rr": 1.0,
         "first_rank": 1
       },
       {
-        "query_id": "INC_ADV_001",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 2383.3,
+        "query_id": "PROBE-11",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2113.4,
         "planted_hits": [],
-        "top_score": -7.7519,
+        "top_score": 7.0606,
         "returned": [
-          "KB0006",
-          "KB0003",
-          "KB0008",
-          "4.2",
-          "KB0001"
-        ]
-      },
-      {
-        "query_id": "INC_ADV_002",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 2727.4,
-        "planted_hits": [],
-        "top_score": -6.3769,
-        "returned": [
-          "KBHR-4480891644d9a54a",
-          "9.5",
-          "KB0010",
+          "8.2",
           "Appendix E",
-          "KB0009"
-        ]
+          "8.3",
+          "1.2",
+          "7.4"
+        ],
+        "precision": 1.0,
+        "recall": 0.625,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
       },
       {
-        "query_id": "INC_ADV_003",
-        "source": "coverage_matrix",
-        "answerable": false,
-        "ms": 2753.5,
+        "query_id": "PROBE-12",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2205.4,
         "planted_hits": [],
-        "top_score": -8.188,
+        "top_score": 5.1583,
         "returned": [
+          "KB0002",
+          "7.2",
+          "7.5",
+          "7.3",
+          "Appendix E"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-13",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2048.8,
+        "planted_hits": [],
+        "top_score": 4.8684,
+        "returned": [
+          "KB0003",
+          "7.5",
           "7.2",
           "7.3",
+          "10.4"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-14",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2182.7,
+        "planted_hits": [],
+        "top_score": 5.4095,
+        "returned": [
+          "KB0004",
+          "Appendix E",
+          "7.3",
+          "7.5",
+          "10.4"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-15",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2054.8,
+        "planted_hits": [],
+        "top_score": 5.1463,
+        "returned": [
+          "KB0005",
+          "7.5",
+          "7.3",
+          "7.2",
+          "10.4"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-16",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2506.7,
+        "planted_hits": [],
+        "top_score": 5.1114,
+        "returned": [
+          "1.2",
+          "KB0006",
+          "Appendix E",
           "KB0007",
-          "11.3",
-          "9.3"
-        ]
+          "KB0010"
+        ],
+        "precision": 0.6,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-17",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2126.8,
+        "planted_hits": [],
+        "top_score": 4.9946,
+        "returned": [
+          "KB0007",
+          "7.5",
+          "7.3",
+          "7.2",
+          "7.4"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-18",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2540.2,
+        "planted_hits": [],
+        "top_score": 5.7074,
+        "returned": [
+          "8.3",
+          "1.2",
+          "KB0008",
+          "5.2",
+          "Appendix E"
+        ],
+        "precision": 1.0,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-19",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2179.8,
+        "planted_hits": [],
+        "top_score": 7.1132,
+        "returned": [
+          "8.2",
+          "5.2",
+          "10.2",
+          "Appendix E",
+          "8.3"
+        ],
+        "precision": 0.8,
+        "recall": 0.8,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-20",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 2113.4,
+        "planted_hits": [],
+        "top_score": 6.6766,
+        "returned": [
+          "8.2",
+          "10.2",
+          "Appendix E",
+          "7.5",
+          "KB0010"
+        ],
+        "precision": 1.0,
+        "recall": 0.8333333333333334,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "PROBE-21",
+        "source": "identifier_probe",
+        "answerable": true,
+        "ms": 1975.2,
+        "planted_hits": [],
+        "top_score": 7.7951,
+        "returned": [
+          "9.2",
+          "9.1",
+          "9.3",
+          "9",
+          "9.6"
+        ],
+        "precision": 0.2,
+        "recall": 0.2,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "REPORTED-01",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 1990.9,
+        "planted_hits": [],
+        "top_score": 8.9916,
+        "returned": [
+          "KB0001",
+          "7.2",
+          "6.1",
+          "Appendix E",
+          "3.2"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-02",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 2052.5,
+        "planted_hits": [],
+        "top_score": 9.3115,
+        "returned": [
+          "KB0002",
+          "3.2",
+          "6.1",
+          "Appendix E",
+          "8.3"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-03",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 2089.2,
+        "planted_hits": [],
+        "top_score": 7.395,
+        "returned": [
+          "6.1",
+          "KB0003",
+          "3.2",
+          "8.3",
+          "Appendix E"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "REPORTED-04",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 2449.5,
+        "planted_hits": [],
+        "top_score": 7.8476,
+        "returned": [
+          "6.1",
+          "KB0004",
+          "Appendix E",
+          "7.3",
+          "8.2"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "REPORTED-05",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 2343.5,
+        "planted_hits": [],
+        "top_score": 7.5168,
+        "returned": [
+          "6.1",
+          "KB0005",
+          "Appendix E",
+          "8.3",
+          "7.2"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "REPORTED-06",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 2064.6,
+        "planted_hits": [],
+        "top_score": 6.765,
+        "returned": [
+          "6.1",
+          "KB0006",
+          "7.4",
+          "10.2",
+          "6.2"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "REPORTED-07",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 2446.9,
+        "planted_hits": [],
+        "top_score": 6.8617,
+        "returned": [
+          "6.1",
+          "KB0007",
+          "Appendix E",
+          "8.2",
+          "6.2"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 0.5,
+        "first_rank": 2
+      },
+      {
+        "query_id": "REPORTED-08",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 2699.9,
+        "planted_hits": [],
+        "top_score": 9.0919,
+        "returned": [
+          "KB0008",
+          "6.1",
+          "8.3",
+          "Appendix E",
+          "KB0010"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-09",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 2363.6,
+        "planted_hits": [],
+        "top_score": 8.5355,
+        "returned": [
+          "KB0009",
+          "6.1",
+          "8.2",
+          "Appendix E",
+          "8.3"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
+      },
+      {
+        "query_id": "REPORTED-10",
+        "source": "manual_reported_as",
+        "answerable": true,
+        "ms": 2815.9,
+        "planted_hits": [],
+        "top_score": 7.8363,
+        "returned": [
+          "KB0010",
+          "9.2",
+          "6.1",
+          "9.3",
+          "3.2"
+        ],
+        "precision": 0.2,
+        "recall": 1.0,
+        "hit": true,
+        "rr": 1.0,
+        "first_rank": 1
       }
     ]
   }
