@@ -10,7 +10,8 @@ Afterwards, refresh Qdrant:
 Published articles cannot be edited on this instance, even by an admin. To re-file the manual
 (new categories, titles, text), delete and recreate it:
 
-  python tools/reconcile_kb.py --apply --admin --recreate-manual
+  python tools/reconcile_kb.py --apply --admin --recreate-manual            # every section
+  python tools/reconcile_kb.py --apply --admin --recreate-manual "6.13 KB0010 v2"
   python -m src.retrieval.publish_kb
   python -m src.retrieval.ingest sync
 """
@@ -79,7 +80,8 @@ def ensure_categories(client, headers, needed: set[str], apply: bool) -> dict[st
     return mapping
 
 
-def reconcile(apply: bool, admin_auth: httpx.BasicAuth | None = None, recreate_manual: bool = False) -> dict:
+def reconcile(apply: bool, admin_auth: httpx.BasicAuth | None = None,
+              recreate_manual: list[str] | None = None) -> dict:
     if not SERVICENOW.kb_sys_id:
         raise SystemExit("SERVICENOW_KB_SYS_ID is not set; refusing to touch every KB on the instance.")
     number_field = SERVICENOW.kb_metadata_field_map.get("article_number")
@@ -121,11 +123,15 @@ def reconcile(apply: bool, admin_auth: httpx.BasicAuth | None = None, recreate_m
 
         # --recreate-manual: published articles cannot be edited on this instance (ACL, even for
         # admin), so the manual's are deleted here and publish_kb creates them again.
-        manual = [r for r in records if r["sys_id"] in set(mapping.values())] if recreate_manual else []
+        # [] = every manual section, ["6.13 KB0010 v2"] = only those.
+        redo = [] if recreate_manual is None else [
+            label for label in mapping if not recreate_manual or label in recreate_manual]
+        manual = [r for r in records if r["sys_id"] in {mapping[label] for label in redo}]
         if manual:
-            print(f"Manual sections to recreate: {len(manual)}")
+            print(f"Manual sections to recreate: {len(manual)} {redo if recreate_manual else ''}")
             extra = extra + manual
-        _save_json(Path(PATHS.servicenow_kb_mapping), {} if manual and apply else mapping)
+        _save_json(Path(PATHS.servicenow_kb_mapping),
+                   {k: v for k, v in mapping.items() if not (apply and k in redo)})
 
         blocked = []
         if extra and apply:
@@ -156,8 +162,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--apply", action="store_true",
                     help="create categories and delete non-manual records")
-    ap.add_argument("--recreate-manual", action="store_true",
-                    help="also delete the manual's articles so publish_kb creates them again")
+    ap.add_argument("--recreate-manual", nargs="*", metavar="SECTION", default=None,
+                    help="also delete the manual's articles (all, or the given section labels) "
+                         "so publish_kb creates them again")
     ap.add_argument("--admin", action="store_true",
                     help="prompt for a ServiceNow admin username/password (used for this run only)")
     args = ap.parse_args()

@@ -49,8 +49,12 @@ Text:
 
 def _source(section) -> str:
     lines = [l for l in section.text.splitlines() if l.strip() != FOOTER]
-    if section.kb_number and lines and lines[0].strip() == section.kb_number:
-        lines = lines[2:]   # "KB0004" / "PRINT JOBS QUEUE…": repeats the article title
+    # "KB0004" / "PRINT JOBS QUEUE…" repeats the article title. KB0010's revisions put a
+    # "Version 2 – published" line before it, so look past the first line.
+    for i, line in enumerate(lines[:3]):
+        if section.kb_number and line.strip() == section.kb_number:
+            del lines[i:i + 2]
+            break
     return "\n".join(lines).strip()
 
 
