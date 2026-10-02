@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import pymupdf
 
-from ..config import RETRIEVAL
+from ..config import INCIDENT_CATEGORIES, RETRIEVAL
 
 # Repeated on every page -> removed (the dataset forbids "header_footer_noise").
 NOISE = {"BARQ Systems – IT Service Operations Manual", "INTERNAL DOCUMENT", "Edition 4.0"}
@@ -22,6 +22,13 @@ PAGE_NO = re.compile(r"^\d+ of \d+")
 TOC = re.compile(r"^(\d{1,2}(?:\.\d{1,2})?|Appendix [A-E]|Document control)\.?\s*([^.]*?)\s*\.{3,}\s*\d+$")
 SUB_APPENDIX = re.compile(r"^([A-E])\.(\d) \S")                   # "B.1 Escalation handover"
 KB_REVISION = re.compile(r"^Version (\d) – (retired|published) ", re.M)  # "Version 1 – retired 02 April 2026"
+
+# Sections are filed under ServiceNow's incident categories (config.INCIDENT_CATEGORIES), so the
+# retrieval category filter compares an incident's category with an article's like for like.
+# Sections whose text has no "Category" line: KB0010 (software in 6.2's symptom finder) and
+# chapter 9, the major incident report on that same order service.
+CATEGORY_FALLBACK = {"6.13": "software", "9": "software"}
+DEFAULT_CATEGORY = "inquiry"   # desk process and policy text: "Inquiry / Help"
 
 
 @dataclass
@@ -32,7 +39,7 @@ class ManualSection:
     text: str
     page_start: int
     kb_number: str = ""
-    category: str = ""         # chapter number / "appendix" / "front-matter"
+    category: str = ""         # one of INCIDENT_CATEGORIES
     service: str = ""
     workflow_state: str = "published"
     security_level: str = "internal"   # Document control: classification Internal
@@ -87,6 +94,16 @@ def value_after(text: str, key: str) -> str:
     return m.group(1) if m else ""
 
 
+def incident_category(s: ManualSection) -> str:
+    """The section's own "Category" line ("hardware", "Network · VPN", "Inquiry → Identity"), else a fallback."""
+    stated = value_after(s.text, "Category").split()
+    if stated and stated[0].lower() in INCIDENT_CATEGORIES:
+        return stated[0].lower()
+    return (CATEGORY_FALLBACK.get(s.section_id)
+            or CATEGORY_FALLBACK.get(s.section_id.split(".")[0])
+            or DEFAULT_CATEGORY)
+
+
 def tag_kb(s: ManualSection) -> list[ManualSection]:
     """Chapter-6 articles: read state/version/service. 6.13 holds two revisions -> two sections."""
     kb = re.search(r"KB\d{4}", s.title)
@@ -116,8 +133,7 @@ def parse_manual(pdf_path: str | None = None) -> list[ManualSection]:
     pages = read_pages(pdf_path or RETRIEVAL.manual_pdf_path)
     out = []
     for s in split_sections(pages, read_toc(pages)):
-        s.category = ("front-matter" if s.section_id == "Document control"
-                      else "appendix" if s.section_id.startswith("Appendix") else "chapter-" + s.section_id.split(".")[0])
+        s.category = incident_category(s)   # before tag_kb: a revision's body may lack the header
         if s.section_id == "6.3":                     # "the archived scan": audit copy, not current text
             s.workflow_state = "archived"
         out += tag_kb(s)

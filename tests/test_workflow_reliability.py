@@ -44,6 +44,7 @@ def _llm_response(content: str) -> MagicMock:
 
 def _retrieved_chunk() -> MagicMock:
     chunk = MagicMock()
+    chunk.payload = {"category": "network"}
     chunk.number = "KB-VPN-01"
     chunk.point_id = "KB-VPN-01"
     chunk.text = EVIDENCE[0]["text"]
@@ -116,6 +117,7 @@ KBHR_TEXT = (
 
 def _chunk(number: str, score: float, text: str = KBHR_TEXT) -> MagicMock:
     chunk = MagicMock()
+    chunk.payload = {"category": "network"}
     chunk.number, chunk.point_id, chunk.text, chunk.score = number, number, text, score
     return chunk
 

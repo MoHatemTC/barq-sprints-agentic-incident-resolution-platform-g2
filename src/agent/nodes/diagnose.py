@@ -14,8 +14,10 @@ used by classify_node and determine_risk_node.
 
 import json
 import logging
+import math
 from typing import Any, Dict
 
+from src.config import RETRIEVAL
 from src.observability.tracing import get_llm_callback, trace_node
 from src.agent.llm import get_llm
 from src.agent.prompts import DIAGNOSTIC_SYSTEM_PROMPT
@@ -42,26 +44,33 @@ def _format_evidence(retrieved_evidence: list[Dict[str, Any]]) -> str:
     return "\n\n".join(lines)
 
 
+def _evidence_strength(score: float, mode: str) -> float:
+    """A retrieval score as 0-1. Each mode scores on its own scale."""
+    if mode == "hybrid_rerank":   # cross-encoder logit: 5 -> 0.99, 0 -> 0.5, -5 -> 0.01
+        return 1.0 / (1.0 + math.exp(-score))
+    if mode == "hybrid":          # RRF: 2 / (k + 1) is rank 1 in both dense and sparse
+        return max(0.0, min(1.0, score * (RETRIEVAL.rrf_k + 1) / 2))
+    return max(0.0, min(1.0, score))   # dense: cosine
+
+
 def _calculate_confidence(
     retrieved_evidence: list[Dict[str, Any]],
     supporting_evidence: list[str],
+    mode: str | None = None,
 ) -> float:
     """
     Heuristic confidence score based on evidence quality.
 
-    Base: mean retrieval score across all evidence chunks (0–1).
+    Base: strength of the best evidence chunk (0–1). Not the mean: the weaker chunks
+    retrieved alongside a strong match say nothing against it.
     Bonus: +0.10 if the LLM cited at least one evidence article.
     Clamped to [0.0, 1.0].
     """
     if not retrieved_evidence:
         return 0.0
 
-    scores = [ev.get("score", 0.0) for ev in retrieved_evidence]
-    # Retrieval scores from hybrid/rerank can exceed 1.0 (e.g. RRF values up to ~5).
-    # Normalise by clamping each score to [0, 1] before averaging.
-    normalised = [max(0.0, min(1.0, s)) for s in scores]
-    base = sum(normalised) / len(normalised)
-
+    mode = mode or RETRIEVAL.mode
+    base = max(_evidence_strength(ev.get("score", 0.0), mode) for ev in retrieved_evidence)
     bonus = 0.10 if supporting_evidence else 0.0
     return min(_MAX_EVIDENCE_CONFIDENCE, base + bonus)
 

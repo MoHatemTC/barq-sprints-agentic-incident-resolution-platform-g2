@@ -28,6 +28,11 @@ def test_each_optional_field_adds_one_and_condition():
     assert must["workflow_state"].any == ["published"]  # base rule still there
 
 
+def test_categories_match_any_of_the_corrected_guesses():
+    f = build_qdrant_filter(RetrievalFilters(categories=("hardware", "software")))
+    assert keys(f.must)["category"].any == ["hardware", "software"]
+
+
 def test_custom_lists_are_used():
     f = build_qdrant_filter(RetrievalFilters(
         allowed_workflow_states=("published", "draft"),

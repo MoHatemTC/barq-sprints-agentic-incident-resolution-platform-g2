@@ -58,16 +58,26 @@ def _ensure_collection(client: QdrantClient):
     ])
 
 
+# What a chunk is embedded as. Part of the content hash: changing it re-embeds every article.
+EMBED_FORMAT = "title+chunk"
+
+
+def _embed_text(article: Article, chunk_text: str) -> str:
+    """The title says what a chunk like "## Resolution. 1. Stop the spooler" belongs to."""
+    return f"{article.title}\n{chunk_text}" if article.title else chunk_text
+
+
 def _build_points(articles: list[Article]) -> list[PointStruct]:
     points = []
     for article in articles:
         chunks = chunk_article(article.body)
         for i, (section, chunk_text) in enumerate(chunks):
+            embed_text = _embed_text(article, chunk_text)
             points.append(PointStruct(
                 id=deterministic_point_id(article.article_id, article.version, i),
                 vector={
-                    "dense": embed_dense(chunk_text),
-                    "sparse": SparseVector(**embed_sparse(chunk_text)),
+                    "dense": embed_dense(embed_text),
+                    "sparse": SparseVector(**embed_sparse(embed_text)),
                 },
                 payload={
                     "sys_id": article.sys_id,
@@ -231,7 +241,7 @@ def ingest_articles(source: str = "local", json_path: str = None) -> dict:
     print(f"Ingestion complete: {stats}")
     return stats
 def _content_hash(article: Article) -> str:
-    raw = f"{article.title}|{article.category}|{article.service}|{article.security_level}|{article.body}"
+    raw = f"{EMBED_FORMAT}|{article.title}|{article.category}|{article.service}|{article.security_level}|{article.body}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 

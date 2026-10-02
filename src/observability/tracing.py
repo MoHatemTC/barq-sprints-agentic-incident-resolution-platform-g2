@@ -195,6 +195,10 @@ def trace_node(name: str, observation_type: str = "span"):
     the span is nested under it — ensuring all nodes in one execution
     share a single correlated trace.
 
+    Structured input/output: instead of dumping the full state dict,
+    each span receives a curated summary via build_node_input /
+    build_node_output so Langfuse remains readable and scannable.
+
     Uses Langfuse v4 SDK:
       - client.start_observation() to create a child span
       - span.update() to record output/level/status before ending
@@ -210,12 +214,14 @@ def trace_node(name: str, observation_type: str = "span"):
             parent_trace_id = _current_trace_id.get()
             parent_root_span_id = _current_root_span_id.get()
 
-            # Sanitize dict arguments
-            clean_args = [
-                sanitize_payload(a) if isinstance(a, dict) else a
-                for a in args
-            ]
-            clean_kwargs = sanitize_payload(kwargs)
+            # Extract the state dict (first positional arg for node functions)
+            state_arg = args[0] if args else kwargs.get("state", {})
+            structured_input = {}
+            if isinstance(state_arg, dict):
+                try:
+                    structured_input = build_node_input(name, state_arg)
+                except Exception:
+                    structured_input = {"args": str(state_arg)[:300]}
 
             # Build trace_context so this span nests under the root span
             trace_context = None
@@ -235,7 +241,7 @@ def trace_node(name: str, observation_type: str = "span"):
                     name=span_name,
                     as_type="span",
                     trace_context=trace_context,
-                    input={"args": [str(a)[:500] for a in clean_args], "kwargs": clean_kwargs},
+                    input=sanitize_payload(structured_input),
                 )
                 # Propagate this span's ID so get_llm_callback() can nest
                 # LLM calls as children of this node span (fixes BUG-16).
@@ -248,11 +254,19 @@ def trace_node(name: str, observation_type: str = "span"):
             try:
                 result = func(*args, **kwargs)
 
+                # Build structured output for this node
+                structured_output = {}
+                if isinstance(result, dict):
+                    try:
+                        structured_output = build_node_output(name, result)
+                    except Exception:
+                        structured_output = sanitize_payload(result)
+
                 # Record outcome in the span: update() then end()
                 if span:
                     try:
                         span.update(
-                            output=sanitize_payload(result) if isinstance(result, dict) else str(result),
+                            output=structured_output or str(result)[:300],
                             level="DEFAULT",
                             status_message="success",
                         )
@@ -287,11 +301,185 @@ def trace_node(name: str, observation_type: str = "span"):
         return wrapper
     return decorator
 
+
 try:
     from langfuse.langchain import CallbackHandler
 except ImportError:
     CallbackHandler = None
+
+# ---------------------------------------------------------------------------
+# Structured node I/O helpers — keep Langfuse readable per node
+# ---------------------------------------------------------------------------
+
+def _truncate(text: Any, max_chars: int = 400) -> str:
+    """Convert to string and truncate for display."""
+    s = str(text) if text is not None else ""
+    return s[:max_chars] + "…" if len(s) > max_chars else s
+
+
+def build_node_input(node_name: str, state: dict) -> dict:
+    """
+    Return a small, human-readable dict of the fields that actually matter
+    for *this* node.  Sent as `input` to the Langfuse span so reviewers see
+    context without wading through the full 50-key state dict.
+    """
+    payload = state.get("incident_payload") or {}
+    outputs  = state.get("outputs") or {}
+
+    common = {
+        "incident_number": payload.get("number") or payload.get("sys_id", "—"),
+        "short_description": _truncate(payload.get("short_description"), 200),
+    }
+
+    extras: dict = {}
+
+    if node_name == "formulate_query":
+        extras = {
+            "description": _truncate(payload.get("description"), 300),
+            "human_solution": _truncate(state.get("human_solution"), 200),
+        }
+
+    elif node_name == "classify":
+        extras = {
+            "description": _truncate(payload.get("description"), 300),
+            "human_solution_present": bool(state.get("human_solution")),
+        }
+
+    elif node_name == "retrieve":
+        extras = {
+            "search_query": _truncate(state.get("search_query"), 300),
+            "category": payload.get("category", "—"),
+            "service": payload.get("business_service") or payload.get("service", "—"),
+        }
+
+    elif node_name == "diagnose":
+        evidence = state.get("retrieved_evidence") or []
+        extras = {
+            "evidence_count": len(evidence),
+            "evidence_ids": [e.get("id") for e in evidence[:5]],
+            "description": _truncate(payload.get("description"), 200),
+        }
+
+    elif node_name == "generate":
+        evidence = state.get("retrieved_evidence") or []
+        extras = {
+            "diagnosis": _truncate(outputs.get("diagnosis"), 300),
+            "evidence_count": len(evidence),
+            "is_revision": bool(state.get("critic_verdict")),
+            "revision_count": state.get("revision_count", 0),
+        }
+
+    elif node_name == "safety_check":
+        extras = {
+            "resolution_preview": _truncate(outputs.get("resolution"), 300),
+        }
+
+    elif node_name == "confidence_check":
+        extras = {
+            "confidence": state.get("confidence", "—"),
+            "critic_exhausted": state.get("critic_exhausted", False),
+        }
+
+    elif node_name == "act":
+        extras = {
+            "resolution_preview": _truncate(
+                outputs.get("resolution") or state.get("human_solution"), 300
+            ),
+            "human_decision": (state.get("human_decision") or {}).get("decision", "none"),
+            "risk": state.get("risk", "—"),
+        }
+
+    elif node_name == "knowledge_capture":
+        extras = {
+            "human_solution": _truncate(state.get("human_solution"), 300),
+            "classification": state.get("classification", "—"),
+        }
+
+    return {**common, **extras}
+
+
+def build_node_output(node_name: str, result: dict) -> dict:
+    """
+    Return a concise, readable dict from the node's return value.
+    """
+    if not isinstance(result, dict):
+        return {"raw": _truncate(result)}
+
+    outputs = result.get("outputs") or {}
+
+    if node_name == "formulate_query":
+        return {
+            "search_query": _truncate(result.get("search_query"), 400),
+        }
+
+    elif node_name == "classify":
+        return {
+            "classification": result.get("classification", "—"),
+        }
+
+    elif node_name == "retrieve":
+        evidence = result.get("retrieved_evidence") or []
+        return {
+            "evidence_count": len(evidence),
+            "top_ids_scores": [
+                {"id": e.get("id"), "score": round(e.get("score", 0), 3)}
+                for e in evidence[:5]
+            ],
+            "cache_hit": result.get("retrieval_cache_hit", False),
+            "retrieval_failed": result.get("retrieval_failed", False),
+        }
+
+    elif node_name == "diagnose":
+        return {
+            "root_cause": _truncate(outputs.get("diagnosis"), 300),
+            "confidence": (outputs.get("diagnosis_structured") or {}).get("confidence", "—"),
+            "supporting_evidence": (outputs.get("diagnosis_structured") or {}).get(
+                "supporting_evidence", []
+            ),
+        }
+
+    elif node_name == "generate":
+        return {
+            "resolution_preview": _truncate(outputs.get("resolution"), 400),
+            "revision_count": result.get("revision_count", 0),
+        }
+
+    elif node_name == "safety_check":
+        return {
+            "action_taken": result.get("action_taken", "—"),
+            "safety_passed": result.get("action_taken") != "blocked_by_guardrail",
+        }
+
+    elif node_name == "confidence_check":
+        return {
+            "confidence": result.get("confidence", "—"),
+            "critic_exhausted": result.get("critic_exhausted", False),
+        }
+
+    elif node_name == "act":
+        return {
+            "action_taken": result.get("action_taken", "—"),
+            "servicenow_write": result.get("servicenow_write", "—"),
+        }
+
+    elif node_name == "knowledge_capture":
+        return {
+            "status": (result.get("knowledge_capture_result") or {}).get("status", "—"),
+            "article_number": (result.get("knowledge_capture_result") or {}).get(
+                "article_number", "—"
+            ),
+        }
+
+    # Generic fallback — pick only leaf-level keys that are simple types
+    return {
+        k: _truncate(v)
+        for k, v in result.items()
+        if isinstance(v, (str, int, float, bool)) and k != "outputs"
+    }
+
+
 def get_llm_callback():
+
     """
     Returns a LangChain CallbackHandler tied to the current node span.
 

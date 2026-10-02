@@ -232,17 +232,35 @@ def test_calculate_confidence_no_evidence():
 
 def test_calculate_confidence_with_evidence_and_citations():
     """Confidence must include the citation bonus when supporting_evidence is non-empty."""
-    evidence = [{"score": 0.8}, {"score": 0.6}]
-    conf = _calculate_confidence(evidence, ["KB0001"])
-    # base = (0.8 + 0.6) / 2 = 0.7, bonus = 0.1 → 0.8
-    assert conf == pytest.approx(0.8, abs=0.01)
+    evidence = [{"score": 0.6}, {"score": 0.8}]
+    conf = _calculate_confidence(evidence, ["KB0001"], mode="dense")
+    # base = best = 0.8, bonus = 0.1 → 0.9
+    assert conf == pytest.approx(0.9, abs=0.01)
 
 
 def test_calculate_confidence_without_citations():
     """Confidence must not include the bonus when no citations were made."""
     evidence = [{"score": 0.8}, {"score": 0.6}]
-    conf = _calculate_confidence(evidence, [])
-    assert conf == pytest.approx(0.7, abs=0.01)
+    conf = _calculate_confidence(evidence, [], mode="dense")
+    assert conf == pytest.approx(0.8, abs=0.01)
+
+
+def test_strong_match_is_not_dragged_down_by_weaker_chunks():
+    """One clear rerank match (logit 5.8) plus four unrelated chunks is a confident answer."""
+    evidence = [{"score": 5.8}, {"score": -8.8}, {"score": -10.3}, {"score": -10.5}, {"score": -10.6}]
+    assert _calculate_confidence(evidence, ["KB0002"], mode="hybrid_rerank") == pytest.approx(1.0, abs=0.01)
+
+
+def test_weak_rerank_evidence_stays_low():
+    """Nothing relevant retrieved: confidence stays under the 0.6 automation floor."""
+    evidence = [{"score": -4.0}, {"score": -6.0}]
+    assert _calculate_confidence(evidence, ["KB0002"], mode="hybrid_rerank") < 0.2
+
+
+def test_rrf_rank_one_in_both_lists_is_full_strength():
+    """hybrid: 2 / (k + 1) is the best RRF score possible."""
+    from src.config import RETRIEVAL
+    assert _calculate_confidence([{"score": 2 / (RETRIEVAL.rrf_k + 1)}], [], mode="hybrid") == pytest.approx(1.0)
 
 
 def test_calculate_confidence_clamped_to_one():
@@ -680,3 +698,183 @@ def test_safety_check_node_invalid_content():
     assert "OUTPUT_CONTENT_FLAGGED" in result["failure_reason"]
 
 
+def test_formulate_query_fallback_includes_human_solution(monkeypatch):
+    """Fallback search query must preserve human_solution when LLM fails."""
+    from src.agent.nodes.formulate_query import formulate_query_node
+
+    class FailingLLM:
+        def invoke(self, *args, **kwargs):
+            raise RuntimeError("LLM service unavailable")
+
+    monkeypatch.setattr("src.agent.nodes.formulate_query.get_llm", lambda: FailingLLM())
+
+    state = {
+        "incident_payload": {
+            "short_description": "VPN issue",
+            "description": "User cannot connect to gateway",
+        },
+        "human_solution": "Restart VPN concentrator daemon.",
+    }
+    result = formulate_query_node(state)
+    assert "Restart VPN concentrator daemon." in result["search_query"]
+    assert "VPN issue" in result["search_query"]
+
+
+def test_formulate_query_combines_short_description_and_description(monkeypatch):
+    """One query line written from both texts; greetings and signatures are the LLM's to drop."""
+    from src.agent.nodes import formulate_query as fq
+
+    llm = MagicMock()
+    llm.invoke.return_value = MagicMock(content="VPN authentication failed after password reset")
+    monkeypatch.setattr(fq, "get_llm", lambda: llm)
+
+    result = fq.formulate_query_node({"incident_payload": {
+        "short_description": "VPN broken!!",
+        "description": "Hi team, since my password reset this morning the VPN says authentication failed. Thanks"}})
+
+    prompt = llm.invoke.call_args[0][0]
+    assert "VPN broken!!" in prompt and "authentication failed" in prompt
+    assert result["search_query"] == "VPN authentication failed after password reset"
+
+
+def test_formulate_query_accepts_a_json_answer(monkeypatch):
+    from src.agent.nodes import formulate_query as fq
+
+    llm = MagicMock()
+    llm.invoke.return_value = MagicMock(content='```json\n{"query": "printer queue stuck"}\n```')
+    monkeypatch.setattr(fq, "get_llm", lambda: llm)
+
+    result = fq.formulate_query_node({"incident_payload": {"short_description": "Printer", "description": "stuck"}})
+
+    assert result["search_query"] == "printer queue stuck"
+
+
+def test_formulate_query_falls_back_to_both_texts(monkeypatch):
+    from src.agent.nodes import formulate_query as fq
+
+    llm = MagicMock()
+    llm.invoke.return_value = MagicMock(content="")
+    monkeypatch.setattr(fq, "get_llm", lambda: llm)
+
+    result = fq.formulate_query_node({"incident_payload": {"short_description": "VPN broken", "description": "Auth fails"}})
+
+    assert result["search_query"] == "VPN broken\nAuth fails"
+
+
+def test_act_node_tracing_output():
+    """build_node_output for act node must capture servicenow_write."""
+    from src.observability.tracing import build_node_output
+
+    act_result = {
+        "action_taken": "resolved_automatically",
+        "servicenow_write": "written",
+    }
+    output = build_node_output("act", act_result)
+    assert output["action_taken"] == "resolved_automatically"
+    assert output["servicenow_write"] == "written"
+
+
+
+def _scored(number, score, category):
+    chunk = MagicMock()
+    chunk.number, chunk.point_id, chunk.text, chunk.score = number, number, f"text {number}", score
+    chunk.payload = {"category": category}
+    return chunk
+
+
+def _llm_says(text):
+    llm = MagicMock()
+    llm.invoke.return_value = MagicMock(content=text)
+    return llm
+
+
+@patch("src.agent.nodes.retrieve.get_llm")
+@patch("src.agent.nodes.retrieve.search")
+def test_retrieve_searches_only_the_incident_category(mock_search, mock_llm):
+    mock_search.return_value = [_scored("KB0001", 3.0, "network")]
+
+    result = retrieve_node({"incident_payload": {"description": "VPN fails", "category": "network"}})
+
+    assert mock_search.call_args.kwargs["filters"].category == "network"
+    assert mock_search.call_count == 1 and not mock_llm.called   # good match: no correction
+    assert result["retrieved_evidence"][0]["category"] == "network"
+
+
+@patch("src.agent.nodes.retrieve.get_llm", return_value=_llm_says("hardware, software, inquiry"))
+@patch("src.agent.nodes.retrieve.search")
+def test_wrong_category_is_corrected_to_the_agents_likeliest_categories(mock_search, _llm):
+    weak, strong = _scored("KB0003", -6.0, "network"), _scored("KB0004", 4.0, "hardware")
+    mock_search.side_effect = [[weak], [strong]]
+
+    result = retrieve_node({"incident_payload": {"description": "Printer queue stuck", "category": "network"}})
+
+    corrected = mock_search.call_args_list[1].kwargs["filters"]
+    assert corrected.categories == ("hardware", "software", "inquiry")
+    assert corrected.category is None    # never the whole KB: only the chosen categories
+    assert [e["id"] for e in result["retrieved_evidence"]] == ["KB0004", "KB0003"]
+
+
+@patch("src.agent.nodes.retrieve.get_llm", return_value=_llm_says("no idea"))
+@patch("src.agent.nodes.retrieve.search")
+def test_no_corrected_category_keeps_the_original_results(mock_search, _llm):
+    mock_search.return_value = [_scored("KB0003", -6.0, "network")]
+
+    result = retrieve_node({"incident_payload": {"description": "Odd fault", "category": "network"}})
+
+    assert mock_search.call_count == 1
+    assert [e["id"] for e in result["retrieved_evidence"]] == ["KB0003"]
+
+
+@patch("src.agent.nodes.retrieve.search")
+def test_retrieve_searches_with_the_formulated_query(mock_search):
+    mock_search.return_value = [_scored("KB0001", 3.0, "network")]
+
+    retrieve_node({"search_query": "VPN authentication failed after password reset",
+                   "incident_payload": {"short_description": "VPN down", "description": "auth fails"}})
+
+    assert mock_search.call_args.kwargs["query"] == "VPN authentication failed after password reset"
+
+
+@patch("src.agent.nodes.retrieve.search")
+def test_retrieve_falls_back_to_the_incident_text_without_a_formulated_query(mock_search):
+    mock_search.return_value = [_scored("KB0001", 3.0, "network")]
+
+    retrieve_node({"incident_payload": {"short_description": "VPN down", "description": "auth fails"}})
+
+    assert mock_search.call_args.kwargs["query"] == "VPN down\nauth fails"
+
+
+@patch("src.agent.nodes.retrieve.article_texts", return_value={"KB0004": "Symptom.\n\nResolution. 1. Restart the spooler."})
+@patch("src.agent.nodes.retrieve.search")
+def test_evidence_is_the_whole_article_not_one_chunk(mock_search, _texts):
+    chunk = _scored("KB0004", 4.0, "hardware")
+    chunk.payload = {"category": "hardware", "article_id": "KB0004", "chunk_index": 0}
+    mock_search.return_value = [chunk]
+
+    result = retrieve_node({"incident_payload": {"description": "printer queue stuck", "category": "hardware"}})
+
+    assert result["retrieved_evidence"][0]["text"] == "Symptom.\n\nResolution. 1. Restart the spooler."
+
+
+def test_best_per_article_keeps_each_articles_top_chunk():
+    from src.retrieval.hybrid_search import RetrievedChunk, best_per_article
+
+    def c(pid, art, score):
+        return RetrievedChunk(pid, art, "", "", score, {"article_id": art})
+
+    ranked = [c("1", "KB0001", 5), c("2", "7.2", 3), c("3", "KB0001", 2), c("4", "KB0003", 1)]
+    assert [x.point_id for x in best_per_article(ranked)] == ["1", "2", "4"]
+
+
+@patch("src.agent.nodes.classify.get_llm", return_value=_llm_says("password_reset"))
+def test_classify_uses_servicenow_categories(_llm):
+    from src.agent.nodes.classify import classify_node
+
+    assert classify_node({"incident_payload": {"description": "forgot my password"}})["classification"] == "password_reset"
+
+
+@patch("src.agent.nodes.classify.get_llm", return_value=_llm_says("email"))
+def test_classify_falls_back_to_inquiry_for_unknown_labels(_llm):
+    from src.agent.nodes.classify import classify_node
+
+    assert classify_node({"incident_payload": {"description": "something odd"}})["classification"] == "inquiry"

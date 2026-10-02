@@ -85,6 +85,43 @@ def rrf_fuse(lists: list[list[RetrievedChunk]], k: int) -> list[RetrievedChunk]:
     return sorted(fused.values(), key=lambda c: (-c.score, c.point_id))
 
 
+def article_key(chunk: RetrievedChunk) -> str:
+    return chunk.payload.get("article_id") or chunk.number or chunk.point_id
+
+
+def best_per_article(chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
+    """Keep each article's best chunk, so top_k means top_k different articles (input is ranked)."""
+    seen, out = set(), []
+    for chunk in chunks:
+        if article_key(chunk) not in seen:
+            seen.add(article_key(chunk))
+            out.append(chunk)
+    return out
+
+
+def article_texts(article_ids: list[str], client: QdrantClient | None = None,
+                  collection: str | None = None) -> dict[str, str]:
+    """article_id -> the article's full text: its chunks joined in order."""
+    if not article_ids:
+        return {}
+    client = client or get_client()
+    chunks: dict[str, list] = {}
+    offset = None
+    while True:
+        points, offset = client.scroll(
+            collection or QDRANT.collection_name,
+            scroll_filter=models.Filter(must=[models.FieldCondition(
+                key="article_id", match=models.MatchAny(any=list(article_ids)))]),
+            limit=256, offset=offset, with_payload=["article_id", "chunk_index", "text"], with_vectors=False,
+        )
+        for p in points:
+            chunks.setdefault(p.payload["article_id"], []).append(p.payload)
+        if offset is None:
+            break
+    return {aid: "\n\n".join(c.get("text", "") for c in sorted(cs, key=lambda c: c.get("chunk_index", 0)))
+            for aid, cs in chunks.items()}
+
+
 def search(
     query: str,
     mode: str | None = None,
@@ -93,18 +130,20 @@ def search(
     client: QdrantClient | None = None,
     collection: str | None = None,
 ) -> list[RetrievedChunk]:
-    """Run one query in the given mode, Every argument defaults to config"""
+    """Run one query in the given mode, Every argument defaults to config.
+    Returns the best chunk of each of the top_k articles."""
     mode = mode or RETRIEVAL.mode
     top_k = top_k or RETRIEVAL.top_k
     client = client or get_client()
     collection = collection or QDRANT.collection_name
     qfilter = build_qdrant_filter(filters)
+    k = RETRIEVAL.candidate_k
 
     if mode == "dense":
-        return _search_one(client, collection, "dense", embed_dense(query), qfilter, top_k)
+        hits = _search_one(client, collection, "dense", embed_dense(query), qfilter, k)
+        return best_per_article(hits)[:top_k]
 
     # hybrid and hybrid_rerank both start the same way: two filtered searches, fused.
-    k = RETRIEVAL.candidate_k
     dense_hits = _search_one(client, collection, "dense", embed_dense(query), qfilter, k)
     sparse_hits = _search_one(
         client, collection, "sparse", models.SparseVector(**embed_sparse(query)), qfilter, k
@@ -112,11 +151,11 @@ def search(
     fused = rrf_fuse([dense_hits, sparse_hits], RETRIEVAL.rrf_k)
 
     if mode == "hybrid":
-        return fused[:top_k]
+        return best_per_article(fused)[:top_k]
 
     if mode == "hybrid_rerank":
         from .rerank import rerank   # imported here so dense/hybrid never load the model
-        return rerank(query, fused[:k], top_k)
+        return best_per_article(rerank(query, fused[:k], k))[:top_k]
 
     raise ValueError(f"Unknown retrieval mode: {mode!r}")
 

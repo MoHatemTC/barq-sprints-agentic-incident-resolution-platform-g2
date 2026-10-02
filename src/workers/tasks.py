@@ -156,6 +156,7 @@ class GraphAgentExecutor:
             "confidence": result.get("confidence"),
             "gate": result.get("gate"),
             "outputs": result.get("outputs"),
+            "search_query": result.get("search_query"),
             "retrieved_evidence": [e.get("id") for e in result.get("retrieved_evidence") or []],
             "action_taken": result.get("action_taken"),
             "servicenow_write": result.get("servicenow_write"),
