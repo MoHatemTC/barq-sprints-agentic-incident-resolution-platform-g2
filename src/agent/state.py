@@ -4,6 +4,8 @@ class AgentState(TypedDict, total=False):
     incident_payload: Dict[str, Any]
     retrieved_evidence: List[Dict[str, Any]]
     retrieval_failed: bool
+    # The query retrieval searched with, written by the LLM from short description + description
+    search_query: Optional[str]
     # Strong match on a human-approved (KBHR-) article: reuse it and skip diagnose/generate
     retrieval_cache_hit: bool
     cached_resolution: Optional[str]

@@ -18,5 +18,6 @@ testpaths = ["tests"]
 addopts = "--ignore=tests/load"
 markers = [
     "integration: needs live Postgres / Redis / Qdrant or downloaded embedding models",
+    "llm_search_query: let retrieve_node ask the (stubbed) LLM for its search query",
     "eval: retrieval-quality evaluation",
 ]

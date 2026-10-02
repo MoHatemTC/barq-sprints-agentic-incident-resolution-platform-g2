@@ -88,6 +88,18 @@ def hermetic_llm(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _search_query_without_llm(request, monkeypatch):
+    """retrieve_node asks the LLM to write its search query; tests use the incident text
+    as is, so no test makes that call by accident. Opt in with @pytest.mark.llm_search_query."""
+    if request.node.get_closest_marker("llm_search_query"):
+        return
+    monkeypatch.setattr(
+        "src.agent.nodes.retrieve._search_query",
+        lambda payload: "\n".join(t for t in (payload.get("short_description"), payload.get("description")) if t),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _reload_embedding_module_after_test():
     """Undo any monkeypatch+reload pollution left behind by tests that
     reload src.config / src.retrieval.embedding with fake env vars

@@ -6,7 +6,7 @@ from typing import Dict, Any
 from src.agent.llm import get_llm
 from src.config import INCIDENT_CATEGORIES, RETRIEVAL
 from src.observability.tracing import get_llm_callback, trace_node
-from src.retrieval.hybrid_search import search
+from src.retrieval.hybrid_search import article_key, article_texts, best_per_article, search
 from src.retrieval.filters import RetrievalFilters
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,49 @@ CACHE_HIT_SCORE = float(os.getenv("RETRIEVAL_CACHE_HIT_SCORE", "5.0"))
 # and the agent searches the FALLBACK_CATEGORIES categories it finds most likely instead.
 FALLBACK_MIN_SCORE = float(os.getenv("RETRIEVAL_FALLBACK_MIN_SCORE", "0.0"))
 FALLBACK_CATEGORIES = int(os.getenv("RETRIEVAL_FALLBACK_CATEGORIES", "3"))
+
+
+QUERY_PROMPT = """Write one search query for an IT knowledge base from this incident.
+Keep error codes, product and system names, and the symptoms the user describes.
+Drop greetings, signatures, urgency words and anything not about the fault.
+Answer with the query only, on one line.
+
+Short description: {short}
+Description: {desc}"""
+
+
+def _search_query(payload: Dict[str, Any]) -> str:
+    """A search query written by the LLM from the short description and the description.
+    Falls back to both texts as they are if the LLM fails or answers off-format."""
+    short = (payload.get("short_description") or "").strip()
+    desc = (payload.get("description") or "").strip()
+    raw = "\n".join(dict.fromkeys(t for t in (short, desc) if t))
+    if not raw:
+        return ""
+    try:
+        reply = get_llm().invoke(QUERY_PROMPT.format(short=short, desc=desc),
+                                 config={"callbacks": get_llm_callback()})
+        lines = str(getattr(reply, "content", reply)).strip().splitlines()
+        query = lines[0].strip().strip('"') if lines else ""
+    except Exception as exc:
+        logger.warning("Search query not generated (%s); using the incident text", exc)
+        return raw
+    return query if 3 <= len(query) <= 300 else raw
+
+
+def _with_full_articles(chunks: list) -> list:
+    """Evidence is the whole article, not one chunk of it: a Symptom chunk alone has no steps."""
+    ids = [article_key(c) for c in chunks if "chunk_index" in c.payload]
+    if not ids:
+        return chunks
+    try:
+        texts = article_texts(ids)
+    except Exception as exc:
+        logger.warning("Full article text not loaded (%s); using the matched chunks", exc)
+        return chunks
+    for c in chunks:
+        c.text = texts.get(article_key(c), c.text)
+    return chunks
 
 
 def _likely_categories(text: str, wrong: str) -> list[str]:
@@ -49,7 +92,7 @@ def _search_by_category(text: str, category: str | None) -> list:
         category, round(chunks[0].score, 3) if chunks else None, likely,
         [(c.number, c.payload.get("category"), round(c.score, 3)) for c in corrected],
     )
-    return sorted(chunks + corrected, key=lambda c: -c.score)[:RETRIEVAL.top_k]
+    return best_per_article(sorted(chunks + corrected, key=lambda c: -c.score))[:RETRIEVAL.top_k]
 
 
 def _cached_resolution(text: str) -> str:
@@ -61,9 +104,9 @@ def _cached_resolution(text: str) -> str:
 def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
     """Execute hybrid retrieval. Returns an empty list when nothing is found."""
     payload = state.get("incident_payload", {})
-    incident_text = payload.get("description") or payload.get("short_description") or ""
+    query = state.get("search_query") or _search_query(payload)
     human_solution = state.get("human_solution") or ""
-    text = f"{incident_text}\nHuman-provided resolution:\n{human_solution}" if human_solution else incident_text
+    text = f"{query}\nHuman-provided resolution:\n{human_solution}" if human_solution else query
 
     if not text.strip():
         logger.warning("Empty incident text; skipping retrieval")
@@ -72,7 +115,7 @@ def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
     try:
         # The category chosen on the incident. Service is not filtered on: incidents carry
         # business_service as a sys_id, which never equals an article's service name.
-        chunks = _search_by_category(text, payload.get("category") or None)
+        chunks = _with_full_articles(_search_by_category(text, payload.get("category") or None))
 
         retrieved = [
             {
@@ -89,7 +132,7 @@ def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
         else:
             logger.info(f"Retrieved {len(retrieved)} chunks: {[(r['id'], round(r['score'], 3)) for r in retrieved]}")
 
-        result = {"retrieved_evidence": retrieved, "retrieval_failed": False}
+        result = {"retrieved_evidence": retrieved, "retrieval_failed": False, "search_query": query}
         # A strong match on a human-approved article is an existing resolution.
         # Reuse it directly to avoid repeating diagnose/generate/critic/LLM calls.
         top = retrieved[0] if retrieved else None

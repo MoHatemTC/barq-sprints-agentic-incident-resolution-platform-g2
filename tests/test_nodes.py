@@ -748,3 +748,69 @@ def test_no_corrected_category_keeps_the_original_results(mock_search, _llm):
 
     assert mock_search.call_count == 1
     assert [e["id"] for e in result["retrieved_evidence"]] == ["KB0003"]
+
+
+@pytest.mark.llm_search_query
+@patch("src.agent.nodes.retrieve.get_llm", return_value=_llm_says("VPN authentication failed after password reset"))
+def test_search_query_is_written_from_short_description_and_description(mock_llm):
+    from src.agent.nodes.retrieve import _search_query
+
+    query = _search_query({"short_description": "VPN broken!!", "description": "Hi team, since my password reset this morning the VPN says authentication failed. Thanks"})
+
+    prompt = mock_llm.return_value.invoke.call_args[0][0]
+    assert "VPN broken!!" in prompt and "authentication failed" in prompt
+    assert query == "VPN authentication failed after password reset"
+
+
+@pytest.mark.llm_search_query
+@patch("src.agent.nodes.retrieve.get_llm", side_effect=RuntimeError("LLM down"))
+def test_search_query_falls_back_to_the_incident_text(_llm):
+    from src.agent.nodes.retrieve import _search_query
+
+    assert _search_query({"short_description": "VPN broken", "description": "Auth fails"}) == "VPN broken\nAuth fails"
+
+
+@patch("src.agent.nodes.retrieve.search")
+def test_retrieve_returns_the_search_query_for_the_ui(mock_search):
+    mock_search.return_value = [_scored("KB0001", 3.0, "network")]
+
+    result = retrieve_node({"incident_payload": {"short_description": "VPN down", "description": "auth fails"}})
+
+    assert result["search_query"] == "VPN down\nauth fails"
+    assert mock_search.call_args.kwargs["query"] == "VPN down\nauth fails"
+
+
+@patch("src.agent.nodes.retrieve.article_texts", return_value={"KB0004": "Symptom.\n\nResolution. 1. Restart the spooler."})
+@patch("src.agent.nodes.retrieve.search")
+def test_evidence_is_the_whole_article_not_one_chunk(mock_search, _texts):
+    chunk = _scored("KB0004", 4.0, "hardware")
+    chunk.payload = {"category": "hardware", "article_id": "KB0004", "chunk_index": 0}
+    mock_search.return_value = [chunk]
+
+    result = retrieve_node({"incident_payload": {"description": "printer queue stuck", "category": "hardware"}})
+
+    assert result["retrieved_evidence"][0]["text"] == "Symptom.\n\nResolution. 1. Restart the spooler."
+
+
+def test_best_per_article_keeps_each_articles_top_chunk():
+    from src.retrieval.hybrid_search import RetrievedChunk, best_per_article
+
+    def c(pid, art, score):
+        return RetrievedChunk(pid, art, "", "", score, {"article_id": art})
+
+    ranked = [c("1", "KB0001", 5), c("2", "7.2", 3), c("3", "KB0001", 2), c("4", "KB0003", 1)]
+    assert [x.point_id for x in best_per_article(ranked)] == ["1", "2", "4"]
+
+
+@patch("src.agent.nodes.classify.get_llm", return_value=_llm_says("password_reset"))
+def test_classify_uses_servicenow_categories(_llm):
+    from src.agent.nodes.classify import classify_node
+
+    assert classify_node({"incident_payload": {"description": "forgot my password"}})["classification"] == "password_reset"
+
+
+@patch("src.agent.nodes.classify.get_llm", return_value=_llm_says("email"))
+def test_classify_falls_back_to_inquiry_for_unknown_labels(_llm):
+    from src.agent.nodes.classify import classify_node
+
+    assert classify_node({"incident_payload": {"description": "something odd"}})["classification"] == "inquiry"
