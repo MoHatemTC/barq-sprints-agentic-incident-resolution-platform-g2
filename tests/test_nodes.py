@@ -680,3 +680,39 @@ def test_safety_check_node_invalid_content():
     assert "OUTPUT_CONTENT_FLAGGED" in result["failure_reason"]
 
 
+def test_formulate_query_fallback_includes_human_solution(monkeypatch):
+    """Fallback search query must preserve human_solution when LLM fails."""
+    from src.agent.nodes.formulate_query import formulate_query_node
+
+    class FailingLLM:
+        def invoke(self, *args, **kwargs):
+            raise RuntimeError("LLM service unavailable")
+
+    monkeypatch.setattr("src.agent.nodes.formulate_query.get_llm", lambda: FailingLLM())
+
+    state = {
+        "incident_payload": {
+            "short_description": "VPN issue",
+            "description": "User cannot connect to gateway",
+        },
+        "human_solution": "Restart VPN concentrator daemon.",
+    }
+    result = formulate_query_node(state)
+    assert "Restart VPN concentrator daemon." in result["search_query"]
+    assert "VPN issue" in result["search_query"]
+
+
+def test_act_node_tracing_output():
+    """build_node_output for act node must capture servicenow_write."""
+    from src.observability.tracing import build_node_output
+
+    act_result = {
+        "action_taken": "resolved_automatically",
+        "servicenow_write": "written",
+    }
+    output = build_node_output("act", act_result)
+    assert output["action_taken"] == "resolved_automatically"
+    assert output["servicenow_write"] == "written"
+
+
+

@@ -459,9 +459,7 @@ def build_node_output(node_name: str, result: dict) -> dict:
     elif node_name == "act":
         return {
             "action_taken": result.get("action_taken", "—"),
-            "processing_state": (result.get("servicenow_fields") or {}).get(
-                "processing_state", "—"
-            ),
+            "servicenow_write": result.get("servicenow_write", "—"),
         }
 
     elif node_name == "knowledge_capture":
