@@ -99,7 +99,16 @@ def route_after_critic(state: AgentState) -> str:
     - FAIL + retries remain -> generate
     - FAIL + retries exhausted -> prepare_review (S3.4: a human decides, no unreviewed write)
     Routing is purely Python — no LLM involved.
+
+    After a human approval the gate is already satisfied — never re-open a
+    second prepare_review because the AI-generated enrichment of the reviewer's
+    solution failed the critic.  The human solution itself is the authoritative
+    output; skip straight to safety_check.
     """
+    # Human approval is the definitive gate pass — do not re-interrupt.
+    decision = state.get("human_decision") or {}
+    if decision.get("decision") == "approve":
+        return "safety_check"
     verdict = state.get("critic_verdict") or {}
     if verdict.get("passed"):
         return "safety_check"
@@ -109,14 +118,28 @@ def route_after_critic(state: AgentState) -> str:
 
 
 def route_after_human_review(state: AgentState) -> str:
-    """After approval, enrich with KB evidence and generate resolution before writing."""
+    """After approval, skip re-classification and go directly to retrieval.
 
+    Previously this routed to 'classify' so the LLM could refine the category
+    using the reviewer's solution text.  That re-ran the full classify →
+    determine_risk path.  Because the incident is still objectively high-risk,
+    determine_risk returned 'high' again and, when human_decision was not yet
+    visible to route_after_risk (LangGraph state merge timing), a second
+    interrupt was triggered — leaving the approval stuck in the queue with
+    "Already decided: another decision was recorded first."
+
+    Fix: jump straight to formulate_query.  Classification is already done
+    (the first pass set it), human_decision is in state and will keep
+    route_after_risk from re-opening the gate, and we avoid the double-pause
+    entirely.  The reviewer's solution is still available in state for act_node
+    and knowledge_capture_node.
+    """
     decision = state.get("human_decision") or {}
     if (
         decision.get("decision") == "approve"
         and state.get("human_solution")
     ):
-        return "classify"
+        return "formulate_query"
     return "act"
 
 
@@ -330,13 +353,14 @@ def create_graph():
         },
     )
 
-    # High-risk approval resumes through retrieval and generation so the model
-    # can combine the human solution with matching KB evidence before writing.
+    # After a human decision the graph skips re-classification and jumps
+    # straight to KB retrieval (formulate_query) so determine_risk cannot
+    # open a second approval gate on the same incident.
     workflow.add_edge("prepare_review", "interrupt")
     workflow.add_conditional_edges(
         "interrupt",
         route_after_human_review,
-        {"classify": "classify", "act": "act"},
+        {"formulate_query": "formulate_query", "act": "act"},
     )
 
     # act has written the outcome exactly once; an approved human
