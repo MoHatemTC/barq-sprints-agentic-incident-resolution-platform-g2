@@ -15,7 +15,7 @@ Every view shows how fresh its data is. During a ServiceNow or API outage the la
 | Decide from ServiceNow | [`src/api/routers/approvals.py`](../src/api/routers/approvals.py) (`/approvals/by-incident/{sys_id}/decide`) |
 | Latency benchmark | [`scripts/bench_dashboard.py`](../scripts/bench_dashboard.py) → [`eval/results/dashboard_latency.md`](../eval/results/dashboard_latency.md) |
 | Tests | 95 passing across 6 files (see [§8](#8-tests)) |
-| Live demonstration | [§9](#9-live-verification-demo-script) |
+| Live demonstration | Script: [§9](#9-live-verification-demo-script). Screenshots from the live run: [§10](#10-evidence-live-run-2026-10-03) |
 
 **Decisions confirmed with the mentor (Sarah Nader):**
 - Dashboard reads, creates and deletes reuse `ServiceNowClient` directly. `ToolRegistry` stays reserved for agent execution governance, which is where its permission checks belong.
@@ -256,12 +256,81 @@ Prerequisites: `docker compose up -d --build`, dashboard at `http://localhost:80
 4. `docker compose stop api` → "API unreachable" with the last sync time; `docker compose start api` → back to Live.
 5. Duplicate-safe create: send the same create twice (same `request_id`). The second answer is `already_created` with the same number.
 
-**Evidence**
+---
 
-| Scenario | Recording / screenshot |
-|---|---|
-| A. ServiceNow → dashboard | _to add_ |
-| B. Dashboard → ServiceNow | _to add_ |
-| C. Run history + step log | _to add_ |
-| D. Stale banner, API unreachable, recovery | _to add_ |
-| D5. Duplicate-safe create | Verified 2026-10-01 against the dev instance (one incident for two identical requests) |
+## 10. Evidence (live run, 2026-10-03)
+
+Screenshots from one live session against the dev instance `dev323650`. ServiceNow shows times in the instance time zone and the dashboard in local time (UTC+3), so the same moment appears as, for example, 09:34 in ServiceNow and 07:34 PM on the dashboard.
+
+**Environment note.** ServiceNow sends its webhooks to the team's shared backend (ngrok), which ran the `development` build during this session. Sections A, B and E were captured with the dashboard pointed at that backend, so they show real AI runs. Sections C and D were captured against a local build of this branch, which adds `synced_at`, the run history and the failure states. That build does not receive the instance's webhooks, so recent incidents appear there as "Not sent to AI".
+
+### A. ServiceNow → dashboard (INC0010395)
+
+**1. Before:** the incident is created in the ServiceNow form. The AI Model Name / Agent Version are still empty.
+![INC0010395 created in ServiceNow](images/s4.4/01-sn-created.png)
+
+**2.** It is at the top of the ServiceNow incident list (State New, Network)…
+![ServiceNow incident list](images/s4.4/02-sn-list.png)
+
+**3.** …and appears on the dashboard within seconds, **In progress** at the Retrieve stage.
+![INC0010395 in progress on the dashboard](images/s4.4/03-dash-in-progress.png)
+
+**4. After:** the agent wrote back to ServiceNow: AI Model Name, Agent Version, AI Resolution and AI Suggestion.
+![INC0010395 AI fields in ServiceNow](images/s4.4/04-sn-ai-fields.png)
+
+**5. Matching execution log in ServiceNow:** one `auto_resolve` row, status `succeeded`, execution ID `95e523db-94ab-44a2-94b9-1b77a2d594ab`.
+![AI execution log list for INC0010395](images/s4.4/05-sn-exec-log-list.png)
+![AI execution log record](images/s4.4/06-sn-exec-log-record.png)
+
+**6.** The dashboard shows the same run: **Succeeded**, AI processing state **Complete** (read from ServiceNow), the **same execution ID** `95e523db…`, ServiceNow write `written`, and the same diagnosis and resolution.
+![INC0010395 succeeded on the dashboard](images/s4.4/07-dash-succeeded.png)
+
+### B. Dashboard → ServiceNow (INC0010396)
+
+**1.** A new incident is filled in on the dashboard. Categories come live from ServiceNow.
+![New incident form](images/s4.4/08-dash-create.png)
+
+**2.** The dashboard reports **INC0010396 created in ServiceNow** and then **passed the ServiceNow Business Rule and was queued**. The run starts (In progress, AI processing state In Progress).
+![INC0010396 created and queued](images/s4.4/09-dash-created-queued.png)
+
+**3. Before:** the record exists in ServiceNow (caller AI Integration, Hardware) with empty AI fields.
+![INC0010396 in ServiceNow](images/s4.4/10-sn-record.png)
+
+**4. After:** the dashboard shows **Succeeded** in 52 s, with diagnosis and resolution…
+![INC0010396 succeeded on the dashboard](images/s4.4/11-dash-succeeded.png)
+
+**5.** …and the same resolution is written into ServiceNow.
+![INC0010396 AI fields in ServiceNow](images/s4.4/12-sn-ai-fields.png)
+
+### C. Historical execution logs (INC0010305)
+
+**1.** **Run history** lists every run of the incident: status, start, duration, execution ID, retries, model, the **human decision** (approved by Hady), and each step: three crash recoveries, the pause for review, the resume after the human decision, and the final result.
+![Run history drawer](images/s4.4/13-history-drawer.png)
+
+**2.** **View log** loads one step's full payload on demand.
+![Step log payload](images/s4.4/14-history-step-log.png)
+
+### D. Failure indication, no data loss, no duplicates
+
+**1.** ServiceNow is made unreachable for the API (hosts entry). Within the 30 s window the list stays on screen and the badge says **ServiceNow delayed**.
+![ServiceNow delayed](images/s4.4/18-servicenow-delayed.png)
+
+**2.** Past 30 s the badge says **ServiceNow stale** and the banner gives the age and the reason: *"Showing ServiceNow data from 08:01:21 PM (32s old). Last refresh failed: ServiceNow could not be reached (connection refused). Retrying automatically."* The same five incidents are still listed.
+![ServiceNow stale banner](images/s4.4/19-servicenow-stale-banner.png)
+
+**3.** With the API itself stopped, the badge says **API unreachable** and the banner gives the last sync time; the list is kept.
+![API unreachable](images/s4.4/20-api-unreachable.png)
+
+**4. Duplicate-safe create:** the same create request (same `request_id`) is sent twice. The first answer is `created` and the second is `already_created`, both for **INC0010398**, so only one incident exists in ServiceNow.
+![Same request twice, one incident](images/s4.4/21-no-duplicate.png)
+
+### E. High-risk incident handed to a human (INC0010397)
+
+**1.** A high-risk incident (production payroll database down after a suspected breach) is created from the dashboard.
+![High-risk incident form](images/s4.4/15-dash-create-high-risk.png)
+
+**2.** The risk node stops the run before retrieval. It waits on the **Approvals** page with the brief: classified high risk, no action drafted.
+![Paused for approval](images/s4.4/16-approvals-paused.png)
+
+**3.** In ServiceNow, the incident has **Human Review Required** set. The reviewer can enter a Human Solution and decide with the **Approval** / **Reject** buttons on the form.
+![Human Governance tab in ServiceNow](images/s4.4/17-sn-human-governance.png)
