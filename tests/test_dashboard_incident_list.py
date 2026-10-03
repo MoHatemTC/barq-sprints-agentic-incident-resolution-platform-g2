@@ -119,16 +119,67 @@ def test_creating_from_the_dashboard_refreshes_the_list(api, monkeypatch):
     assert len(fake.calls) == 2
 
 
-def test_servicenow_outage_serves_the_last_list_marked_stale(api, monkeypatch):
+def test_servicenow_outage_serves_the_last_list_marked_delayed(api, monkeypatch):
     client, fake = api
     monkeypatch.setattr(dashboard, "_incident_pages", dashboard._PageCache(ttl=0))
-    client.get("/api/v1/dashboard/incidents?limit=20")
+    first = client.get("/api/v1/dashboard/incidents?limit=20").json()
     fake.error = ConnectionError("instance asleep")
 
     body = client.get("/api/v1/dashboard/incidents?limit=20").json()
 
-    assert body["stale"] is True and "instance asleep" in body["stale_reason"]
+    assert body["delayed"] is True and "instance asleep" in body["sync_error"]
+    assert body["stale"] is False                       # still within the 30s window
+    assert body["synced_at"] == first["synced_at"]      # the time of the copy, not of this request
     assert [i["number"] for i in body["incidents"]] == ["INC0010002", "INC0010001"]
+
+
+def _clock(monkeypatch, moment):
+    monkeypatch.setattr(dashboard, "_utcnow", lambda: moment)
+
+
+def test_fresh_list_reports_when_it_was_synced(api, monkeypatch):
+    client, _ = api
+    _clock(monkeypatch, datetime(2026, 10, 1, 12, 0, 0, tzinfo=timezone.utc))
+
+    body = client.get("/api/v1/dashboard/incidents?limit=20").json()
+
+    assert body["synced_at"] == "2026-10-01T12:00:00+00:00"
+    assert body["age_seconds"] == 0 and body["stale_after_seconds"] == 30
+    assert body["stale"] is False and body["delayed"] is False and body["sync_error"] is None
+
+
+def test_outage_longer_than_the_threshold_is_stale(api, monkeypatch):
+    client, fake = api
+    monkeypatch.setattr(dashboard, "_incident_pages", dashboard._PageCache(ttl=0))
+    start = datetime(2026, 10, 1, 12, 0, 0, tzinfo=timezone.utc)
+    _clock(monkeypatch, start)
+    client.get("/api/v1/dashboard/incidents?limit=20")
+    fake.error = ConnectionError("instance asleep")
+
+    _clock(monkeypatch, start + timedelta(seconds=30))
+    assert client.get("/api/v1/dashboard/incidents?limit=20").json()["stale"] is False
+
+    _clock(monkeypatch, start + timedelta(seconds=31))
+    body = client.get("/api/v1/dashboard/incidents?limit=20").json()
+    assert body["stale"] is True and body["age_seconds"] == 31
+    assert body["synced_at"] == "2026-10-01T12:00:00+00:00"
+    assert len(body["incidents"]) == 2                  # nothing dropped, nothing duplicated
+
+
+def test_recovery_after_an_outage_is_fresh_again(api, monkeypatch):
+    client, fake = api
+    monkeypatch.setattr(dashboard, "_incident_pages", dashboard._PageCache(ttl=0))
+    start = datetime(2026, 10, 1, 12, 0, 0, tzinfo=timezone.utc)
+    _clock(monkeypatch, start)
+    client.get("/api/v1/dashboard/incidents?limit=20")
+    fake.error = ConnectionError("instance asleep")
+    _clock(monkeypatch, start + timedelta(seconds=60))
+    assert client.get("/api/v1/dashboard/incidents?limit=20").json()["stale"] is True
+
+    fake.error = None
+    body = client.get("/api/v1/dashboard/incidents?limit=20").json()
+
+    assert body["stale"] is False and body["delayed"] is False and body["age_seconds"] == 0
 
 
 def test_servicenow_outage_with_nothing_cached_is_502(api):
@@ -136,6 +187,38 @@ def test_servicenow_outage_with_nothing_cached_is_502(api):
     fake.error = ConnectionError("instance asleep")
 
     assert client.get("/api/v1/dashboard/incidents").status_code == 502
+
+
+def test_servicenow_errors_are_shown_as_one_short_line():
+    from src.servicenow.exceptions import (
+        ServiceNowAuthError, ServiceNowNetworkError, ServiceNowServerError,
+    )
+    refused = ServiceNowNetworkError(0, "HTTPSConnectionPool(host='dev.service-now.com', port=443): "
+                                        "Max retries exceeded with url: /api/now/table/incident?sysparm_fields=x_secret "
+                                        "(Caused by NewConnectionError(... [Errno 111] Connection refused))")
+
+    assert dashboard._sync_error_text(refused) == "ServiceNow could not be reached (connection refused)"
+    assert dashboard._sync_error_text(ServiceNowNetworkError(0, "Read timed out. (read timeout=30)")) == \
+        "ServiceNow could not be reached (timed out)"
+    assert dashboard._sync_error_text(ServiceNowAuthError(401, "{...}")) == \
+        "ServiceNow rejected the integration login (401)"
+    assert dashboard._sync_error_text(ServiceNowServerError(503, "<html>Hibernating</html>")) == \
+        "ServiceNow returned an error (503)"
+
+
+def test_outage_reason_has_no_urls_or_field_names(api, monkeypatch):
+    from src.servicenow.exceptions import ServiceNowNetworkError
+    client, fake = api
+    monkeypatch.setattr(dashboard, "_incident_pages", dashboard._PageCache(ttl=0))
+    client.get("/api/v1/dashboard/incidents?limit=20")
+    fake.error = ServiceNowNetworkError(0, "url: /api/now/table/incident?sysparm_fields=x_2215689 Connection refused")
+
+    stale = client.get("/api/v1/dashboard/incidents?limit=20").json()
+    first_load = client.get("/api/v1/dashboard/incidents?limit=5")
+
+    assert stale["sync_error"] == "ServiceNow could not be reached (connection refused)"
+    assert first_load.status_code == 502
+    assert "sysparm" not in first_load.text and "x_2215689" not in first_load.text
 
 
 @pytest.mark.parametrize("query", ["limit=0", "limit=501", "offset=-1"])

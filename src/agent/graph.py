@@ -98,6 +98,9 @@ def route_after_critic(state: AgentState) -> str:
     - PASS  -> safety_check
     - FAIL + retries remain -> generate
     - FAIL + retries exhausted -> prepare_review (S3.4: a human decides, no unreviewed write)
+    - FAIL + retries exhausted after a human approval -> safety_check: never pause a
+      second time; confidence_check then routes to act, which writes the approved
+      human solution instead of the unverified draft.
     Routing is purely Python — no LLM involved.
 
     After a human approval the gate is already satisfied — never re-open a
@@ -113,6 +116,9 @@ def route_after_critic(state: AgentState) -> str:
     if verdict.get("passed"):
         return "safety_check"
     if state.get("critic_exhausted"):
+        decision = state.get("human_decision") or {}
+        if decision.get("decision") == "approve":
+            return "safety_check"
         return "prepare_review"
     return "generate"
 

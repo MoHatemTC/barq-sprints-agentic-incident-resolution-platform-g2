@@ -349,6 +349,16 @@ def test_route_after_critic_fail_exhausted():
     assert route_after_critic(state) == "prepare_review"
 
 
+def test_route_after_critic_exhausted_after_approval_does_not_pause_again():
+    """Approve once, never twice: act writes the approved human solution instead."""
+    state = {
+        "critic_verdict": {"passed": False},
+        "critic_exhausted": True,
+        "human_decision": {"decision": "approve"},
+    }
+    assert route_after_critic(state) == "safety_check"
+
+
 def test_route_after_critic_no_verdict_defaults_to_generate():
     """Missing critic_verdict must route to generate (safe default)."""
     state = {"critic_exhausted": False}

@@ -1,0 +1,93 @@
+{
+  "headers": {
+    "X-Total-Count": "2"
+  },
+  "body": {
+    "result": [
+      {
+        "x_2215689_ai_inc_0_u_ai_processing_state": {
+          "display_value": "Complete",
+          "value": "complete"
+        },
+        "sys_id": {
+          "display_value": "c230bb40c3330750b9523342b4013157",
+          "value": "c230bb40c3330750b9523342b4013157"
+        },
+        "number": {
+          "display_value": "INC0010396",
+          "value": "INC0010396"
+        },
+        "short_description": {
+          "display_value": "Print jobs stuck in queue on 3rd floor printer",
+          "value": "Print jobs stuck in queue on 3rd floor printer"
+        },
+        "sys_created_on": {
+          "display_value": "2026-10-03 09:37:17",
+          "value": "2026-10-03 16:37:17"
+        },
+        "x_2215689_ai_inc_0_human_lock": {
+          "display_value": "false",
+          "value": "false"
+        },
+        "state": {
+          "display_value": "New",
+          "value": "1"
+        },
+        "category": {
+          "display_value": "Hardware",
+          "value": "hardware"
+        },
+        "priority": {
+          "display_value": "5 - Planning",
+          "value": "5"
+        },
+        "x_2215689_ai_inc_0_ai_enabled": {
+          "display_value": "true",
+          "value": "true"
+        }
+      },
+      {
+        "x_2215689_ai_inc_0_u_ai_processing_state": {
+          "display_value": "Complete",
+          "value": "complete"
+        },
+        "sys_id": {
+          "display_value": "c5f31f44c33fc350b9523342b40131e1",
+          "value": "c5f31f44c33fc350b9523342b40131e1"
+        },
+        "number": {
+          "display_value": "INC0010393",
+          "value": "INC0010393"
+        },
+        "short_description": {
+          "display_value": "VPN authentication fails after password change",
+          "value": "VPN authentication fails after password change"
+        },
+        "sys_created_on": {
+          "display_value": "2026-10-03 07:35:49",
+          "value": "2026-10-03 14:35:49"
+        },
+        "x_2215689_ai_inc_0_human_lock": {
+          "display_value": "false",
+          "value": "false"
+        },
+        "state": {
+          "display_value": "New",
+          "value": "1"
+        },
+        "category": {
+          "display_value": "Software",
+          "value": "software"
+        },
+        "priority": {
+          "display_value": "5 - Planning",
+          "value": "5"
+        },
+        "x_2215689_ai_inc_0_ai_enabled": {
+          "display_value": "true",
+          "value": "true"
+        }
+      }
+    ]
+  }
+}

@@ -193,3 +193,53 @@ def test_failed_resume_is_marked_failed_in_servicenow(registry):
     ]
     assert "ValueError: checkpoint gone" in registry.calls[-1][2]["note"]
 
+
+
+# Paused for approval: the ServiceNow reviewer gets the brief as a work note
+
+BRIEF = {
+    "what_happened": "Payroll database is down for all users.",
+    "why_stopped": "The incident was classified as high risk.",
+    "proposed_action": "No action was drafted.",
+    "reviewer_question": "Is it safe to restart the payroll database?",
+}
+
+
+def test_pause_writes_the_brief_and_how_to_decide(registry):
+    runtime_integration._sync_servicenow_pause_note(
+        PAYLOAD, {"risk": "high", "approval_brief": BRIEF}, "exec-9")
+
+    ((tool, eid, kwargs),) = registry.calls
+    assert (tool, eid, kwargs["sys_id"]) == ("write_work_note", "exec-9", "abc123")
+    note = kwargs["note"]
+    for value in BRIEF.values():
+        assert value in note
+    assert "Human Governance tab" in note and "Approve AI" in note
+    assert "Human Solution (required, high risk)" in note
+
+
+def test_pause_without_brief_still_says_why(registry):
+    runtime_integration._sync_servicenow_pause_note(
+        PAYLOAD,
+        {"risk": "low", "approval_brief": None,
+         "interrupt_payload": {"reason_text": "Confidence in the proposed resolution is below the floor"}},
+        "exec-10")
+
+    note = registry.calls[0][2]["note"]
+    assert "Why it stopped: Confidence in the proposed resolution is below the floor" in note
+    assert "optionally enter a Human Solution" in note
+
+
+def test_recorder_adds_the_pause_note_only_when_paused(monkeypatch):
+    fake = FakeRegistry()
+    monkeypatch.setattr("src.agent.tools.registry.DEFAULT_TOOL_REGISTRY", fake)
+    recorder = StateManagerTaskRecorder(
+        ExecutionContext("exec-11", 1), "celery_worker",
+        state_manager_factory=lambda: (_FullStateManager(), lambda: None),
+    )
+
+    recorder.record_success(PAYLOAD, {"__interrupt__": ["x"], "human_review_required": True,
+                                      "risk": "high", "approval_brief": BRIEF})
+    recorder.record_success(PAYLOAD, {"action_taken": "resolved_automatically"})
+
+    assert [c[0] for c in fake.calls] == ["write_ai_fields", "write_work_note", "write_ai_fields"]

@@ -1,0 +1,144 @@
+{
+  "result": {
+    "columns": {
+      "category": {
+        "name": "category",
+        "label": "Category",
+        "type": "choice",
+        "choices": [
+          {
+            "label": "-- None --",
+            "sequence": -1,
+            "used": false,
+            "selected": false,
+            "rawLabel": "-- None --",
+            "missing": false,
+            "reference": false,
+            "image": "",
+            "value": ""
+          },
+          {
+            "parameters": {
+              "name": "incident",
+              "dependent_values": [
+                ""
+              ],
+              "dependent_values_map": {
+                "": "Inquiry / Help"
+              }
+            },
+            "sequence": 1,
+            "used": false,
+            "selected": false,
+            "label": "Inquiry / Help",
+            "rawLabel": "Inquiry / Help",
+            "missing": false,
+            "reference": false,
+            "image": "",
+            "value": "inquiry"
+          },
+          {
+            "parameters": {
+              "name": "incident",
+              "dependent_values": [
+                ""
+              ],
+              "dependent_values_map": {
+                "": "Software"
+              }
+            },
+            "sequence": 2,
+            "used": false,
+            "selected": false,
+            "label": "Software",
+            "rawLabel": "Software",
+            "missing": false,
+            "reference": false,
+            "image": "",
+            "value": "software"
+          },
+          {
+            "parameters": {
+              "name": "incident",
+              "dependent_values": [
+                ""
+              ],
+              "dependent_values_map": {
+                "": "Hardware"
+              }
+            },
+            "sequence": 3,
+            "used": false,
+            "selected": false,
+            "label": "Hardware",
+            "rawLabel": "Hardware",
+            "missing": false,
+            "reference": false,
+            "image": "",
+            "value": "hardware"
+          },
+          {
+            "parameters": {
+              "name": "incident",
+              "dependent_values": [
+                ""
+              ],
+              "dependent_values_map": {
+                "": "Network"
+              }
+            },
+            "sequence": 4,
+            "used": false,
+            "selected": false,
+            "label": "Network",
+            "rawLabel": "Network",
+            "missing": false,
+            "reference": false,
+            "image": "",
+            "value": "network"
+          },
+          {
+            "parameters": {
+              "name": "incident",
+              "dependent_values": [
+                ""
+              ],
+              "dependent_values_map": {
+                "": "Database"
+              }
+            },
+            "sequence": 5,
+            "used": false,
+            "selected": false,
+            "label": "Database",
+            "rawLabel": "Database",
+            "missing": false,
+            "reference": false,
+            "image": "",
+            "value": "database"
+          },
+          {
+            "parameters": {
+              "name": "incident",
+              "dependent_values": [
+                ""
+              ],
+              "dependent_values_map": {
+                "": "Password Reset"
+              }
+            },
+            "sequence": 100,
+            "used": false,
+            "selected": false,
+            "label": "Password Reset",
+            "rawLabel": "Password Reset",
+            "missing": false,
+            "reference": false,
+            "image": "",
+            "value": "password_reset"
+          }
+        ]
+      }
+    }
+  }
+}
