@@ -14,7 +14,7 @@ Every view shows how fresh its data is. During a ServiceNow or API outage the la
 | ServiceNow client | [`src/servicenow/client.py`](../src/servicenow/client.py) |
 | Decide from ServiceNow | [`src/api/routers/approvals.py`](../src/api/routers/approvals.py) (`/approvals/by-incident/{sys_id}/decide`) |
 | Latency benchmark | [`scripts/bench_dashboard.py`](../scripts/bench_dashboard.py) → [`eval/results/dashboard_latency.md`](../eval/results/dashboard_latency.md) |
-| Tests | 95 passing across 6 files (see [§8](#8-tests)) |
+| Tests | 111 passing across 7 files, plus 4 live contract tests run nightly (see [§8](#8-tests)) |
 | Live demonstration | Script: [§9](#9-live-verification-demo-script). Screenshots from the live run: [§10](#10-evidence-live-run-2026-10-03) |
 
 **Decisions confirmed with the mentor (Sarah Nader):**
@@ -59,7 +59,7 @@ flowchart LR
 
 | What changes in ServiceNow | How it reaches us |
 |---|---|
-| Incident created or updated (any field) | The dashboard list reads ServiceNow directly ([`list_incidents`](../src/api/routers/dashboard.py#L435)), so the change appears on the next refresh |
+| Incident created or updated (any field) | The dashboard list reads ServiceNow directly ([`list_incidents`](../src/api/routers/dashboard.py#L439)), so the change appears on the next refresh |
 | Incident becomes eligible for AI | The Business Rule (after insert/update, [`update_set.xml`](../servicenow/ai_incident_orchestrator/update_set.xml)) posts it to the webhook, which returns 202 and is idempotent on `event_id` ([`webhook.py`](../src/api/routers/webhook.py)) |
 | The webhook call is lost (API down, tunnel down) | The delivery sweep ([`delivery_sweep.py`](../src/workers/delivery_sweep.py)) re-reads eligible Pending incidents every 60 s, after a 2-minute grace period |
 | A reviewer decides in ServiceNow | Approve AI / Reject AI call [`/approvals/by-incident/{sys_id}/decide`](../src/api/routers/approvals.py#L299) with the webhook Bearer token. It runs the same checks as the dashboard Approvals page (solution required for high risk, first decision wins) |
@@ -77,8 +77,8 @@ flowchart LR
 
 **Reuse of the existing integration (no separate path):**
 - **Agent writes** all go through `ToolRegistry`, with its permission classes ([`registry.py:138-148`](../src/agent/tools/registry.py#L138-L148)): `read_incident` / `list_incidents` are READ; `write_ai_fields`, `write_work_note` and `write_execution_log` are LOW_RISK_WRITE; `kb_write_back` is HIGH_RISK.
-- **Dashboard CRUD** uses one shared `ServiceNowClient` ([`_servicenow`](../src/api/routers/dashboard.py#L219)), so its OAuth token is reused instead of fetched per poll. This sprint's client changes are `create_incident(correlation_id=…)` and `find_incident_by_correlation()` ([`client.py:76-104`](../src/servicenow/client.py#L76-L104)).
-- **Writes are verified.** `update_incident` compares what was sent with what ServiceNow returned, and `add_work_note` reads the journal back, so an HTTP 200 that silently dropped a field is caught ([`client.py:173-231`](../src/servicenow/client.py#L173-L231)).
+- **Dashboard CRUD** uses one shared `ServiceNowClient` ([`_servicenow`](../src/api/routers/dashboard.py#L222)), so its OAuth token is reused instead of fetched per poll. This sprint's client changes are `create_incident(correlation_id=…)` and `find_incident_by_correlation()` ([`client.py:76-119`](../src/servicenow/client.py#L76-L119)).
+- **Writes are verified.** `update_incident` compares what was sent with what ServiceNow returned, and `add_work_note` reads the journal back, so an HTTP 200 that silently dropped a field is caught ([`client.py:177-236`](../src/servicenow/client.py#L177-L236)).
 
 ---
 
@@ -91,9 +91,9 @@ Each direction uses the cheapest trigger that is still reliable:
 | Business Rule → webhook | Event-driven | On incident insert/update, async | ServiceNow update set |
 | Delivery sweep | Polling (safety net) | Every 60 s, incidents untouched for over 2 min, last 24 h | [`delivery_sweep.py`](../src/workers/delivery_sweep.py) |
 | Agent status write-back | Event-driven | On run start, pause, finish, failure | [`runtime_integration.py`](../src/workers/runtime_integration.py) |
-| Dashboard incident list | Polling | UI every **3 s** while the tab is visible ([`dashboard.js:380`](../ui/dashboard.js#L380)); server reads ServiceNow at most once per **10 s** per page | [`dashboard.py:141`](../src/api/routers/dashboard.py#L141) |
+| Dashboard incident list | Polling | UI every **3 s** while the tab is visible ([`dashboard.js:394`](../ui/dashboard.js#L394)); server reads ServiceNow at most once per **10 s** per page | [`dashboard.py:142`](../src/api/routers/dashboard.py#L142) |
 | Create / delete on dashboard | On demand | The cache is cleared, so the change shows on the next poll, not after the TTL | [`dashboard.py:512`](../src/api/routers/dashboard.py#L512) |
-| Run history / step log | On demand | When the drawer opens / when a step is expanded | [`dashboard.js:534`](../ui/dashboard.js#L534) |
+| Run history / step log | On demand | When the drawer opens / when a step is expanded | [`dashboard.js:551`](../ui/dashboard.js#L551) |
 | Refresh button, Live switch | On demand | Manual refresh; Live off stops polling | `ui/dashboard.js` |
 
 **Why polling for the list rather than ServiceNow push:** a ServiceNow change to *any* field (state, priority, a human edit) should show up, not only the AI-eligible ones that fire the Business Rule. Reading the list directly means there is nothing to reconcile. The server cache is shared by every open tab, so ten tabs polling every 3 s still cost **one** ServiceNow call per page per 10 s. The list endpoint is a plain `def`, so a slow ServiceNow call runs in a worker thread and never blocks the webhook's event loop.
@@ -135,8 +135,9 @@ Thresholds are configurable: `DASHBOARD_INCIDENT_CACHE_SECONDS` (default 10) and
 
 | Failure | Behaviour | Seen in the UI | Recovery | Data loss / duplicates |
 |---|---|---|---|---|
-| ServiceNow down while the list is cached | The last good page is served, marked `delayed` and then `stale`. Only one request at a time retries; the others get the cached copy immediately ([`_PageCache`](../src/api/routers/dashboard.py#L169)) | Badge, then banner with age + reason | Automatic on the next successful read | None: the last page is never dropped |
-| ServiceNow down, nothing cached (first load, new search) | 502 with a short reason ([`_sync_error_text`](../src/api/routers/dashboard.py#L147)); the full error goes to the API log | "Could not reach ServiceNow" | Next poll | None |
+| ServiceNow down while the list is cached | The last good page is served, marked `delayed` and then `stale`. Only one request at a time retries; the others get the cached copy immediately ([`_PageCache`](../src/api/routers/dashboard.py#L172)) | Badge, then banner with age + reason | Automatic on the next successful read | None: the last page is never dropped |
+| ServiceNow response format changes (renamed field, ACL, new shape) | `ServiceNowClient` checks every response against [`contracts.py`](../src/servicenow/contracts.py) and raises `ServiceNowContractError` naming what changed (logged) | "ServiceNow response format changed", not an outage message | Fix the code or the instance; caught first by the nightly live contract tests (§11) | None: the last good page stays |
+| ServiceNow down, nothing cached (first load, new search) | 502 with a short reason ([`_sync_error_text`](../src/api/routers/dashboard.py#L148)); the full error goes to the API log | "Could not reach ServiceNow" | Next poll | None |
 | API down | — | "API unreachable" + last sync time | Next poll | None |
 | Create times out after ServiceNow created the record | The form sends one `request_id` per opened form, stored as `correlation_id = barq-dashboard-<id>`. A retry finds the existing incident and returns it (200, `already_created`) ([`create_incident_via_dashboard`](../src/api/routers/dashboard.py#L512)) | Toast: *"Could not create incident: … Try again; it will not create a duplicate."* | User clicks Create again | **No duplicate** (verified live: the same request twice gives one incident) |
 | Webhook delivered twice | Idempotency on `event_id`; the second returns 202 "Duplicate" | — | — | No duplicate run |
@@ -162,24 +163,27 @@ Error messages are short and readable. URLs, query strings and internal field na
 | `GET /api/v1/dashboard/incidents/{number}/runs?limit=10&before=<cursor>` | Every run of the incident, newest first: status, times, duration, node reached, model, retries, failures, human decisions, and the **list** of log steps (name + time, no payload). `next_before` is the cursor for older runs |
 | `GET /api/v1/dashboard/runs/{execution_id}/log/{entry_id}` | One step's full payload (JSON), only when it is opened |
 
-**Design choices that keep it fast as logs grow** ([`_run_page`](../src/api/routers/dashboard.py#L611))
+**Design choices that keep it fast as logs grow** ([`_run_page`](../src/api/routers/dashboard.py#L618))
 - **Keyset paging** on `(started_at, id)`, not OFFSET, so the oldest page costs the same as the newest. Two runs that start at the same second are neither skipped nor repeated (tested).
 - **A fixed 5 indexed queries per page** (runs, steps, failures, retries, approvals), whatever the history size: no N+1.
-- **Payloads on demand.** A step payload averages ~5 KB and reaches ~42 KB in our data, so the list never carries them.
+- **Payloads on demand.** A step payload averages ~5 KB and reaches ~42 KB in our data, so the list carries only each step's size (read by Postgres from the stored length, without fetching the payload).
+- **Large payloads open as a preview.** Above 64 KB (`DASHBOARD_LOG_PREVIEW_BYTES`) a step opens with its first ~64 KB, and Postgres sends only that slice; **Load full log** fetches the rest on request. A multi-step run that grows to megabytes never freezes the drawer.
 - Page size 10 by default, 50 max (validated).
 
 **Measured latency** (p50 / p95 ms, 100 requests per cell, Postgres 16 in Docker on the dev machine; full report in [`eval/results/dashboard_latency.md`](../eval/results/dashboard_latency.md))
 
 | Request | 1,000 runs | 10,000 runs | 100,000 runs |
 |---|---|---|---|
-| Run history, typical incident (2 runs) | 8.3 / 13.4 | 7.9 / 9.4 | 7.0 / 8.4 |
-| Run history, heaviest incident (1,000 runs), newest page | 10.2 / 14.5 | 10.1 / 11.8 | 8.9 / 11.0 |
-| Run history, heaviest incident, **oldest** page | 12.6 / 17.9 | 11.0 / 13.7 | 9.8 / 11.6 |
-| One log entry payload (~5 KB) | 4.5 / 6.0 | 4.2 / 4.9 | 4.0 / 4.7 |
-| Incident list + AI status, 20 rows (our side) | 15.8 / 20.1 | 17.5 / 22.8 | 11.3 / 14.1 |
-| Incident list + AI status, 100 rows | 33.0 / 41.3 | 42.7 / 55.0 | 30.9 / 39.2 |
-| Incident list + AI status, 500 rows (max) | 74.6 / 98.4 | 146.1 / 197.6 | 119.0 / 155.4 |
-| **Live ServiceNow** incident page, 20 rows | p50 945, p95 1,189, max 1,320 (10 samples) | | |
+| Run history, typical incident (2 runs) | 7.0 / 18.0 | 6.8 / 10.0 | 7.0 / 8.9 |
+| Run history, heaviest incident (1,000 runs), newest page | 10.5 / 14.6 | 8.7 / 12.2 | 8.2 / 10.6 |
+| Run history, heaviest incident, **oldest** page | 9.6 / 12.2 | 9.4 / 12.2 | 8.9 / 10.5 |
+| One log entry payload (~5 KB) | 4.6 / 6.3 | 3.8 / 5.3 | 3.6 / 4.3 |
+| One **1 MB** log entry, preview (default) | 5.1 / 9.6 | 5.1 / 6.9 | 4.9 / 6.4 |
+| One **1 MB** log entry, `full=true` | 30.4 / 45.2 | 21.6 / 26.5 | 18.8 / 20.4 |
+| Incident list + AI status, 20 rows (our side) | 12.9 / 17.0 | 12.4 / 17.7 | 10.6 / 14.0 |
+| Incident list + AI status, 100 rows | 27.2 / 31.5 | 33.5 / 42.8 | 29.9 / 35.7 |
+| Incident list + AI status, 500 rows (max) | 56.5 / 83.2 | 132.1 / 233.2 | 115.6 / 152.6 |
+| **Live ServiceNow** incident page, 20 rows | p50 1,090, p95 1,496, max 2,077 (10 samples) | | |
 
 At 100,000 runs, Postgres reads the 1,000-run incident through the existing `ix_executions_incident_reference` index in **0.5 ms**, so no new index or migration is needed.
 
@@ -188,10 +192,11 @@ At 100,000 runs, Postgres reads the 1,000-run incident through the existing `ix_
 | Request | Bound |
 |---|---|
 | Run history page | **≤ 50 ms**, independent of history size up to 100k runs |
-| One log entry | **≤ 25 ms** |
+| One log entry (any size, preview) | **≤ 25 ms** |
+| One 1 MB log entry, full (`full=true`) | **≤ 100 ms** |
 | Incident list, ≤ 100 rows, cache hit | **≤ 75 ms** |
 | Incident list, 500 rows (max page) | **≤ 250 ms** |
-| Incident list, cache miss (includes ServiceNow) | **≤ 2 s**. Above `SERVICENOW_TIMEOUT` (30 s) the last good copy is served and marked stale |
+| Incident list, cache miss (includes ServiceNow) | **≤ 2 s** p95 (one sample of 10 reached 2.08 s). Above `SERVICENOW_TIMEOUT` (30 s) the last good copy is served and marked stale |
 
 Re-run the benchmark: `.venv/bin/python scripts/bench_dashboard.py [--live-servicenow 10]`. It builds a throwaway `orchestrator_bench` database migrated to head, seeds it and drops it at the end. The real database is never touched.
 
@@ -212,6 +217,7 @@ Re-run the benchmark: `.venv/bin/python scripts/bench_dashboard.py [--live-servi
 |---|---|---|
 | `DASHBOARD_INCIDENT_CACHE_SECONDS` | 10 | How long one ServiceNow incident page is reused |
 | `DASHBOARD_STALE_AFTER_SECONDS` | 30 | Age after which the dashboard warns |
+| `DASHBOARD_LOG_PREVIEW_BYTES` | 65536 | Step logs larger than this open as a preview in the drawer |
 | `SERVICENOW_TIMEOUT` | 30 | Per-request timeout to ServiceNow |
 | `SERVICENOW_DEFAULT_CALLER_SYS_ID` | — | Caller set on incidents created from the dashboard |
 
@@ -221,12 +227,14 @@ Re-run the benchmark: `.venv/bin/python scripts/bench_dashboard.py [--live-servi
 
 | File | Tests | Covers |
 |---|---|---|
-| [`test_dashboard_incident_list.py`](../tests/test_dashboard_incident_list.py) | 21 | Live list, shared cache, `synced_at` / age, delayed vs stale at exactly 30 s / 31 s, recovery, short error text with no URLs, search safety |
+| [`test_dashboard_incident_list.py`](../tests/test_dashboard_incident_list.py) | 22 | Live list, shared cache, `synced_at` / age, delayed vs stale at exactly 30 s / 31 s, recovery, short error text with no URLs, search safety |
 | [`test_dashboard_incidents.py`](../tests/test_dashboard_incidents.py) | 15 | Create = ServiceNow only; retry returns the first incident; lost answer then retry = one incident; `request_id` cannot inject into the query |
-| [`test_dashboard_run_history.py`](../tests/test_dashboard_run_history.py) | 10 | Runs newest first with failures, retries, approvals; no payloads in the list; payload on demand; paging without gaps or repeats; cursor/limit validation. Runs in a rolled-back transaction, so nothing is left in the database |
+| [`test_dashboard_run_history.py`](../tests/test_dashboard_run_history.py) | 13 | Runs newest first with failures, retries, approvals; step sizes but no payloads in the list; payload on demand; large payload opens as a preview, full on request; paging without gaps or repeats; cursor/limit validation. Runs in a rolled-back transaction, so nothing is left in the database |
 | [`test_client.py`](../tests/test_client.py) | 11 | `correlation_id` on create, `find_incident_by_correlation` |
 | [`test_approvals_api.py`](../tests/test_approvals_api.py) | 27 | Deciding from ServiceNow by incident: approve, reject, high risk needs a solution, picks the paused run, 404/409, token required |
 | [`test_servicenow_status_sync.py`](../tests/test_servicenow_status_sync.py) | 11 | Status write-backs, pause work note with the brief |
+| [`test_servicenow_contracts.py`](../tests/test_servicenow_contracts.py) | 12 | Real responses recorded from the instance parse; changed shapes are reported with what changed; the dashboard reports a format change, not an outage |
+| [`test_servicenow_contract_live.py`](../tests/test_servicenow_contract_live.py) | 4 (nightly) | The same contract on the live instance: dashboard fields, AI fields readable, every supported category still a choice |
 
 ---
 
@@ -334,3 +342,16 @@ Screenshots from one live session against the dev instance `dev323650`. ServiceN
 
 **3.** In ServiceNow, the incident has **Human Review Required** set. The reviewer can enter a Human Solution and decide with the **Approval** / **Reject** buttons on the form.
 ![Human Governance tab in ServiceNow](images/s4.4/17-sn-human-governance.png)
+
+---
+
+## 11. Production Hardening (mentor follow-ups)
+
+Two follow-ups suggested in the S4.4 review, both implemented:
+
+**ServiceNow contract tests.** [`src/servicenow/contracts.py`](../src/servicenow/contracts.py) states the response shapes the code depends on: Table API lists and records, `X-Total-Count`, `{value, display_value}` cells for `sysparm_display_value=all`, and UI meta choice lists. `ServiceNowClient` checks every incident list, create, correlation lookup and choice list against them. A change on the ServiceNow side therefore fails with `ServiceNowContractError` naming what changed (for example "row 0 is missing category (field renamed or ACL)") instead of a `KeyError`, and the dashboard says "ServiceNow response format changed" instead of showing an outage banner. They are checked at three levels:
+- **CI, every PR:** responses recorded from the dev instance ([`tests/fixtures/servicenow/`](../tests/fixtures/servicenow/)) must parse, and mutated ones must be reported.
+- **Nightly + PRs touching ServiceNow or the dashboard:** the same checks against the live instance, in the Live ServiceNow workflow. They also check that the AI fields are still readable and that every category the agent supports is still a ServiceNow choice.
+- **At runtime:** the checks above, on every response.
+
+**Large logs in the drawer.** Each step shows its size, and a step over 64 KB opens as a preview (§5). With a 1 MB step log, opening it costs ≤ 10 ms p95 and sends ~64 KB to the browser instead of 1 MB. The full log is one click away (≤ 45 ms p95).
