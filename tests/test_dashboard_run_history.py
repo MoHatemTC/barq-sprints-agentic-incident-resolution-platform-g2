@@ -99,13 +99,14 @@ def test_history_lists_every_run_newest_first_with_its_logs(api, incident):
     assert paused["model_name"] == "gpt-x"
 
 
-def test_history_lists_logs_without_their_payloads(api, incident):
+def test_history_lists_logs_with_their_size_but_not_their_payloads(api, incident):
     number = incident[0]
 
     body = api.get(f"/api/v1/dashboard/incidents/{number}/runs").json()
 
     entry = body["runs"][1]["log"][0]
-    assert set(entry) == {"entry_id", "node_name", "created_at"}
+    assert set(entry) == {"entry_id", "node_name", "created_at", "size_bytes"}
+    assert entry["size_bytes"] == len(json.dumps({"gate": "high_risk", "risk": "high"}))
 
 
 def test_one_log_payload_is_fetched_on_demand(api, incident):
@@ -116,6 +117,48 @@ def test_one_log_payload_is_fetched_on_demand(api, incident):
 
     assert body["node_name"] == "interrupt"
     assert body["payload"] == {"gate": "high_risk", "risk": "high"}
+    assert body["truncated"] is False and body["preview"] is None
+
+
+def _big_entry(db, eid, size):
+    text = json.dumps({"diagnosis": "x" * size})
+    entry = WorkflowState(execution_reference=eid, node_name="result", checkpoint=text, created_at=NOW)
+    db.add(entry)
+    db.flush()
+    return entry.id, text
+
+
+def test_large_log_opens_as_a_preview(api, incident, db, monkeypatch):
+    monkeypatch.setattr(dashboard, "LOG_PREVIEW_BYTES", 64)
+    _, _, _, latest = incident
+    entry_id, text = _big_entry(db, latest, 500)
+
+    body = api.get(f"/api/v1/dashboard/runs/{latest}/log/{entry_id}").json()
+
+    assert body["truncated"] is True and body["payload"] is None
+    assert body["preview"] == text[:64]          # only the slice crosses the wire
+    assert body["size_bytes"] == len(text)
+
+
+def test_full_log_is_loaded_on_request(api, incident, db, monkeypatch):
+    monkeypatch.setattr(dashboard, "LOG_PREVIEW_BYTES", 64)
+    _, _, _, latest = incident
+    entry_id, text = _big_entry(db, latest, 500)
+
+    body = api.get(f"/api/v1/dashboard/runs/{latest}/log/{entry_id}?full=true").json()
+
+    assert body["truncated"] is False and body["preview"] is None
+    assert body["payload"] == json.loads(text)
+
+
+def test_log_at_the_preview_limit_opens_in_full(api, incident, db, monkeypatch):
+    _, _, _, latest = incident
+    entry_id, text = _big_entry(db, latest, 10)
+    monkeypatch.setattr(dashboard, "LOG_PREVIEW_BYTES", len(text))
+
+    body = api.get(f"/api/v1/dashboard/runs/{latest}/log/{entry_id}").json()
+
+    assert body["truncated"] is False and body["payload"] == json.loads(text)
 
 
 def test_log_entry_of_another_run_is_not_found(api, incident):

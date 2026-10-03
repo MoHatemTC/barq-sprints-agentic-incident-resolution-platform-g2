@@ -479,6 +479,8 @@
     resolved_automatically: 'Resolved automatically',
     result: 'Final result',
   };
+  const fmtBytes = (n) => n == null ? '' : n < 1024 ? n + ' B'
+    : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
   const fmtDateTime = (iso) => {
     if (!iso) return '\u2014';
     const d = new Date(iso);
@@ -507,6 +509,7 @@
       html += '<ul class="run-log">' + run.log.map((e) => `<li>
         <div class="step"><time>${escapeHtml(fmtTime(e.created_at))}</time>
           <span>${escapeHtml(LOG_LABELS[e.node_name] || e.node_name)} <span class="mono">${escapeHtml(e.node_name)}</span></span>
+          <small class="size">${escapeHtml(fmtBytes(e.size_bytes))}</small>
           <button class="btn btn-sm" type="button" aria-expanded="false" data-log="${escapeHtml(run.execution_id)}" data-entry="${e.entry_id}">View log</button></div>
       </li>`).join('') + '</ul>';
     } else {
@@ -562,17 +565,39 @@
     const open = li.querySelector('.log-payload');
     if (open) {
       open.hidden = !open.hidden;
+      const more = li.querySelector('.log-more');
+      if (more) more.hidden = open.hidden;
       btn.setAttribute('aria-expanded', String(!open.hidden));
       btn.textContent = open.hidden ? 'View log' : 'Hide log';
       return;
     }
     btn.disabled = true;
     try {
-      const data = await api('/api/v1/dashboard/runs/' + encodeURIComponent(btn.dataset.log) + '/log/' + btn.dataset.entry);
+      const url = '/api/v1/dashboard/runs/' + encodeURIComponent(btn.dataset.log) + '/log/' + btn.dataset.entry;
+      const data = await api(url);
       const pre = document.createElement('pre');
       pre.className = 'log-payload mono';
-      pre.textContent = JSON.stringify(data.payload, null, 2);
+      // A large log opens as a preview, so it never freezes the drawer; the rest is one click away.
+      pre.textContent = data.truncated ? data.preview + '\n\u2026' : JSON.stringify(data.payload, null, 2);
       li.appendChild(pre);
+      if (data.truncated) {
+        const more = document.createElement('button');
+        more.className = 'btn btn-sm log-more';
+        more.type = 'button';
+        more.textContent = `Load full log (${fmtBytes(data.size_bytes)})`;
+        more.addEventListener('click', async () => {
+          more.disabled = true;
+          try {
+            const all = await api(url + '?full=true');
+            pre.textContent = JSON.stringify(all.payload, null, 2);
+            more.remove();
+          } catch (err) {
+            more.disabled = false;
+            toast('Could not load the full log: ' + err.message, 'err');
+          }
+        });
+        li.appendChild(more);
+      }
       btn.setAttribute('aria-expanded', 'true');
       btn.textContent = 'Hide log';
     } catch (err) {

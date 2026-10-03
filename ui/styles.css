@@ -356,6 +356,8 @@ h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.
 .run-log .step { display: flex; align-items: center; gap: 10px; }
 .run-log .step span { flex: 1; min-width: 0; }
 .run-log .step time { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.run-log .step .size { color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.run-log .log-more { margin-top: 8px; }
 .log-payload {
   max-height: 340px; overflow: auto; margin: 8px 0 0; padding: 10px 12px; border-radius: var(--radius-sm);
   background: var(--surface-2); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere;

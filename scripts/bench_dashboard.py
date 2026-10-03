@@ -143,7 +143,11 @@ class _FakeServiceNow:
         self.numbers = numbers
 
     def list_incidents(self, fields, limit=20, offset=0, query=None):
-        rows = [{"number": {"value": n, "display_value": n}, "sys_id": {"value": f"sys-{n}"}}
+        # every requested field as {value, display_value}, like sysparm_display_value=all
+        def cell(value):
+            return {"value": value, "display_value": value}
+
+        rows = [{**{f: cell("") for f in fields}, "number": cell(n), "sys_id": cell(f"sys-{n}")}
                 for n in self.numbers[offset:offset + limit]]
         return rows, len(self.numbers)
 
@@ -166,6 +170,12 @@ def measure(runs: int, iterations: int) -> list[tuple[str, dict]]:
             "OFFSET :o LIMIT 1"), {"n": HEAVY, "o": min(HEAVY_RUNS, runs // 2) - 11}).scalar()
         run_id, entry_id = c.execute(text(
             "SELECT execution_reference, id FROM workflow_state WHERE node_name = 'result' LIMIT 1")).one()
+    with engine.begin() as c:
+        # one 1 MB log entry, the size a long multi-step run could reach
+        big_id = c.execute(text(
+            "INSERT INTO workflow_state (execution_reference, node_name, checkpoint, created_at, updated_at) "
+            "SELECT :run, 'result', '{\"diagnosis\": \"' || string_agg(md5(i::text), '') || '\"}', now(), now() "
+            "FROM generate_series(1, 32768) i RETURNING id"), {"run": run_id}).scalar()
 
     dashboard._servicenow = lambda: _FakeServiceNow(numbers)
     dashboard._incident_pages = dashboard._PageCache(ttl=0)  # time our side on every call
@@ -190,6 +200,8 @@ def measure(runs: int, iterations: int) -> list[tuple[str, dict]]:
         ("Run history, heaviest incident, newest page", f"{base}/incidents/{HEAVY}/runs"),
         ("Run history, heaviest incident, oldest page", f"{base}/incidents/{HEAVY}/runs?before={deep_cursor}"),
         ("One log entry payload (~5 KB)", f"{base}/runs/{run_id}/log/{entry_id}"),
+        ("One 1 MB log entry, preview (default)", f"{base}/runs/{run_id}/log/{big_id}"),
+        ("One 1 MB log entry, full=true", f"{base}/runs/{run_id}/log/{big_id}?full=true"),
     ]
     return [(name, timed(get(url), iterations)) for name, url in cases]
 

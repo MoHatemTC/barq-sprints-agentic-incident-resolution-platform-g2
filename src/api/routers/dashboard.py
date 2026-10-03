@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select, desc, tuple_
+from sqlalchemy import func, select, desc, tuple_
 
 from src.db.database import SessionLocal
 from src.servicenow import contracts
@@ -601,11 +601,14 @@ def list_incident_events(sys_id: str):
 #
 # One page = the newest RUN_PAGE runs before a cursor, in a fixed 5 indexed
 # queries (runs, log entries, failures, retries, approvals) whatever the volume.
-# Log entries are listed without their payload (up to tens of KB each); one
-# payload is fetched only when it is opened.
+# Log entries are listed without their payload, only its size; one payload is
+# fetched when it is opened. A payload over LOG_PREVIEW_BYTES opens as a preview
+# (Postgres sends only that slice) so a huge multi-step log never freezes the
+# drawer; ?full=true loads the rest on request.
 
 RUN_PAGE = 10
 MAX_RUN_PAGE = 50
+LOG_PREVIEW_BYTES = int(os.getenv("DASHBOARD_LOG_PREVIEW_BYTES", str(64 * 1024)))
 
 
 def _iso(moment):
@@ -635,12 +638,15 @@ def _run_page(db, number: str, limit: int, before: int | None) -> dict:
     if ids:
         for row in db.execute(
             select(WorkflowState.id, WorkflowState.execution_reference,
-                   WorkflowState.node_name, WorkflowState.created_at)
+                   WorkflowState.node_name, WorkflowState.created_at,
+                   # the stored length, read from the TOAST header: the payload itself is not fetched
+                   func.octet_length(WorkflowState.checkpoint).label("size_bytes"))
             .where(WorkflowState.execution_reference.in_(ids))
             .order_by(WorkflowState.created_at, WorkflowState.id)
         ):
             entries.setdefault(row.execution_reference, []).append(
-                {"entry_id": row.id, "node_name": row.node_name, "created_at": _iso(row.created_at)}
+                {"entry_id": row.id, "node_name": row.node_name,
+                 "created_at": _iso(row.created_at), "size_bytes": row.size_bytes}
             )
         for f in db.execute(
             select(Failure).where(Failure.execution_reference.in_(ids)).order_by(Failure.id)
@@ -705,26 +711,43 @@ def list_incident_runs(
 
 
 @router.get("/runs/{execution_id}/log/{entry_id}")
-def get_run_log_entry(execution_id: str, entry_id: int):
-    """The full payload of one log entry of one run."""
+def get_run_log_entry(execution_id: str, entry_id: int, full: bool = Query(False)):
+    """One log entry of one run.
+
+    Up to LOG_PREVIEW_BYTES: the parsed payload. Larger: ``truncated`` with the
+    first LOG_PREVIEW_BYTES of the raw text as ``preview``, unless ``full=true``.
+    """
+    size = func.octet_length(WorkflowState.checkpoint)
+    text = WorkflowState.checkpoint if full else func.substr(WorkflowState.checkpoint, 1, LOG_PREVIEW_BYTES)
     db = SessionLocal()
     try:
-        entry = db.get(WorkflowState, entry_id)
-        if entry is None or entry.execution_reference != execution_id:
-            raise HTTPException(status_code=404, detail="Log entry not found for this run")
-        try:
-            payload = json.loads(entry.checkpoint)
-        except (json.JSONDecodeError, TypeError):
-            payload = {"raw": entry.checkpoint}
-        return {
-            "execution_id": execution_id,
-            "entry_id": entry.id,
-            "node_name": entry.node_name,
-            "created_at": _iso(entry.created_at),
-            "payload": payload,
-        }
+        entry = db.execute(
+            select(WorkflowState.id, WorkflowState.node_name, WorkflowState.created_at,
+                   size.label("size_bytes"), text.label("text"))
+            .where(WorkflowState.id == entry_id, WorkflowState.execution_reference == execution_id)
+        ).first()
     finally:
         db.close()
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Log entry not found for this run")
+
+    truncated = not full and entry.size_bytes > LOG_PREVIEW_BYTES
+    payload = None
+    if not truncated:
+        try:
+            payload = json.loads(entry.text)
+        except (json.JSONDecodeError, TypeError):
+            payload = {"raw": entry.text}
+    return {
+        "execution_id": execution_id,
+        "entry_id": entry.id,
+        "node_name": entry.node_name,
+        "created_at": _iso(entry.created_at),
+        "size_bytes": entry.size_bytes,
+        "truncated": truncated,
+        "payload": payload,
+        "preview": entry.text if truncated else None,
+    }
 
 
 @router.delete("/incidents/{sys_id}")
