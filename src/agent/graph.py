@@ -118,31 +118,18 @@ def route_after_critic(state: AgentState) -> str:
 
 
 def route_after_human_review(state: AgentState) -> str:
-    """After approval, skip re-classification and go directly to retrieval.
+    """Route after human review decision.
 
-    Previously this routed to 'classify' so the LLM could refine the category
-    using the reviewer's solution text.  That re-ran the full classify →
-    determine_risk path.  Because the incident is still objectively high-risk,
-    determine_risk returned 'high' again and, when human_decision was not yet
-    visible to route_after_risk (LangGraph state merge timing), a second
-    interrupt was triggered — leaving the approval stuck in the queue with
-    "Already decided: another decision was recorded first."
-
-    Fix: jump straight to formulate_query.  Classification is already done
-    (the first pass set it), human_decision is in state and will keep
-    route_after_risk from re-opening the gate, and we avoid the double-pause
-    entirely.  The reviewer's solution is still available in state for act_node
-    and knowledge_capture_node.
+    - Approved with human_solution: loops back to 'classify' so the agent can
+      re-evaluate the category using the human feedback.
+    - Approved without human_solution (or rejected): goes directly to 'act'.
     """
     decision = state.get("human_decision") or {}
-    if decision.get("decision") == "approve":
-        outputs = state.get("outputs") or {}
-        has_resolution = bool(outputs.get("resolution") or state.get("cached_resolution"))
-        # If no resolution exists yet (e.g. stopped at high_risk gate) or reviewer provided a solution,
-        # resume through formulate_query to retrieve KB articles and generate/enrich the resolution.
-        if not has_resolution or state.get("human_solution"):
-            return "formulate_query"
-        return "act"
+    if (
+        decision.get("decision") == "approve"
+        and state.get("human_solution")
+    ):
+        return "classify"
     return "act"
 
 
@@ -363,7 +350,7 @@ def create_graph():
     workflow.add_conditional_edges(
         "interrupt",
         route_after_human_review,
-        {"formulate_query": "formulate_query", "act": "act"},
+        {"classify": "classify", "act": "act"},
     )
 
     # act has written the outcome exactly once; an approved human

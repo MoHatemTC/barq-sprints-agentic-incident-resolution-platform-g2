@@ -40,66 +40,44 @@ def determine_risk_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # --- Priority anchor ---
     sn_priority = str(payload.get("priority", "")).strip()
-    priority_anchor = _SN_PRIORITY_ANCHOR.get(sn_priority)
-
-    # Map numeric priority to human-readable label for the prompt.
-    priority_labels = {
-        "1": "1 - Critical",
-        "2": "2 - High",
-        "3": "3 - Moderate",
-        "4": "4 - Low",
-        "5": "5 - Planning",
-    }
-    priority_label = priority_labels.get(sn_priority, f"unknown ({sn_priority})")
 
     llm = get_llm()
 
-    if priority_anchor == "high":
-        # P1/P2: default high, LLM cannot downgrade.
+    if sn_priority in ("1", "2"):
+        # P1 / P2 from ServiceNow are critical/high by definition
+        risk = "high"
+    elif sn_priority in ("3", "4", "5"):
+        # P3–P5: routine/low priority by default unless catastrophic
         prompt = f"""
     You are an expert IT triage agent.
-    This incident has ServiceNow Priority {priority_label}, which is inherently HIGH risk.
-    Confirm whether it is "high" risk.
-    Only answer "low" if the incident is clearly a false alarm, test ticket, or spam —
-    not because the scope seems limited.
+    Review the following incident payload and determine if it is "high" risk or "low" risk.
+    This incident has ServiceNow Priority P{sn_priority} (non-critical).
+    High risk incidents involve critical production systems completely down, data breaches, or catastrophic business impact.
+    Routine issues, non-critical bugs, or secondary/replica systems are low risk.
 
     Incident Payload:
     {json.dumps(payload, indent=2)}
 
     Respond with ONLY the word "high" or "low".
     """
+        response = llm.invoke(prompt, config={"callbacks": get_llm_callback()})
+        content = response.content if hasattr(response, "content") else str(response)
+        risk = "high" if "high" in content.strip().lower() else "low"
     else:
-        # P3–P5: default low, LLM can escalate only for unmistakable critical scenarios.
+        # Standard canonical prompt when priority is not specified (e.g. test fixtures)
         prompt = f"""
     You are an expert IT triage agent.
-    This incident has ServiceNow Priority {priority_label}, which is LOW risk by default.
-    Determine if it is "high" or "low" risk.
-
-    Answer "high" ONLY if the description clearly indicates ALL of the following:
-      - A production system (not replica, not analytics, not dev/test) is completely down, OR
-      - There is an active data breach or data loss, OR
-      - The incident has direct, immediate business-critical financial impact.
-
-    If any doubt exists, or the incident affects only a secondary/replica/analytics system,
-    answer "low".
+    Review the following incident payload and determine if it is "high" risk or "low" risk.
+    High risk incidents involve critical systems down, data breaches, or significant business impact.
+    Low risk incidents are routine issues, password resets, or non-critical bugs.
 
     Incident Payload:
     {json.dumps(payload, indent=2)}
 
     Respond with ONLY the word "high" or "low".
     """
-
-    response = llm.invoke(prompt, config={"callbacks": get_llm_callback()})
-    content = response.content if hasattr(response, "content") else str(response)
-
-    risk = content.strip().lower()
-    if "high" in risk:
-        risk = "high"
-    else:
-        risk = "low"
-
-    # Safety net: P1/P2 can never be downgraded to low by the LLM alone.
-    if priority_anchor == "high":
-        risk = "high"
+        response = llm.invoke(prompt, config={"callbacks": get_llm_callback()})
+        content = response.content if hasattr(response, "content") else str(response)
+        risk = "high" if "high" in content.strip().lower() else "low"
 
     return {"risk": risk}
