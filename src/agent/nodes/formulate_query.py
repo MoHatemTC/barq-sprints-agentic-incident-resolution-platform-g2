@@ -45,7 +45,8 @@ def formulate_query_node(state: Dict[str, Any]) -> Dict[str, Any]:
     if not raw:
         logger.warning("Empty incident description. Skipping query formulation.")
         return {"search_query": ""}
-    fallback = f"{raw}\nHuman-provided resolution:\n{human_solution}" if human_solution else raw
+    # retrieve_node owns the single human-solution append on fallback paths.
+    fallback = raw
 
     try:
         prompt = QUERY_GENERATION_PROMPT.format(

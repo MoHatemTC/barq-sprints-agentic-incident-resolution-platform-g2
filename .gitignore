@@ -37,6 +37,7 @@ logs/
 
 # Temporary local test datasets
 tmp/
+scratch/
 
 # Instance-specific ServiceNow mappings
 data/servicenow_kb_mapping.json
@@ -52,4 +53,4 @@ data/servicenow_kb_mapping.bak-*.json
 CLAUDE.local.md
 
 # Embedding cache
-data/cache/
+data/cache/

@@ -21,6 +21,7 @@
     started: ['accent', 'In progress'],
     blocked: ['warn', 'Blocked'],
     awaiting_approval: ['violet', 'Awaiting approval'],
+    human_rejected: ['bad', 'Human rejected'],
     not_sent: ['plain', 'Not sent to AI'],
     waiting: ['accent', 'Waiting for ServiceNow'],
   };
@@ -43,7 +44,16 @@
   };
   const shownLimit = () => state.limit + state.extra;
   const statusOf = (item) => {
-    if (item.execution) return item.execution.status;
+    const aiState = (item.ai_processing_state || '').toLowerCase().replace(/[\s-]+/g, '_');
+    if (aiState === 'human_rejected') {
+      return 'human_rejected';
+    }
+    if (item.execution) {
+      if (item.execution.latest_result && item.execution.latest_result.action_taken === 'rejected_by_human') {
+        return 'human_rejected';
+      }
+      return item.execution.status;
+    }
     return state.waiting.has(item.sys_id) ? 'waiting' : 'not_sent';
   };
 
@@ -167,6 +177,10 @@
   // Why an incident has no AI run. The Business Rule decides; these are the
   // reasons visible on the record, the rest (category) live in ServiceNow.
   function notSentHtml(item) {
+    const aiState = (item.ai_processing_state || '').toLowerCase().replace(/[\s-]+/g, '_');
+    if (aiState === 'human_rejected') {
+      return '<div class="result"><b>AI</b><span>AI processing was stopped because the incident was marked as rejected by a human.</span></div>';
+    }
     let reason = 'The ServiceNow Business Rule did not send it: its category is not supported, ' +
       'it was created before the integration, or ServiceNow could not reach the webhook.';
     if (item.human_lock) reason = 'Human lock is on, so the Business Rule does not send it to the AI.';

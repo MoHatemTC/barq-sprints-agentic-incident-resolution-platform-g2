@@ -438,10 +438,20 @@ def _servicenow_completion_fields(
     outputs = outputs if isinstance(outputs, Mapping) else {}
     is_awaiting_approval = checkpoint.get("__interrupt__") or checkpoint.get("human_review_required")
     action_taken = checkpoint.get("action_taken", "")
-    is_resolved = not is_awaiting_approval and action_taken not in ("", None, "failed")
+    is_rejected = action_taken == "rejected_by_human"
+    is_resolved = not is_awaiting_approval and not is_rejected and action_taken not in ("", None, "failed")
+
+    if is_awaiting_approval:
+        processing_state = "awaiting_approval"
+    elif is_rejected:
+        processing_state = "human_rejected"
+    elif action_taken in ("failed", "blocked_by_guardrail"):
+        processing_state = "failed"
+    else:
+        processing_state = "complete"
 
     fields: dict[str, object] = {
-        "processing_state": "awaiting_approval" if is_awaiting_approval else "complete",
+        "processing_state": processing_state,
         "processing_start": execution_metadata.get("processing_start"),
         "processing_end": execution_metadata.get("processing_end"),
         "max_retries": execution_metadata.get("max_retries", 3),
@@ -451,14 +461,13 @@ def _servicenow_completion_fields(
         "model_name": execution_metadata.get("model_name", "gemini-3.6-flash"),
         "classification": _field_text(checkpoint.get("classification"), 255),
         "confidence": checkpoint.get("confidence") or 0,
-        "human_review": checkpoint.get("human_review_required") is True,
-        "failure_reason": None,
+        "human_review": checkpoint.get("human_review_required") is True or is_rejected,
+        "failure_reason": checkpoint.get("failure_reason") if is_rejected else None,
     }
 
     # Only write AI suggestion/resolution AFTER the ticket is resolved (approved or auto-resolved).
-    # While awaiting approval, only metadata is written so the caller does not see
-    # an unvetted AI draft as if it were an official resolution.
-    if not is_awaiting_approval:
+    # While awaiting approval or when rejected, draft resolution is not written as official resolution.
+    if not is_awaiting_approval and not is_rejected:
         fields["suggestion"] = _field_text(outputs.get("diagnosis"), 4_000)
         final_res = outputs.get("resolution") or checkpoint.get("cached_resolution")
         if not final_res and checkpoint.get("human_solution"):

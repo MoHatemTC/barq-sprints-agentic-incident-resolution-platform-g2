@@ -12,6 +12,11 @@ def determine_risk_node(state: Dict[str, Any]) -> Dict[str, Any]:
     
     payload = state.get("incident_payload", {})
     
+    decision = state.get("human_decision") or {}
+    if decision.get("decision") == "approve" and state.get("risk"):
+        return {}  # keep the risk the reviewer approved
+
+    
     llm = get_llm()
     prompt = f"""
     You are an expert IT triage agent.

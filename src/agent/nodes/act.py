@@ -83,14 +83,13 @@ def _plan_write(state: Dict[str, Any]) -> Dict[str, Any]:
         reason = f"Rejected by {reviewer}"
         if decision.get("comment"):
             reason += f": {decision['comment']}"
-        # Team decision: a rejected run ends as Failed in ServiceNow (there is no
-        # Rejected state). The Business Rule never re-sends a failed incident;
-        # setting it back to Pending does.
+        # A rejected run ends as human_rejected in ServiceNow. The Business Rule
+        # never re-sends a rejected incident; setting it back to Pending does.
         return {
             "action_taken": "rejected_by_human",
             "action": "escalated_rejected",
             "status": "blocked",
-            "fields": {"processing_state": "failed", "human_review": True, "failure_reason": reason},
+            "fields": {"processing_state": "human_rejected", "human_review": True, "failure_reason": reason},
             "result": reason,
         }
 

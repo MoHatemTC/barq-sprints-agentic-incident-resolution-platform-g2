@@ -316,3 +316,22 @@ def test_unreadable_live_state_keeps_the_list_working(running_run):
 
     runs, _ = _runs([number], None)  # graph could not be built at all
     assert runs[number]["status"] == "started" and runs[number]["live_node"] is None
+
+
+def test_human_rejected_incident_listed_with_state():
+    fields = dashboard._incident_fields()
+    row = {
+        fields["sys_id"]: _cell("sys-rej"),
+        fields["number"]: _cell("INC0019999"),
+        fields["short_description"]: _cell("Issue rejected"),
+        fields["category"]: _cell("network", "Network"),
+        fields["state"]: _cell("1", "New"),
+        fields["priority"]: _cell("4", "4 - Low"),
+        fields["created_at"]: _cell("2026-09-29 08:30:00", "29/09/2026 11:30:00"),
+        fields["ai_processing_state"]: _cell("human_rejected", "Human rejected"),
+        fields["human_lock"]: _cell("false"),
+        fields["ai_enabled"]: _cell("true"),
+    }
+    incident = dashboard._incident_from_servicenow(row, fields)
+    assert incident["ai_processing_state"] == "Human rejected"
+

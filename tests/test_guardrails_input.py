@@ -642,3 +642,10 @@ class TestScreenIncidentPayloadWithLLM:
         assert meta.llm_masking_count == 1
         assert "password" in meta.llm_masking_types
         assert meta.llm_masking_error == ""
+
+    @patch("src.agent.guardrails.input_screening.mask_sensitive_with_llm")
+    def test_regex_runs_before_llm_masker(self, mock_llm_mask):
+        mock_llm_mask.return_value = LLMMaskingResult(masked_text="dummy")
+        screen_incident_payload({"description": "password=hunter2"})
+        received_text = mock_llm_mask.call_args[0][0]
+        assert "hunter2" not in received_text

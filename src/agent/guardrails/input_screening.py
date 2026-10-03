@@ -468,13 +468,15 @@ def screen_incident_payload(
     payload: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], ScreeningMetadata]:
     """
-    Run injection screening, LLM-based masking, and regex redaction over
+    Run injection screening, deterministic regex redaction, and LLM-based masking over
     the text fields of an incident payload.
 
     Pipeline per text field
     -----------------------
     1. **Injection screening** — neutralise prompt-injection patterns.
-    2. **LLM masking (Layer 1)** — the LLM detects passwords, secrets,
+    2. **Regex redaction (Layer 1)** — deterministic patterns remove known
+       secrets before any model call.
+    3. **LLM masking (Layer 2)** — the LLM detects passwords, secrets,
        PII, etc. and replaces the *value* with ``****`` while keeping the
        surrounding context intact.
     3. **Regex redaction (Layer 2)** — deterministic regex patterns run on
@@ -517,7 +519,7 @@ def screen_incident_payload(
                 if lbl not in all_injection_labels:
                     all_injection_labels.append(lbl)
 
-        # Step 2: Regex-based redaction (Layer 1 - deterministic)
+        # Step 2: Regex-based redaction (Layer 1 - deterministic; before LLM)
         red = redact_sensitive_content(working_text)
         working_text = red.redacted_text
         total_redactions += red.redaction_count

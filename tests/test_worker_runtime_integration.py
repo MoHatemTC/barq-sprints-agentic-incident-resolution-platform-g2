@@ -175,6 +175,34 @@ def test_servicenow_completion_fields_contain_actionable_graph_result():
     }
 
 
+def test_servicenow_completion_fields_rejected_by_human():
+    fields = runtime_integration._servicenow_completion_fields(
+        {
+            "classification": "access",
+            "confidence": 0.85,
+            "action_taken": "rejected_by_human",
+            "failure_reason": "Rejected by reviewer: not appropriate",
+            "outputs": {
+                "diagnosis": "A cached credential was used.",
+                "resolution": "1. Clear the cached credential. [Source: KB0001]",
+            },
+        },
+        {
+            "processing_start": "2026-09-24 10:00:00",
+            "processing_end": "2026-09-24 10:01:00",
+            "retry_count": 0,
+            "max_retries": 3,
+            "agent_version": "sprint-3.1",
+            "model_name": "gemini-3.6-flash",
+        },
+    )
+
+    assert fields["processing_state"] == "human_rejected"
+    assert fields["failure_reason"] == "Rejected by reviewer: not appropriate"
+    assert "close_code" not in fields
+    assert "resolution" not in fields
+
+
 def test_graph_executor_uses_s2_5_graph_inputs_and_execution_id():
     graph_calls = []
 
