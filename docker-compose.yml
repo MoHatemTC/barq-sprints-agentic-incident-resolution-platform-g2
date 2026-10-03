@@ -46,6 +46,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
+      - .:/app
       # fastembed models (sparse + reranker) survive container rebuilds
       - model_cache:/tmp/fastembed_cache
     environment:
@@ -74,6 +75,7 @@ services:
     # S3.4: come back after a crash so Celery re-delivers the unfinished task
     restart: unless-stopped
     volumes:
+      - .:/app
       # Downloaded once, not on the first ticket after every restart: that
       # download used up the task time limit and failed retrieval.
       - model_cache:/tmp/fastembed_cache
