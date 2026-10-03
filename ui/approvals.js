@@ -126,24 +126,15 @@
         </div>
       </div>`;
 
-    $('reviewer').value = store.get('barq.reviewer', '');
+    $('reviewer').value = store.get('barq.reviewer', 'Operations Lead');
     const approveButton = $('review').querySelector('[data-action="approve"]');
-    const solutionField = $('human_solution');
-    const requiresHumanSolution = p.verdicts && p.verdicts.risk === 'high';
-    const syncApproveState = () => {
-      approveButton.disabled = requiresHumanSolution && !solutionField.value.trim();
-      approveButton.title = approveButton.disabled
-        ? 'Enter the human solution before approving a high-risk incident.'
-        : '';
-    };
-    solutionField.addEventListener('input', syncApproveState);
-    syncApproveState();
+    approveButton.disabled = false;
+    approveButton.title = '';
     $('review').querySelectorAll('[data-action]').forEach((btn) => btn.addEventListener('click', () => decide(d, btn.dataset.action)));
   }
 
   async function decide(d, action) {
-    const reviewer = $('reviewer').value.trim();
-    if (!reviewer) { toast('Enter your name as reviewer first.', 'err'); $('reviewer').focus(); return; }
+    const reviewer = $('reviewer').value.trim() || 'Operations Lead';
     let rationale = $('rationale').value.trim();
     const humanSolution = $('human_solution').value.trim();
     if (action === 'reject') {

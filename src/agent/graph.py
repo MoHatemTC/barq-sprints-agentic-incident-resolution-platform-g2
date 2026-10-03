@@ -135,11 +135,14 @@ def route_after_human_review(state: AgentState) -> str:
     and knowledge_capture_node.
     """
     decision = state.get("human_decision") or {}
-    if (
-        decision.get("decision") == "approve"
-        and state.get("human_solution")
-    ):
-        return "formulate_query"
+    if decision.get("decision") == "approve":
+        outputs = state.get("outputs") or {}
+        has_resolution = bool(outputs.get("resolution") or state.get("cached_resolution"))
+        # If no resolution exists yet (e.g. stopped at high_risk gate) or reviewer provided a solution,
+        # resume through formulate_query to retrieve KB articles and generate/enrich the resolution.
+        if not has_resolution or state.get("human_solution"):
+            return "formulate_query"
+        return "act"
     return "act"
 
 
