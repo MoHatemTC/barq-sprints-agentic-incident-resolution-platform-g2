@@ -34,6 +34,21 @@ def strip_article_html(content: str) -> str:
                     f"\n{'#' * level} {heading.get_text(' ', strip=True)}\n"
                 )
             )
+    # One table row per line, cells separated: "Number | INC0010047", not "NumberINC0010047".
+    for row in soup.find_all("tr"):
+        cells = [cell.get_text(" ", strip=True) for cell in row.find_all(["th", "td"])]
+        row.replace_with(NavigableString("\n" + " | ".join(cells) + "\n"))
+
+    # List items and paragraphs each start on their own line.
+    for ol in soup.find_all("ol"):
+        for n, li in enumerate(ol.find_all("li", recursive=False), start=1):
+            li.insert_before(NavigableString(f"\n{n}. "))
+    for li in soup.find_all("li"):
+        if li.parent is None or li.parent.name != "ol":
+            li.insert_before(NavigableString("\n- "))
+    for block in soup.find_all(["p", "div"]):
+        block.insert_before(NavigableString("\n"))
+        block.insert_after(NavigableString("\n"))
 
     # Preserve line breaks.
     for br in soup.find_all("br"):

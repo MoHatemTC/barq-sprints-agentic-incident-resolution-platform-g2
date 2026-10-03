@@ -469,12 +469,18 @@ def _servicenow_completion_fields(
     # While awaiting approval or when rejected, draft resolution is not written as official resolution.
     if not is_awaiting_approval and not is_rejected:
         fields["suggestion"] = _field_text(outputs.get("diagnosis"), 4_000)
-        final_res = checkpoint.get("human_solution") or outputs.get("resolution")
+        final_res = outputs.get("resolution") or checkpoint.get("cached_resolution")
+        if not final_res and checkpoint.get("human_solution"):
+            human_sol = checkpoint.get("human_solution")
+            final_res = f"Based on the human comments: {human_sol}, the solution of this incident is:\n{human_sol}"
         fields["resolution"] = _field_text(final_res, 4_000)
 
     # Populate Resolution Information tab when ticket is resolved
     if is_resolved:
-        final_res = checkpoint.get("human_solution") or outputs.get("resolution")
+        final_res = outputs.get("resolution") or checkpoint.get("cached_resolution")
+        if not final_res and checkpoint.get("human_solution"):
+            human_sol = checkpoint.get("human_solution")
+            final_res = f"Based on the human comments: {human_sol}, the solution of this incident is:\n{human_sol}"
         resolution_text = _field_text(final_res, 4_000)
         fields["close_code"] = "Solved (Permanently)"
         fields["close_notes"] = (
@@ -485,10 +491,11 @@ def _servicenow_completion_fields(
         fields["resolved_at"] = execution_metadata.get("processing_end")
         # State 6 = Resolved in ServiceNow
         fields["state"] = "6"
-
-    failure_reason = _field_text(checkpoint.get("failure_reason"), 1_000)
-    if failure_reason:
-        fields["failure_reason"] = failure_reason
+        fields["failure_reason"] = None
+    else:
+        failure_reason = _field_text(checkpoint.get("failure_reason"), 1_000)
+        if failure_reason:
+            fields["failure_reason"] = failure_reason
     return fields
 
 

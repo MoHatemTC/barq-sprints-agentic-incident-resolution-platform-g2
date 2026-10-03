@@ -8,10 +8,11 @@ on:
     branches: [main, development]
   workflow_dispatch:
 
-# A newer push to the same branch/PR cancels the run in progress.
+# A newer push to the same PR cancels the run in progress. Pushes to main /
+# development are never cancelled, so every merge gets a full run (and publish).
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -26,13 +27,12 @@ env:
 
   #  App configuration for CI (replaces .env, which is never committed)
   # Service containers (only running in the integration / eval jobs)
+  # Postgres credentials come from the CI_POSTGRES_* repository secrets
   POSTGRES_HOST: localhost
   POSTGRES_PORT: "5432"
-  POSTGRES_USER: app
-  POSTGRES_PASSWORD: app
   POSTGRES_DB: orchestrator
-  DATABASE_URL: postgresql://app:app@localhost:5432/orchestrator
-  PG_CONN_STRING: postgresql://app:app@localhost:5432/orchestrator
+  DATABASE_URL: postgresql://${{ secrets.CI_POSTGRES_USER }}:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/orchestrator
+  PG_CONN_STRING: postgresql://${{ secrets.CI_POSTGRES_USER }}:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/orchestrator
   REDIS_HOST: localhost
   REDIS_PORT: "6379"
   REDIS_DB: "0"
@@ -114,11 +114,11 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_DB: orchestrator
-          POSTGRES_USER: app
-          POSTGRES_PASSWORD: app
+          POSTGRES_USER: ${{ secrets.CI_POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U app -d orchestrator"
+          --health-cmd "pg_isready -d orchestrator"
           --health-interval 5s --health-timeout 5s --health-retries 10
       redis:
         image: redis:7-alpine
@@ -136,6 +136,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
+      # The qdrant image has no shell tools for a --health-cmd, so wait here
+      - name: Wait for Qdrant
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS localhost:6333/readyz && exit 0
+            sleep 2
+          done
+          echo "::error::Qdrant did not become ready"
+          exit 1
       - name: Apply database migrations
         run: alembic upgrade head
       - name: pytest (Postgres + Redis + Qdrant)
@@ -174,12 +183,32 @@ jobs:
             echo "::error::LITELLM_API_KEY secret is not set and there is no embedding cache. Add the LITELLM_* repository secrets (docs/CI_CD.md)."
             exit 1
           fi
+      - name: Wait for Qdrant
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS localhost:6333/readyz && exit 0
+            sleep 2
+          done
+          echo "::error::Qdrant did not become ready"
+          exit 1
       - name: Ingest the KB snapshot into a fresh Qdrant
         run: python -m src.retrieval.ingest local
       - name: Score dense / hybrid / hybrid_rerank
         run: python eval/ablation.py --k 5
       - name: Compare against eval/thresholds.json
         run: python eval/gate.py
+      # Sprint 4 DeepEval regression suite: runs as soon as the file lands in
+      # the repo; a non-zero exit (a metric below its threshold) fails the job.
+      - name: DeepEval regression suite
+        env:
+          DEEPEVAL_TELEMETRY_OPT_OUT: "YES"
+        run: |
+          if [ ! -f eval/deepeval_regression.py ]; then
+            echo "::notice::eval/deepeval_regression.py not present yet; DeepEval step skipped"
+            exit 0
+          fi
+          pip install deepeval
+          python eval/deepeval_regression.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -217,6 +246,26 @@ jobs:
           exit 1
       - if: always()
         run: docker compose down -v
+
+  # The one check branch protection requires. Fails unless every job above
+  # succeeded (a failed, cancelled or skipped job all count as a failure), so
+  # adding a job only means adding it to `needs`, not to the protection rules.
+  ci-passed:
+    name: CI passed
+    if: always()
+    needs: [lint, unit-tests, integration-tests, eval-gate, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "$NEEDS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          failed=$(echo "$NEEDS" | jq -r 'to_entries[] | select(.value.result != "success") | .key')
+          if [ -n "$failed" ]; then
+            echo "::error::Required jobs did not succeed: $(echo $failed)"
+            exit 1
+          fi
 
   # CD: only on a push to main, and only after every check above passed.
   publish:

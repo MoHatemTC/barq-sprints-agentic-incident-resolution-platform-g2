@@ -3,6 +3,7 @@ import logging
 
 from langgraph.graph import StateGraph, END
 from src.agent.state import AgentState
+from src.config import INCIDENT_CATEGORIES
 
 from src.agent.nodes.load import load_node
 from src.agent.nodes.validate import validate_node
@@ -40,8 +41,9 @@ def route_after_validate(state: AgentState) -> str:
 
 def route_after_risk(state: AgentState) -> str:
     """Route high-risk incidents to human review before automated action.
-    
-    After a human approval, the gate is already satisfied.
+
+    After a human approval the gate is already satisfied — do not re-open it
+    when the re-classification loop passes through determine_risk a second time.
     """
     decision = state.get("human_decision") or {}
     if decision.get("decision") == "approve":
@@ -107,12 +109,11 @@ def route_after_critic(state: AgentState) -> str:
 
 
 def route_after_human_review(state: AgentState) -> str:
-    """After approval, loop back through classify so the human feedback
-    can steer re-classification before retrieval and resolution."""
+    """After approval, enrich with KB evidence and generate resolution before writing."""
+
     decision = state.get("human_decision") or {}
     if (
         decision.get("decision") == "approve"
-        and state.get("risk") == "high"
         and state.get("human_solution")
     ):
         return "classify"
@@ -167,11 +168,10 @@ def knowledge_capture_node(state: AgentState) -> AgentState:
 
     incident_payload = state.get("incident_payload") or {}
 
-    # Reuse the existing classification when available.
-    category = (
-        state.get("classification")
-        or incident_payload.get("category")
-        or "general"
+    category = next(
+        (c for c in (incident_payload.get("category"), state.get("classification"))
+         if c in INCIDENT_CATEGORIES),
+        "inquiry",
     )
 
     service = (

@@ -41,8 +41,10 @@ def _build_initial_user_message(
     human_solution: str = "",
 ) -> str:
     human_block = (
-        f"HUMAN-PROVIDED RESOLUTION:\n{human_solution}\n\n"
-        "Use it as an input to improve or validate the final procedure.\n\n"
+        f"HUMAN-PROVIDED RESOLUTION / COMMENTS:\n{human_solution}\n\n"
+        "Integrate these comments into the final resolution. "
+        "Start your response with: 'Based on the human comments: <concise summary>, the solution of this incident is:' "
+        "followed by the numbered steps with citations.\n\n"
         if human_solution else ""
     )
     return (
@@ -126,6 +128,10 @@ def generate_node(state: Dict[str, Any]) -> Dict[str, Any]:
     response = llm.invoke(full_prompt, config={"callbacks": get_llm_callback()})
     content = response.content if hasattr(response, "content") else str(response)
     resolution = content.strip()
+
+    # When human comments are present, guarantee the required introductory phrase
+    if human_solution and not resolution.lower().startswith("based on the human comments"):
+        resolution = f"Based on the human comments: {human_solution}, the solution of this incident is:\n{resolution}"
 
     # Write new resolution; preserve diagnosis (never overwrite it here)
     new_outputs = dict(outputs)

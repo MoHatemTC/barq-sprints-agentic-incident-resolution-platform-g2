@@ -36,15 +36,15 @@ jobs:
         image: postgres:16
         env:
           POSTGRES_DB: orchestrator
-          POSTGRES_USER: app
-          POSTGRES_PASSWORD: app
+          POSTGRES_USER: ${{ secrets.CI_POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD }}
         ports: ["5432:5432"]
         options: >-
-          --health-cmd "pg_isready -U app -d orchestrator"
+          --health-cmd "pg_isready -d orchestrator"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DATABASE_URL: postgresql://app:app@localhost:5432/orchestrator
-      PG_CONN_STRING: postgresql://app:app@localhost:5432/orchestrator
+      DATABASE_URL: postgresql://${{ secrets.CI_POSTGRES_USER }}:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/orchestrator
+      PG_CONN_STRING: postgresql://${{ secrets.CI_POSTGRES_USER }}:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/orchestrator
       SERVICENOW_INSTANCE_URL: ${{ secrets.SERVICENOW_INSTANCE_URL }}
       SERVICENOW_OAUTH_CLIENT_ID: ${{ secrets.SERVICENOW_OAUTH_CLIENT_ID }}
       SERVICENOW_OAUTH_CLIENT_SECRET: ${{ secrets.SERVICENOW_OAUTH_CLIENT_SECRET }}

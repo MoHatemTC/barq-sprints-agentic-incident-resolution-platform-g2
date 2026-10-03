@@ -1,9 +1,23 @@
 import logging
+import re
 from typing import Dict, Any
+
+from src.config import INCIDENT_CATEGORIES
 from src.observability.tracing import get_llm_callback, trace_node
 from src.agent.llm import get_llm
 
 logger = logging.getLogger(__name__)
+
+# The same categories ServiceNow's incident form offers,
+CATEGORY_HINTS = {
+    "inquiry": "questions, how-to, process or policy, account lockout and access requests",
+    "software": "applications, email, SAP, services returning errors, crashes after an update",
+    "hardware": "laptops, desktops, printers, monitors, peripherals, physical faults",
+    "network": "VPN, Wi-Fi, connectivity, mapped drives, DNS, firewalls",
+    "database": "database outages, slow queries, connection pools, data errors",
+    "password_reset": "forgotten or expired passwords, MFA re-enrolment",
+}
+
 
 @trace_node(name="classify", observation_type="generation")
 def classify_node(state: Dict[str, Any]) -> Dict[str, Any]:
@@ -39,20 +53,11 @@ def classify_node(state: Dict[str, Any]) -> Dict[str, Any]:
     The reviewer's feedback may reveal the true nature of the incident.
     Consider it carefully when determining the category."""
 
-    llm = get_llm()
+    categories = "\n".join(f"    - {c}: {CATEGORY_HINTS[c]}" for c in INCIDENT_CATEGORIES)
     prompt = f"""
     You are an IT incident classifier.
-    Read the following incident description and classify it into ONE of the following categories:
-    - network
-    - database
-    - software
-    - hardware
-    - access
-    - security
-    - email
-    - cloud
-    - storage
-    - other
+    Read the following incident and classify it into ONE of these ServiceNow categories:
+{categories}
 
     Incident Description:
     {full_text}
@@ -61,21 +66,11 @@ def classify_node(state: Dict[str, Any]) -> Dict[str, Any]:
     Respond with ONLY the exact category name from the list above. Do not add any extra text.
     """
 
-    response = llm.invoke(prompt, config={"callbacks": get_llm_callback()})
-
+    response = get_llm().invoke(prompt, config={"callbacks": get_llm_callback()})
     content = response.content if hasattr(response, "content") else str(response)
 
-    classification = content.strip().lower()
-
-    valid_categories = [
-        "network", "database", "software", "hardware", "access",
-        "security", "email", "cloud", "storage", "other"
-    ]
-    final_class = "other"
-    for cat in valid_categories:
-        if cat in classification:
-            final_class = cat
-            break
+    words = re.findall(r"[a-z_]+", content.lower())
+    final_class = next((w for w in words if w in INCIDENT_CATEGORIES), "inquiry")
 
     if human_solution:
         logger.info(

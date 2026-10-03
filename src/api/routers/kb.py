@@ -14,7 +14,7 @@ import logging
 import re
 import threading
 from pathlib import PurePath
-from typing import Literal
+from typing import Literal, get_args
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -23,11 +23,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/kb", tags=["kb"])
 
-# Keep these in sync with data/kb_category_mapping.json and with the
-# security levels your retrieval filters understand.
-Category = Literal["software", "network", "hardware", "identity"]
+# ServiceNow's incident categories (manual_parser.INCIDENT_CATEGORIES), so an article is filed
+# the way the incidents it answers are. Each needs a kb_category in data/kb_category_mapping.json.
+Category = Literal["inquiry", "software", "hardware", "network", "database", "password_reset"]
 SecurityLevel = Literal["public", "internal", "confidential"]
-CATEGORIES = ["software", "network", "hardware", "identity"]
+CATEGORIES = list(get_args(Category))
 SECURITY_LEVELS = ["public", "internal", "confidential"]
 
 MIN_BODY, MAX_BODY = 30, 50_000

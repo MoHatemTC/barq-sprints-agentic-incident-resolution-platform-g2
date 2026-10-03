@@ -16,6 +16,7 @@ def _paused(graph, thread_id):
 
 def _fake_chunk():
     chunk = MagicMock()
+    chunk.payload = {"category": "network"}
     chunk.number = "KB0001"
     chunk.point_id = "p1"
     chunk.text = "Reset the VPN credentials"
@@ -206,6 +207,7 @@ def test_revised_draft_resolves_critic_flagged_issue(
     import json
 
     chunk = MagicMock()
+    chunk.payload = {"category": "network"}
     chunk.number = "KB0001"
     chunk.point_id = "KB0001"
     chunk.text = "Procedure: restart the service to resolve login failures."
@@ -400,90 +402,3 @@ def test_approved_high_risk_reclassifies_with_human_feedback(mock_search):
     # Full pipeline completed
     assert result["action_taken"] == "approved_by_human"
     assert "PostgreSQL" in result["outputs"]["resolution"]
-
-@patch("src.agent.nodes.retrieve.search", return_value=[_fake_chunk()])
-def test_approved_high_risk_reclassifies_with_human_feedback_preserves_risk(mock_search):
-    """
-    A copy of the reclassify test with the risk mock answering ["high", "low"].
-    Ends with result["risk"] == "high", and the risk LLM is called once.
-    """
-    from langgraph.types import Command
-
-    classify_call_count = {"n": 0}
-
-    def _classify_llm_factory():
-        classify_call_count["n"] += 1
-        if classify_call_count["n"] == 1:
-            return _build_static_llm("software")
-        return _build_static_llm("database")
-
-    risk_call_count = {"n": 0}
-    risk_responses = iter(["high", "low"])
-
-    def _risk_llm_factory():
-        risk_call_count["n"] += 1
-        return _build_static_llm(next(risk_responses))
-
-    with (
-        patch("src.agent.nodes.validate.get_llm",
-              return_value=_build_static_llm("valid")),
-        patch("src.agent.nodes.classify.get_llm",
-              side_effect=_classify_llm_factory),
-        patch("src.agent.nodes.determine_risk.get_llm",
-              side_effect=_risk_llm_factory),
-        patch("src.agent.nodes.formulate_query.get_llm",
-              return_value=_build_static_llm(
-                  '{"query": "database connection pool exhausted"}')),
-        patch("src.agent.nodes.diagnose.get_llm",
-              return_value=_build_static_llm(json.dumps({
-                  "root_cause": "PostgreSQL connection pool exhausted.",
-                  "reasoning": "KB0001 describes the same failure pattern.",
-                  "supporting_evidence": ["KB0001"],
-                  "confidence": 0.9,
-              }))),
-        patch("src.agent.nodes.generate.get_llm",
-              return_value=_build_static_llm(
-                  "1. Restart the PostgreSQL service. [Source: KB0001]")),
-        patch("src.agent.nodes.verify_evidence.get_llm",
-              return_value=_build_static_llm(json.dumps({
-                  "passed": True,
-                  "feedback": "",
-                  "invalid_steps": [],
-                  "citation_findings": [],
-              }))),
-    ):
-        graph = create_graph().compile(checkpointer=MemorySaver())
-
-        graph.invoke(
-            {
-                "execution_id": "test_reclass2",
-                "incident_number": "INC_RECLASS_02",
-                "incident_payload": {
-                    "description": "System is slow and unresponsive",
-                },
-            },
-            config={"configurable": {"thread_id": "test_reclass2"}},
-        )
-
-        paused = _paused(graph, "test_reclass2")
-        assert paused["classification"] == "software"
-        assert paused["risk"] == "high"
-
-        result = graph.invoke(
-            Command(resume={
-                "decision": "approve",
-                "reviewer": "senior_dba",
-                "comment": "This is clearly a database issue.",
-                "human_solution": (
-                    "The PostgreSQL connection pool was exhausted. "
-                    "Restart the database service and increase max_connections."
-                ),
-            }),
-            config={"configurable": {"thread_id": "test_reclass2"}},
-        )
-
-    assert result["classification"] == "database"
-    assert result["action_taken"] == "approved_by_human"
-    assert result["risk"] == "high", "Risk should not be overwritten"
-    assert risk_call_count["n"] == 1, "Risk LLM should be called only once"
-

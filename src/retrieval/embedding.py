@@ -65,11 +65,20 @@ def _litellm_embed(text: str) -> list[float]:
         "Content-Type": "application/json",
     }
     payload = {"model": model, "input": text}
-
-    response = httpx.post(url, json=payload, headers=headers, timeout=30)
-    response.raise_for_status()
-    data = response.json()
-    return [float(v) for v in data["data"][0]["embedding"]]
+    import time
+    last_err = None
+    for attempt in range(3):
+        try:
+            response = httpx.post(url, json=payload, headers=headers, timeout=30)
+            response.raise_for_status()
+            data = response.json()
+            return [float(v) for v in data["data"][0]["embedding"]]
+        except Exception as exc:
+            last_err = exc
+            time.sleep(0.5 * (attempt + 1))
+    if last_err:
+        raise last_err
+    raise RuntimeError("Embedding failed after retries")
 
 
 # ---------------------------------------------------------------------------

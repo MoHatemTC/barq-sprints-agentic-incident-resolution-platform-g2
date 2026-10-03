@@ -2,6 +2,7 @@ from typing import TypedDict, Any, List, Dict, Optional
 
 class AgentState(TypedDict, total=False):
     incident_payload: Dict[str, Any]
+    # KB search query written by formulate_query from short description + description
     search_query: str
     retrieved_evidence: List[Dict[str, Any]]
     retrieval_failed: bool
