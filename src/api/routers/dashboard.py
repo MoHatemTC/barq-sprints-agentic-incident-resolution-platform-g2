@@ -20,6 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, desc, tuple_
 
 from src.db.database import SessionLocal
+from src.servicenow import contracts
 from src.db.models import Approval, Event, Execution, Failure, RetryState, WorkflowState
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
@@ -157,6 +158,8 @@ def _sync_error_text(exc: Exception) -> str:
             else "network error"
         )
         return f"ServiceNow could not be reached ({cause})"
+    if isinstance(exc, sn.ServiceNowContractError):
+        return "ServiceNow response format changed (details in the API log)"
     if isinstance(exc, sn.ServiceNowAuthError):
         return "ServiceNow rejected the integration login (401)"
     if isinstance(exc, sn.ServiceNowPermissionError):
@@ -308,6 +311,7 @@ def _fetch_incident_page(limit: int, offset: int, query: str | None = None) -> d
     rows, total = _servicenow().list_incidents(
         list(fields.values()), limit=limit, offset=offset, query=query
     )
+    contracts.display_value_rows(rows, list(fields.values()), "dashboard incident list")
     return {
         "incidents": [_incident_from_servicenow(r, fields) for r in rows],
         "total": total,

@@ -79,8 +79,11 @@ def test_published_kb_articles_are_limited_to_our_knowledge_base(client, monkeyp
     assert query == "workflow_state=published^kb_knowledge_base=kb123^ORDERBYsys_id"
 
 
+CREATED = {"sys_id": "abc", "number": "INC0010100"}  # what ServiceNow returns on insert
+
+
 def test_create_incident_sends_category_and_description(client):
-    with patch("src.servicenow.client.requests.request", return_value=_response(200)) as req:
+    with patch("src.servicenow.client.requests.request", return_value=_response(200, CREATED)) as req:
         client.create_incident("VPN down", description="since 9am", category="network")
 
     assert req.call_args.kwargs["json"] == {
@@ -89,7 +92,7 @@ def test_create_incident_sends_category_and_description(client):
 
 
 def test_create_incident_sends_correlation_id_when_given(client):
-    with patch("src.servicenow.client.requests.request", return_value=_response(200)) as req:
+    with patch("src.servicenow.client.requests.request", return_value=_response(200, CREATED)) as req:
         client.create_incident("VPN down", category="network", correlation_id="barq-dashboard-abc12345")
 
     assert req.call_args.kwargs["json"]["correlation_id"] == "barq-dashboard-abc12345"

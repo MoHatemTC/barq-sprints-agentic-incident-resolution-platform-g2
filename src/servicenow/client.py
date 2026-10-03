@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from . import config
+from . import config, contracts
 from .auth import TokenManager
 from .exceptions import (
     ServiceNowError,
@@ -87,12 +87,13 @@ class ServiceNowClient:
         if correlation_id:
             payload["correlation_id"] = correlation_id
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
-        return self._request("POST", url, json=payload)
+        body = self._response("POST", url, json=payload).json()
+        return contracts.result_record(body, "created incident", ("sys_id", "number"))
 
     def find_incident_by_correlation(self, correlation_id):
         # The incident created with this correlation_id (sys_id, number), or None
         url = f"{config.TABLE_API}/{config.INCIDENT_TABLE}"
-        rows = self._request(
+        body = self._response(
             "GET",
             url,
             params={
@@ -100,17 +101,20 @@ class ServiceNowClient:
                 "sysparm_fields": "sys_id,number",
                 "sysparm_limit": "1",
             },
-        )
-        return rows[0] if rows else None
+        ).json()
+        rows = contracts.result_list(body, "correlation lookup")
+        if not rows:
+            return None
+        return contracts.result_record({"result": rows[0]}, "correlation lookup", ("sys_id", "number"))
 
     def get_choices(self, table, element):
         # Choices of one choice field exactly as the ServiceNow form lists them.
         # UI meta API, not sys_choice: the integration user cannot read sys_choice (403).
         url = f"{config.INSTANCE_URL}/api/now/ui/meta/{table}"
-        column = (self._request("GET", url) or {}).get("columns", {}).get(element) or {}
+        choices = contracts.ui_meta_choices(self._response("GET", url).json(), element, f"UI meta {table}.{element}")
         return [
             {"label": c.get("label"), "value": c.get("value")}
-            for c in column.get("choices") or []
+            for c in choices
             if c.get("value")  # skip the form's "-- None --" entry
         ]
 
@@ -132,9 +136,9 @@ class ServiceNowClient:
                 "sysparm_offset": offset,
             },
         )
-        rows = response.json().get("result") or []
-        total = response.headers.get("X-Total-Count")
-        return rows, int(total) if total is not None else len(rows)
+        rows = contracts.result_list(response.json(), "incident list")
+        total = contracts.total_count(response.headers, "incident list")
+        return rows, total if total is not None else len(rows)
 
     def delete_incident(self, sys_id):
         """Delete an incident explicitly requested by the dashboard user."""

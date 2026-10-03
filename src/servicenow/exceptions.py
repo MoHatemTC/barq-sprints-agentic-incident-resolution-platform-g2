@@ -15,6 +15,12 @@ class ServiceNowWriteNotAppliedError(ServiceNowError):
     # 200 returned, but ServiceNow silently dropped one or more fields
     log_state = "blocked"
 
+class ServiceNowContractError(ServiceNowError):
+    # 200 returned, but the body is not the shape this code depends on
+    # (src/servicenow/contracts.py): an upstream format change, a renamed field or an ACL
+    pass
+
+
 class ServiceNowAuthError(ServiceNowError):
     # when 401 so token missing, invalid or expired
     retryable = True
