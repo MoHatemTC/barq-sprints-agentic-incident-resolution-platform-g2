@@ -94,9 +94,9 @@ def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
         return {"retrieved_evidence": [], "retrieval_failed": False}
 
     try:
-        # The category chosen on the incident. Service is not filtered on: incidents carry
-        # business_service as a sys_id, which never equals an article's service name.
-        chunks = _with_full_articles(_search_by_category(text, payload.get("category") or None))
+        # Prefer classifier result (state['classification']), falling back to the raw incident category.
+        target_category = state.get("classification") or payload.get("category") or None
+        chunks = _with_full_articles(_search_by_category(text, target_category))
 
         retrieved = [
             {
