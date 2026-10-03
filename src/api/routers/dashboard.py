@@ -9,18 +9,22 @@ actual rows while S2.2's async wiring lands.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 import time
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select, desc
+from sqlalchemy import func, select, desc, tuple_
 
 from src.db.database import SessionLocal
-from src.db.models import Event, Execution, Failure, RetryState, WorkflowState
+from src.servicenow import contracts
+from src.db.models import Approval, Event, Execution, Failure, RetryState, WorkflowState
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["dashboard"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/executions")
@@ -127,13 +131,42 @@ async def list_recent_executions(limit: int = 30):
 #   - one shared client, so the OAuth token is reused instead of fetched per poll;
 #   - a short server-side cache shared by every open tab, so N tabs polling every
 #     few seconds still cost at most one ServiceNow call per page per TTL;
-#   - if ServiceNow is slow or down, the last page is served (marked stale)
+#   - if ServiceNow is slow or down, the last page is served (marked delayed)
 #     instead of queueing requests behind it;
 #   - AI status comes from Postgres with a fixed 4 indexed queries per page.
+#
+# Freshness: every page carries synced_at, the moment it was read from
+# ServiceNow. Up to the cache TTL it is live; past STALE_AFTER_SECONDS it is
+# stale and the dashboard shows a warning. The last good page is never dropped.
 
 INCIDENT_CACHE_SECONDS = float(os.getenv("DASHBOARD_INCIDENT_CACHE_SECONDS", "10"))
+STALE_AFTER_SECONDS = float(os.getenv("DASHBOARD_STALE_AFTER_SECONDS", "30"))
 MAX_INCIDENT_PAGE = 500  # enough for the whole demo instance history (284 today)
 _MAX_CACHED_PAGES = 32
+
+
+def _sync_error_text(exc: Exception) -> str:
+    """One short line for the dashboard; the full error goes to the API log."""
+    from src.servicenow import exceptions as sn
+
+    if isinstance(exc, sn.ServiceNowNetworkError):
+        text = exc.message.lower()
+        cause = (
+            "timed out" if "timed out" in text or "timeout" in text
+            else "connection refused" if "refused" in text
+            else "address not found" if "resolve" in text or "name or service" in text
+            else "network error"
+        )
+        return f"ServiceNow could not be reached ({cause})"
+    if isinstance(exc, sn.ServiceNowContractError):
+        return "ServiceNow response format changed (details in the API log)"
+    if isinstance(exc, sn.ServiceNowAuthError):
+        return "ServiceNow rejected the integration login (401)"
+    if isinstance(exc, sn.ServiceNowPermissionError):
+        return "ServiceNow denied access to incidents (403)"
+    if isinstance(exc, sn.ServiceNowError):
+        return f"ServiceNow returned an error ({exc.status_code})"
+    return str(exc)[:200] or type(exc).__name__
 
 
 class _PageCache:
@@ -168,8 +201,9 @@ class _PageCache:
             try:
                 value = fetch()
             except Exception as exc:
+                logger.warning("Dashboard refresh from ServiceNow failed: %r", exc)
                 if entry:
-                    return entry[1], str(exc)
+                    return entry[1], _sync_error_text(exc)
                 raise
             with self._lock:
                 if len(self._entries) >= _MAX_CACHED_PAGES:
@@ -268,12 +302,21 @@ def _search_query(q: str | None) -> str | None:
     ) or None
 
 
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def _fetch_incident_page(limit: int, offset: int, query: str | None = None) -> dict:
     fields = _incident_fields()
     rows, total = _servicenow().list_incidents(
         list(fields.values()), limit=limit, offset=offset, query=query
     )
-    return {"incidents": [_incident_from_servicenow(r, fields) for r in rows], "total": total}
+    contracts.display_value_rows(rows, list(fields.values()), "dashboard incident list")
+    return {
+        "incidents": [_incident_from_servicenow(r, fields) for r in rows],
+        "total": total,
+        "synced_at": _utcnow(),
+    }
 
 
 def _live_graph():
@@ -402,18 +445,18 @@ def list_incidents(
     """ServiceNow incidents (newest first) with the latest AI run for each, if any.
 
     ``q`` searches the incident number and the words of the descriptions.
+    ``delayed``: the last refresh failed (``sync_error`` says why), so an older
+    copy is shown. ``stale``: that copy is older than STALE_AFTER_SECONDS.
     Plain def on purpose: FastAPI runs it in a worker thread, so a slow
     ServiceNow call never blocks the event loop that serves the webhook.
     """
     query = _search_query(q)
     try:
-        page, stale_error = _incident_pages.get(
+        page, sync_error = _incident_pages.get(
             (limit, offset, query), lambda: _fetch_incident_page(limit, offset, query)
         )
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Could not read incidents from ServiceNow: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=_sync_error_text(exc)) from exc
 
     numbers = [i["number"] for i in page["incidents"] if i["number"]]
     db = SessionLocal()
@@ -422,14 +465,19 @@ def list_incidents(
     finally:
         db.close()
 
+    age = max(0.0, (_utcnow() - page["synced_at"]).total_seconds())
     return {
         "incidents": [{**i, "execution": runs.get(i["number"])} for i in page["incidents"]],
         "total": page["total"],
         "limit": limit,
         "offset": offset,
         "q": q if query else None,
-        "stale": stale_error is not None,
-        "stale_reason": stale_error,
+        "synced_at": page["synced_at"].isoformat(),
+        "age_seconds": round(age, 1),
+        "stale_after_seconds": STALE_AFTER_SECONDS,
+        "stale": age > STALE_AFTER_SECONDS,
+        "delayed": sync_error is not None,
+        "sync_error": sync_error,
     }
 
 
@@ -452,9 +500,7 @@ def list_incident_categories():
     try:
         return {"categories": _category_choices(ServiceNowClient())}
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Could not read categories from ServiceNow: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=_sync_error_text(exc)) from exc
 
 
 class NewIncidentRequest(BaseModel):
@@ -463,15 +509,22 @@ class NewIncidentRequest(BaseModel):
     short_description: str = Field(..., min_length=1)
     description: str | None = None
     category: str = Field(..., min_length=1)
+    # One id per New incident form, reused on every retry of that form.
+    request_id: str | None = Field(None, pattern=r"^[A-Za-z0-9-]{8,64}$")
 
 
 @router.post("/incidents", status_code=201)
-def create_incident_via_dashboard(payload: NewIncidentRequest):
+def create_incident_via_dashboard(payload: NewIncidentRequest, response: Response):
     """Create an incident in ServiceNow, the same as filling in the ServiceNow form.
 
     Nothing is stored or queued here. The insert fires the AI Eligibility Check
     Business Rule (servicenow/ai_incident_orchestrator/update_set.xml),
     which alone decides whether the incident reaches the webhook.
+
+    No duplicates on retry: ``request_id`` is saved in the incident's
+    correlation_id. If ServiceNow created the incident but the answer never
+    arrived (timeout), the retry finds it and returns it (200) instead of
+    creating a second one.
     """
     import os
 
@@ -481,9 +534,7 @@ def create_incident_via_dashboard(payload: NewIncidentRequest):
     try:
         categories = {c["value"] for c in _category_choices(client)}
     except Exception as exc:
-        raise HTTPException(
-            status_code=502, detail=f"Could not read categories from ServiceNow: {exc}"
-        ) from exc
+        raise HTTPException(status_code=502, detail=_sync_error_text(exc)) from exc
     # The Table API stores any string in a choice field; the form does not.
     if payload.category not in categories:
         raise HTTPException(
@@ -491,18 +542,27 @@ def create_incident_via_dashboard(payload: NewIncidentRequest):
             detail=f"'{payload.category}' is not an incident category in ServiceNow",
         )
 
+    correlation_id = f"barq-dashboard-{payload.request_id}" if payload.request_id else None
+    if correlation_id:
+        try:
+            existing = client.find_incident_by_correlation(correlation_id)
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=_sync_error_text(exc)) from exc
+        if existing:
+            response.status_code = 200
+            _incident_pages.clear()
+            return {"status": "already_created", "sys_id": existing["sys_id"], "number": existing["number"]}
+
     try:
         created = client.create_incident(
             payload.short_description,
             description=payload.description or None,
             caller_id=os.environ.get("SERVICENOW_DEFAULT_CALLER_SYS_ID") or None,
             category=payload.category,
+            correlation_id=correlation_id,
         )
     except Exception as exc:
-        raise HTTPException(
-            status_code=502,
-            detail=f"Could not create incident in ServiceNow: {exc}",
-        ) from exc
+        raise HTTPException(status_code=502, detail=_sync_error_text(exc)) from exc
 
     _incident_pages.clear()  # show it on the next poll, not after the cache TTL
     return {"status": "created", "sys_id": created["sys_id"], "number": created["number"]}
@@ -535,6 +595,159 @@ def list_incident_events(sys_id: str):
         }
     finally:
         db.close()
+
+
+# --- Run history: every past run of one incident, with its logs ---------------
+#
+# One page = the newest RUN_PAGE runs before a cursor, in a fixed 5 indexed
+# queries (runs, log entries, failures, retries, approvals) whatever the volume.
+# Log entries are listed without their payload, only its size; one payload is
+# fetched when it is opened. A payload over LOG_PREVIEW_BYTES opens as a preview
+# (Postgres sends only that slice) so a huge multi-step log never freezes the
+# drawer; ?full=true loads the rest on request.
+
+RUN_PAGE = 10
+MAX_RUN_PAGE = 50
+LOG_PREVIEW_BYTES = int(os.getenv("DASHBOARD_LOG_PREVIEW_BYTES", str(64 * 1024)))
+
+
+def _iso(moment):
+    return moment.isoformat() if moment else None
+
+
+def _run_page(db, number: str, limit: int, before: int | None) -> dict:
+    query = select(Execution).where(Execution.incident_reference == number)
+    if before is not None:
+        cursor = db.get(Execution, before)
+        if cursor is None or cursor.incident_reference != number:
+            raise HTTPException(status_code=400, detail="Unknown 'before' cursor for this incident")
+        query = query.where(
+            tuple_(Execution.started_at, Execution.id) < tuple_(cursor.started_at, cursor.id)
+        )
+    runs = (
+        db.execute(query.order_by(desc(Execution.started_at), desc(Execution.id)).limit(limit + 1))
+        .scalars()
+        .all()
+    )
+    has_more = len(runs) > limit
+    runs = runs[:limit]
+    ids = [run.execution_identifier for run in runs]
+
+    entries, failures, approvals = {}, {}, {}
+    retries = {}
+    if ids:
+        for row in db.execute(
+            select(WorkflowState.id, WorkflowState.execution_reference,
+                   WorkflowState.node_name, WorkflowState.created_at,
+                   # the stored length, read from the TOAST header: the payload itself is not fetched
+                   func.octet_length(WorkflowState.checkpoint).label("size_bytes"))
+            .where(WorkflowState.execution_reference.in_(ids))
+            .order_by(WorkflowState.created_at, WorkflowState.id)
+        ):
+            entries.setdefault(row.execution_reference, []).append(
+                {"entry_id": row.id, "node_name": row.node_name,
+                 "created_at": _iso(row.created_at), "size_bytes": row.size_bytes}
+            )
+        for f in db.execute(
+            select(Failure).where(Failure.execution_reference.in_(ids)).order_by(Failure.id)
+        ).scalars():
+            failures.setdefault(f.execution_reference, []).append(
+                {"failing_node": f.failing_node, "error_class": f.error_class,
+                 "message": f.message, "retry_count": f.retry_count}
+            )
+        retries = {
+            r.execution_reference: r.attempt_count
+            for r in db.execute(select(RetryState).where(RetryState.execution_reference.in_(ids))).scalars()
+        }
+        for a in db.execute(
+            select(Approval).where(Approval.execution_reference.in_(ids)).order_by(Approval.decision_timestamp)
+        ).scalars():
+            approvals.setdefault(a.execution_reference, []).append(
+                {"decision": a.reviewer_decision, "reviewer": a.reviewer_identity,
+                 "decided_at": _iso(a.decision_timestamp), "human_solution": a.human_solution}
+            )
+
+    return {
+        "incident_number": number,
+        "runs": [
+            {
+                "execution_id": run.execution_identifier,
+                "status": run.status,
+                "node_reached": run.node_reached,
+                "model_name": run.model_name,
+                "agent_version": run.agent_version,
+                "started_at": _iso(run.started_at),
+                "ended_at": _iso(run.ended_at),
+                "duration_seconds": (
+                    (run.ended_at - run.started_at).total_seconds()
+                    if run.ended_at and run.started_at else None
+                ),
+                "log": entries.get(run.execution_identifier, []),
+                "failures": failures.get(run.execution_identifier, []),
+                "approvals": approvals.get(run.execution_identifier, []),
+                "retry_attempt_count": retries.get(run.execution_identifier, 0),
+            }
+            for run in runs
+        ],
+        "next_before": runs[-1].id if has_more else None,
+    }
+
+
+@router.get("/incidents/{number}/runs")
+def list_incident_runs(
+    number: str,
+    limit: int = Query(RUN_PAGE, ge=1, le=MAX_RUN_PAGE),
+    before: int | None = Query(None, ge=1),
+):
+    """Past and current runs of one incident, newest first, one page at a time.
+
+    Pass ``next_before`` from the previous page as ``before`` to get older runs.
+    """
+    db = SessionLocal()
+    try:
+        return _run_page(db, number, limit, before)
+    finally:
+        db.close()
+
+
+@router.get("/runs/{execution_id}/log/{entry_id}")
+def get_run_log_entry(execution_id: str, entry_id: int, full: bool = Query(False)):
+    """One log entry of one run.
+
+    Up to LOG_PREVIEW_BYTES: the parsed payload. Larger: ``truncated`` with the
+    first LOG_PREVIEW_BYTES of the raw text as ``preview``, unless ``full=true``.
+    """
+    size = func.octet_length(WorkflowState.checkpoint)
+    text = WorkflowState.checkpoint if full else func.substr(WorkflowState.checkpoint, 1, LOG_PREVIEW_BYTES)
+    db = SessionLocal()
+    try:
+        entry = db.execute(
+            select(WorkflowState.id, WorkflowState.node_name, WorkflowState.created_at,
+                   size.label("size_bytes"), text.label("text"))
+            .where(WorkflowState.id == entry_id, WorkflowState.execution_reference == execution_id)
+        ).first()
+    finally:
+        db.close()
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Log entry not found for this run")
+
+    truncated = not full and entry.size_bytes > LOG_PREVIEW_BYTES
+    payload = None
+    if not truncated:
+        try:
+            payload = json.loads(entry.text)
+        except (json.JSONDecodeError, TypeError):
+            payload = {"raw": entry.text}
+    return {
+        "execution_id": execution_id,
+        "entry_id": entry.id,
+        "node_name": entry.node_name,
+        "created_at": _iso(entry.created_at),
+        "size_bytes": entry.size_bytes,
+        "truncated": truncated,
+        "payload": payload,
+        "preview": entry.text if truncated else None,
+    }
 
 
 @router.delete("/incidents/{sys_id}")

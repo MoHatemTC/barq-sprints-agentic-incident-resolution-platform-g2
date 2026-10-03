@@ -197,6 +197,46 @@ class StateManagerTaskRecorder:
             self.context.execution_identifier,
             execution_metadata,
         )
+        if execution_status_for(result) == "awaiting_approval":
+            _sync_servicenow_pause_note(accepted_incident, checkpoint, self.context.execution_identifier)
+
+
+def _sync_servicenow_pause_note(
+    accepted_incident: object,
+    checkpoint: Mapping[str, object],
+    execution_identifier: str,
+) -> None:
+    """Work note telling a ServiceNow reviewer why the AI paused and how to decide.
+
+    The same approval brief our Approvals page shows, so the decision can be made
+    entirely in ServiceNow (Human Governance tab: Approve AI / Reject AI).
+    """
+    incident_sys_id = _incident_sys_id(accepted_incident)
+    if not incident_sys_id:
+        return
+    brief = checkpoint.get("approval_brief")
+    brief = brief if isinstance(brief, Mapping) else {}
+    payload = checkpoint.get("interrupt_payload")
+    payload = payload if isinstance(payload, Mapping) else {}
+    high_risk = checkpoint.get("risk") == "high"
+
+    lines = ["AI processing paused for human approval."]
+    for label, value in (
+        ("Why it stopped", brief.get("why_stopped") or payload.get("reason_text")),
+        ("What happened", brief.get("what_happened")),
+        ("Proposed action", brief.get("proposed_action")),
+        ("Question for the reviewer", brief.get("reviewer_question")),
+    ):
+        if value:
+            lines.append(f"{label}: {_field_text(value, 1_000)}")
+    lines.append(
+        "To decide: open the Human Governance tab, "
+        + ("enter a Human Solution (required, high risk) " if high_risk else "optionally enter a Human Solution ")
+        + "and click Approve AI, or click Reject AI with a Review Comment."
+    )
+    _dispatch_best_effort(
+        "write_work_note", execution_identifier, sys_id=incident_sys_id, note="\n".join(lines)
+    )
 
 
 class GraphAgentExecutor:

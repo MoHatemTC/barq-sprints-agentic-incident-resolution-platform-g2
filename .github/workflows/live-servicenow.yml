@@ -11,6 +11,8 @@ on:
       - "src/orchestrator/**"
       - "tests/test_integration.py"
       - "tests/test_workflow_servicenow.py"
+      - "src/api/routers/dashboard.py"
+      - "tests/test_servicenow_contract_live.py"
       - ".github/workflows/live-servicenow.yml"
   push:
     branches: [main]
@@ -67,4 +69,4 @@ jobs:
       - name: Apply database migrations
         run: alembic upgrade head
       - name: pytest against the live instance
-        run: pytest tests/test_integration.py tests/test_workflow_servicenow.py -q -p no:warnings -rs
+        run: pytest tests/test_integration.py tests/test_workflow_servicenow.py tests/test_servicenow_contract_live.py -q -p no:warnings -rs

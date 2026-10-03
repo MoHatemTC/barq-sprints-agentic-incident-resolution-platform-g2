@@ -79,13 +79,37 @@ def test_published_kb_articles_are_limited_to_our_knowledge_base(client, monkeyp
     assert query == "workflow_state=published^kb_knowledge_base=kb123^ORDERBYsys_id"
 
 
+CREATED = {"sys_id": "abc", "number": "INC0010100"}  # what ServiceNow returns on insert
+
+
 def test_create_incident_sends_category_and_description(client):
-    with patch("src.servicenow.client.requests.request", return_value=_response(200)) as req:
+    with patch("src.servicenow.client.requests.request", return_value=_response(200, CREATED)) as req:
         client.create_incident("VPN down", description="since 9am", category="network")
 
     assert req.call_args.kwargs["json"] == {
         "short_description": "VPN down", "description": "since 9am", "category": "network",
     }
+
+
+def test_create_incident_sends_correlation_id_when_given(client):
+    with patch("src.servicenow.client.requests.request", return_value=_response(200, CREATED)) as req:
+        client.create_incident("VPN down", category="network", correlation_id="barq-dashboard-abc12345")
+
+    assert req.call_args.kwargs["json"]["correlation_id"] == "barq-dashboard-abc12345"
+
+
+def test_find_incident_by_correlation(client):
+    row = {"sys_id": "s1", "number": "INC0010100"}
+    with patch("src.servicenow.client.requests.request", return_value=_response(200, [row])) as req:
+        assert client.find_incident_by_correlation("barq-dashboard-abc12345") == row
+
+    assert req.call_args.args[0] == "GET"
+    assert req.call_args.kwargs["params"]["sysparm_query"] == "correlation_id=barq-dashboard-abc12345"
+
+    none = _response(200)
+    none.json.return_value = {"result": []}
+    with patch("src.servicenow.client.requests.request", return_value=none):
+        assert client.find_incident_by_correlation("barq-dashboard-none0000") is None
 
 
 def test_get_choices_reads_the_form_choice_list_from_ui_meta(client):

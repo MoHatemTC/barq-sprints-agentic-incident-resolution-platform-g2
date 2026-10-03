@@ -413,3 +413,74 @@ def test_approved_high_risk_reclassifies_with_human_feedback(mock_search):
     # Full pipeline completed
     assert result["action_taken"] == "approved_by_human"
     assert "PostgreSQL" in result["outputs"]["resolution"]
+
+
+@patch("src.agent.nodes.retrieve.search", return_value=[_fake_chunk()])
+def test_approved_high_risk_never_pauses_twice_when_critic_exhausted(mock_search):
+    """
+    A reviewer approves a high-risk incident with their own solution. The
+    resumed run drafts from it, but the critic fails every revision (a human
+    solution has no KB citations). The run must not ask for a second approval:
+    act writes the approved human solution instead of the unverified draft.
+    """
+    from langgraph.types import Command
+    from src.agent.nodes import act
+
+    human_solution = "Isolate payroll-db-01, reset the compromised accounts, restart PostgreSQL."
+    failing_critic = json.dumps({
+        "passed": False,
+        "feedback": "Each step must cite a KB article ID present in the retrieved evidence.",
+        "invalid_steps": [1],
+        "citation_findings": [],
+    })
+
+    with (
+        patch("src.agent.nodes.validate.get_llm", return_value=_build_static_llm("valid")),
+        patch("src.agent.nodes.classify.get_llm", return_value=_build_static_llm("database")),
+        patch("src.agent.nodes.determine_risk.get_llm", return_value=_build_static_llm("high")),
+        patch("src.agent.nodes.formulate_query.get_llm",
+              return_value=_build_static_llm('{"query": "payroll database down"}')),
+        patch("src.agent.nodes.diagnose.get_llm",
+              return_value=_build_static_llm(json.dumps({
+                  "root_cause": "Unknown.",
+                  "reasoning": "The evidence does not explain the outage.",
+                  "supporting_evidence": [],
+                  "confidence": 0.4,
+              }))),
+        patch("src.agent.nodes.generate.get_llm",
+              return_value=_build_static_llm("1. Restart the payroll database.")),
+        patch("src.agent.nodes.verify_evidence.get_llm",
+              return_value=_build_static_llm(failing_critic)),
+        patch("src.agent.nodes.act._plan_write", wraps=act._plan_write) as plan_write,
+    ):
+        graph = create_graph().compile(checkpointer=MemorySaver())
+        config = {"configurable": {"thread_id": "test_no_second_pause"}}
+
+        graph.invoke(
+            {
+                "execution_id": "test_no_second_pause",
+                "incident_number": "INC_NO_SECOND_PAUSE",
+                "incident_payload": {"description": "Payroll database is down after a suspected breach"},
+            },
+            config=config,
+        )
+        assert _paused(graph, "test_no_second_pause")["gate"] == "high_risk"
+
+        result = graph.invoke(
+            Command(resume={
+                "decision": "approve",
+                "reviewer": "senior_dba",
+                "human_solution": human_solution,
+            }),
+            config=config,
+        )
+
+    # One approval only: the run finished instead of pausing again
+    assert "__interrupt__" not in result
+    assert graph.get_state(config).next == ()
+    assert result["critic_exhausted"] is True
+    # act wrote the reviewer's solution, not the draft the critic rejected
+    assert result["action_taken"] == "approved_by_human"
+    written = act._plan_write(plan_write.call_args.args[0])  # pure: same state, same plan
+    assert written["fields"]["resolution"] == human_solution
+    assert "human solution written" in written["result"]

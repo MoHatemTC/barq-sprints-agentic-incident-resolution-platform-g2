@@ -41,6 +41,7 @@
     rows: new Map(), // sys_id -> row element
     waiting: new Set(), // sys_ids created here whose Business Rule has not fired yet
     latest: [],
+    syncedAt: null,  // when the list on screen was read from ServiceNow
   };
   const shownLimit = () => state.limit + state.extra;
   const statusOf = (item) => {
@@ -156,9 +157,13 @@
     return `<dt>${label}</dt><dd${mono ? ' class="mono"' : ''}>${escapeHtml(shown)}</dd>`;
   }
 
-  function openInServiceNowHtml(item) {
-    if (!item.servicenow_url) return '';
-    return `<div class="dialog-actions"><div class="right"><a class="btn btn-sm" href="${escapeHtml(item.servicenow_url)}" target="_blank" rel="noopener noreferrer">Open in ServiceNow \u2197</a></div></div>`;
+  function actionsHtml(item) {
+    const history = item.execution && item.number
+      ? `<button class="btn btn-sm" type="button" data-history="${escapeHtml(item.number)}">Run history</button>` : '';
+    const servicenow = item.servicenow_url
+      ? `<a class="btn btn-sm" href="${escapeHtml(item.servicenow_url)}" target="_blank" rel="noopener noreferrer">Open in ServiceNow \u2197</a>` : '';
+    if (!history && !servicenow) return '';
+    return `<div class="dialog-actions"><div class="right">${history}${servicenow}</div></div>`;
   }
 
   function incidentFacts(item) {
@@ -235,7 +240,7 @@
     const classes = exec ? pipelineStages(exec) : STAGES.map(() => 'pending');
     el.querySelectorAll('.track li').forEach((li, i) => { li.className = classes[i]; });
 
-    const html = openInServiceNowHtml(item) + incidentFacts(item) + (exec ? detailsHtml(exec) : notSentHtml(item));
+    const html = actionsHtml(item) + incidentFacts(item) + (exec ? detailsHtml(exec) : notSentHtml(item));
     if (el._details !== html) {
       el._details = html;
       el.querySelector('.inner-pad').innerHTML = html;
@@ -318,6 +323,40 @@
     $('m-avg').textContent = durations.length ? fmtDuration(durations.reduce((a, b) => a + b, 0) / durations.length) : '\u2014';
   }
 
+  /* ---------- sync status ----------
+     live: read from ServiceNow within the cache TTL (10s)
+     delayed: last refresh failed, the copy shown is still recent (badge only)
+     stale: the copy shown is older than stale_after_seconds (30s): warning banner */
+  function syncNotice(text) {
+    const box = $('syncNotice');
+    box.textContent = text || '';
+    box.hidden = !text;
+  }
+
+  function showSync(data) {
+    const reason = data.sync_error ? ' Last refresh failed: ' + data.sync_error + '.' : '';
+    if (data.stale) {
+      setConn('warn', 'ServiceNow stale');
+      syncNotice(`Showing ServiceNow data from ${fmtTime(data.synced_at)} (${Math.round(data.age_seconds)}s old).` +
+        reason + ' Retrying automatically.');
+    } else {
+      if (data.delayed) setConn('warn', 'ServiceNow delayed');
+      else setConn(state.live ? 'live' : 'ok', state.live ? 'Live' : 'Connected');
+      syncNotice('');
+    }
+  }
+
+  function showSyncFailure(err) {
+    // No status: the API itself did not answer. 502: the API is up but ServiceNow
+    // is not, and nothing is cached for this page yet (the message says why).
+    const what = !err.status ? 'The API cannot be reached (' + err.message + ')'
+      : err.status === 502 ? err.message : 'API error: ' + err.message;
+    setConn('err', !err.status ? 'API unreachable' : err.status === 502 ? 'ServiceNow unreachable' : 'API error');
+    if (state.syncedAt) {
+      syncNotice(`Showing data last synced at ${fmtTime(state.syncedAt)}. ${what}. Retrying automatically.`);
+    }
+  }
+
   /* ---------- polling ---------- */
   async function poll() {
     if (state.inflight) { state.again = true; return; }
@@ -328,19 +367,20 @@
         (q ? '&q=' + encodeURIComponent(q) : ''));
       if (q !== state.q) return; // the search changed while this was loading; the next poll shows it
       state.latest = data.incidents || [];
-      if (data.stale) setConn('warn', 'ServiceNow delayed');
-      else setConn(state.live ? 'live' : 'ok', state.live ? 'Live' : 'Connected');
+      state.syncedAt = data.synced_at;
+      showSync(data);
       render(state.latest);
       renderMetrics(state.latest);
       const total = data.total ?? state.latest.length;
-      $('updated').textContent = `${state.latest.length} of ${total} ${q ? 'matching' : 'in ServiceNow'} · Updated ` +
-        fmtTime(new Date().toISOString());
+      $('updated').textContent = `${state.latest.length} of ${total} ${q ? 'matching' : 'in ServiceNow'} · Synced ` +
+        fmtTime(data.synced_at);
       $('loadMore').hidden = state.latest.length >= total || shownLimit() >= 500;
     } catch (err) {
-      setConn('err', 'API unreachable');
+      showSyncFailure(err);
       if (state.firstLoad) {
         list.innerHTML = '';
-        showEmpty('Could not reach the API', 'Check the address in Connection settings (top right) and that the API is running.');
+        if (err.status === 502) showEmpty('Could not reach ServiceNow', err.message + '. The list loads as soon as ServiceNow answers.');
+        else showEmpty('Could not reach the API', 'Check the address in Connection settings (top right) and that the API is running.');
       }
     } finally {
       state.inflight = false;
@@ -424,12 +464,173 @@
     }
   });
 
+  /* ---------- run history drawer ----------
+     GET /api/v1/dashboard/incidents/{number}/runs?before=<cursor>  (one page, no payloads)
+     GET /api/v1/dashboard/runs/{execution_id}/log/{entry_id}      (one payload, on demand) */
+  const drawer = $('historyDrawer');
+  const historyRuns = $('historyRuns');
+  const historyMore = $('historyMore');
+  const history = { number: null, before: null, loading: false, seq: 0 }; // seq: drops answers for a closed drawer
+  const LOG_LABELS = {
+    interrupt: 'Paused for human review',
+    human_review_required: 'Human review required',
+    'resume:human': 'Resumed after the human decision',
+    'resume:crash_recovery': 'Resumed after a worker crash',
+    resolved_automatically: 'Resolved automatically',
+    result: 'Final result',
+  };
+  const fmtBytes = (n) => n == null ? '' : n < 1024 ? n + ' B'
+    : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
+  const fmtDateTime = (iso) => {
+    if (!iso) return '\u2014';
+    const d = new Date(iso);
+    return isNaN(d) ? '\u2014' : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+
+  function runHtml(run, current) {
+    const [tone, label] = STATUS[run.status] || ['', run.status || 'unknown'];
+    let html = `<article class="run-card${current ? ' current' : ''}">
+      <div class="run-head"><span class="chip${tone ? ' ' + tone : ''}">${escapeHtml(label)}</span>
+        <span class="when">${escapeHtml(fmtDateTime(run.started_at))}${run.duration_seconds != null ? ' \u00b7 ' + escapeHtml(fmtDuration(run.duration_seconds)) : ''}</span>
+        <span class="mono">${escapeHtml(run.execution_id)}</span></div>
+      <dl class="facts">` +
+      fact('Node reached', run.node_reached) +
+      fact('Retry attempts', run.retry_attempt_count) +
+      (run.model_name ? fact('Model', run.model_name) : '') +
+      '</dl>';
+    (run.approvals || []).forEach((a) => {
+      html += `<div class="result"><b>Human decision</b><span>${escapeHtml(a.decision)} by ${escapeHtml(a.reviewer)} at ${escapeHtml(fmtDateTime(a.decided_at))}</span>` +
+        (a.human_solution ? `<b>Human solution</b><span>${escapeHtml(a.human_solution)}</span>` : '') + '</div>';
+    });
+    (run.failures || []).forEach((f) => {
+      html += `<div class="fail"><strong>${escapeHtml(f.failing_node)}</strong> \u2014 ${escapeHtml(f.error_class)}: ${escapeHtml(f.message)}</div>`;
+    });
+    if ((run.log || []).length) {
+      html += '<ul class="run-log">' + run.log.map((e) => `<li>
+        <div class="step"><time>${escapeHtml(fmtTime(e.created_at))}</time>
+          <span>${escapeHtml(LOG_LABELS[e.node_name] || e.node_name)} <span class="mono">${escapeHtml(e.node_name)}</span></span>
+          <small class="size">${escapeHtml(fmtBytes(e.size_bytes))}</small>
+          <button class="btn btn-sm" type="button" aria-expanded="false" data-log="${escapeHtml(run.execution_id)}" data-entry="${e.entry_id}">View log</button></div>
+      </li>`).join('') + '</ul>';
+    } else {
+      html += '<p class="hint">No log entries saved for this run yet.</p>';
+    }
+    return html + '</article>';
+  }
+
+  async function loadHistoryPage() {
+    if (history.loading) return;
+    history.loading = true;
+    const seq = history.seq;
+    const first = history.before === null;
+    historyMore.disabled = true;
+    try {
+      const data = await api('/api/v1/dashboard/incidents/' + encodeURIComponent(history.number) + '/runs?limit=10' +
+        (first ? '' : '&before=' + history.before));
+      if (seq !== history.seq) return;
+      const runs = data.runs || [];
+      const html = runs.map((r, i) => runHtml(r, first && i === 0)).join('');
+      if (first) historyRuns.innerHTML = html || '<p class="hint">No AI runs recorded for this incident.</p>';
+      else historyRuns.insertAdjacentHTML('beforeend', html);
+      history.before = data.next_before;
+      historyMore.hidden = data.next_before === null;
+    } catch (err) {
+      if (seq !== history.seq) return;
+      const fail = `<div class="fail">Could not load run history: ${escapeHtml(err.message)}</div>`;
+      if (first) historyRuns.innerHTML = fail;
+      else historyRuns.insertAdjacentHTML('beforeend', fail);
+      historyMore.hidden = first; // older pages can be retried with the same button
+    } finally {
+      if (seq === history.seq) {
+        history.loading = false;
+        historyMore.disabled = false;
+      }
+    }
+  }
+
+  function openHistory(number) {
+    history.seq += 1;
+    history.number = number;
+    history.before = null;
+    history.loading = false;
+    historyRuns.innerHTML = '<p class="hint">Loading runs...</p>';
+    historyMore.hidden = true;
+    $('historyTitle').textContent = number + ' \u00b7 Run history';
+    openOverlay(drawer);
+    loadHistoryPage();
+  }
+
+  async function toggleLog(btn) {
+    const li = btn.closest('li');
+    const open = li.querySelector('.log-payload');
+    if (open) {
+      open.hidden = !open.hidden;
+      const more = li.querySelector('.log-more');
+      if (more) more.hidden = open.hidden;
+      btn.setAttribute('aria-expanded', String(!open.hidden));
+      btn.textContent = open.hidden ? 'View log' : 'Hide log';
+      return;
+    }
+    btn.disabled = true;
+    try {
+      const url = '/api/v1/dashboard/runs/' + encodeURIComponent(btn.dataset.log) + '/log/' + btn.dataset.entry;
+      const data = await api(url);
+      const pre = document.createElement('pre');
+      pre.className = 'log-payload mono';
+      // A large log opens as a preview, so it never freezes the drawer; the rest is one click away.
+      pre.textContent = data.truncated ? data.preview + '\n\u2026' : JSON.stringify(data.payload, null, 2);
+      li.appendChild(pre);
+      if (data.truncated) {
+        const more = document.createElement('button');
+        more.className = 'btn btn-sm log-more';
+        more.type = 'button';
+        more.textContent = `Load full log (${fmtBytes(data.size_bytes)})`;
+        more.addEventListener('click', async () => {
+          more.disabled = true;
+          try {
+            const all = await api(url + '?full=true');
+            pre.textContent = JSON.stringify(all.payload, null, 2);
+            more.remove();
+          } catch (err) {
+            more.disabled = false;
+            toast('Could not load the full log: ' + err.message, 'err');
+          }
+        });
+        li.appendChild(more);
+      }
+      btn.setAttribute('aria-expanded', 'true');
+      btn.textContent = 'Hide log';
+    } catch (err) {
+      toast('Could not load this log entry: ' + err.message, 'err');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  list.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-history]');
+    if (btn) openHistory(btn.dataset.history);
+  });
+  historyRuns.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-log]');
+    if (btn) toggleLog(btn);
+  });
+  historyMore.addEventListener('click', loadHistoryPage);
+  $('historyClose').addEventListener('click', () => closeOverlay(drawer));
+
   /* ---------- new incident dialog ---------- */
   const modal = $('modal');
   const errEl = $('f-error');
 
   const categorySelect = $('f-category');
   let categoriesLoaded = false;
+  // One id per opened form, sent with every Create click. If ServiceNow created
+  // the incident but the answer was lost, the retry gets that incident back
+  // instead of a duplicate (the API stores it in correlation_id).
+  let requestId = null;
+  const newRequestId = () => (window.crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
 
   function showFormError(message, focusId) {
     errEl.textContent = message;
@@ -460,6 +661,7 @@
     ['f-short', 'f-desc'].forEach((id) => { $(id).value = ''; });
     categorySelect.value = '';
     errEl.classList.remove('show');
+    requestId = newRequestId();
     openOverlay(modal);
     loadCategories();
   });
@@ -516,14 +718,18 @@
           short_description: short,
           description: $('f-desc').value.trim() || null,
           category,
+          request_id: requestId,
         }),
       });
-      toast(`${data.number} created in ServiceNow. Waiting for the Business Rule...`);
+      toast(data.status === 'already_created'
+        ? `${data.number} was already created by your earlier attempt; no duplicate made.`
+        : `${data.number} created in ServiceNow. Waiting for the Business Rule...`);
       closeOverlay(modal);
       poll();
       watchBusinessRule(data.sys_id, data.number);
     } catch (err) {
-      toast('Could not create incident: ' + err.message, 'err');
+      // The form stays open with the same request id, so trying again is safe.
+      toast('Could not create incident: ' + err.message + '. Try again; it will not create a duplicate.', 'err', 10000);
     } finally {
       btn.disabled = false;
       btn.textContent = 'Create in ServiceNow';
