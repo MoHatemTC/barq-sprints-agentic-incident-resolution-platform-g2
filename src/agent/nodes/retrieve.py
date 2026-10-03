@@ -86,9 +86,9 @@ def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
 
     # The query formulate_query wrote; the raw incident text if it did not run
     text = state.get("search_query") or _incident_text(payload)
-    # The formulate-query fallback already contains this marker. Avoid adding
-    # the reviewer text a second time before the retrieval call.
-    if human_solution and "Human-provided resolution:" not in str(text):
+    # formulate_query guarantees that fallback text is incident-only, so this
+    # node owns the single human-solution append for every retrieval query.
+    if human_solution:
         text = f"{text}\nHuman-provided resolution:\n{human_solution}"
 
     if not text.strip():
