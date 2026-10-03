@@ -3,12 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Incident Resolution Dashboard</title>
+<title>Barq — Incident Resolution Analytics</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
-<script src="common.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=20261003_s4">
+<script src="common.js?v=20261003_s4"></script>
+<style>
+.topbar-in { max-width: 1400px !important; margin: 0 auto !important; padding: 0 24px !important; }
+.page { max-width: 1400px !important; margin: 0 auto !important; padding: 24px 24px 72px !important; }
+</style>
 </head>
 <body>
 <header id="chrome"></header>
@@ -16,89 +23,213 @@
 <main class="page">
   <div class="page-head">
     <div>
-      <h1>Incident pipeline</h1>
-      <p class="lede">Every incident, from webhook to resolution.</p>
+      <h1>Incident Resolution Analytics</h1>
+      <p class="lede">Comprehensive operational telemetry, autonomous resolution metrics, and agentic governance.</p>
     </div>
     <div class="actions">
-      <button class="btn" id="kbSyncBtn" type="button"><span id="kbSyncLabel">Update Vector DB</span></button>
-      <button class="btn btn-primary" id="newIncidentBtn" type="button">New incident</button>
+      <a class="btn btn-primary" href="pipeline.html">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        Command Center &amp; Pipeline
+      </a>
+      <button class="btn" id="refreshBtn" type="button">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        Refresh
+      </button>
     </div>
   </div>
 
-  <section class="stats" aria-label="Summary">
-    <div class="stat"><div class="lbl"><i></i>Shown</div><div class="val" id="m-total" data-v="0">0</div></div>
-    <div class="stat"><div class="lbl"><i class="ok"></i>Succeeded</div><div class="val" id="m-ok" data-v="0">0</div></div>
-    <div class="stat"><div class="lbl"><i class="bad"></i>Failed</div><div class="val" id="m-bad" data-v="0">0</div></div>
-    <div class="stat"><div class="lbl"><i class="accent"></i>In progress</div><div class="val" id="m-run" data-v="0">0</div></div>
-    <div class="stat"><div class="lbl"><i></i>Avg duration</div><div class="val" id="m-avg">&mdash;</div></div>
-  </section>
-
-  <div class="toolbar">
-    <div class="toolbar-group">
-      <input class="input sm search" type="search" id="searchBox" placeholder="Search number or description" aria-label="Search incidents" maxlength="100" autocomplete="off" />
-      <span class="lbl">Show last</span>
-      <div class="segmented" id="limitSeg" role="group" aria-label="Number of incidents">
-        <button type="button" data-value="5">5</button>
-        <button type="button" data-value="10">10</button>
-        <button type="button" data-value="20">20</button>
-        <button type="button" data-value="30">30</button>
+  <!-- Advanced System KPIs (6 Cards) -->
+  <section class="kpi-grid-6" aria-label="Key Performance Indicators">
+    <!-- 1. Total Incidents -->
+    <div class="kpi-card">
+      <div class="kpi-icon">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5"/><path d="m14 14 2 2 4-4"/></svg>
       </div>
-      <select class="select sm" id="statusFilter" aria-label="Filter by status">
-        <option value="">All statuses</option>
-        <option value="succeeded">Succeeded</option>
-        <option value="started">In progress</option>
-        <option value="failed">Failed</option>
-        <option value="blocked">Blocked</option>
-        <option value="awaiting_approval">Awaiting approval</option>
-        <option value="human_rejected">Human rejected</option>
-        <option value="not_sent">Not sent to AI</option>
-      </select>
+      <div class="kpi-body">
+        <div class="kpi-label">Total Incidents</div>
+        <div class="kpi-value" id="kpi-total">0</div>
+        <div class="kpi-sub" id="kpi-total-sub">Tracked in platform</div>
+      </div>
     </div>
-    <div class="toolbar-group">
-      <span class="updated" id="updated"></span>
-      <span class="switch-wrap">
-        <button class="switch" id="liveSwitch" type="button" role="switch" aria-checked="true" aria-label="Live updates"><span class="knob"></span></button>
-        Live
-      </span>
-      <button class="btn btn-sm" id="refreshBtn" type="button">Refresh</button>
+
+    <!-- 2. Auto-Resolution Rate -->
+    <div class="kpi-card kpi-card-ok">
+      <div class="kpi-icon kpi-icon-ok">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">Autonomous Rate</div>
+        <div class="kpi-value kpi-value-ok" id="kpi-auto-rate">0%</div>
+        <div class="kpi-sub" id="kpi-auto-count">0 of 0 resolved</div>
+      </div>
+    </div>
+
+    <!-- 3. Throughput -->
+    <div class="kpi-card kpi-card-accent">
+      <div class="kpi-icon kpi-icon-accent">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">Throughput</div>
+        <div class="kpi-value kpi-value-accent" id="kpi-throughput">—</div>
+        <div class="kpi-sub">Avg resolution time</div>
+      </div>
+    </div>
+
+    <!-- 4. SLA Compliance -->
+    <div class="kpi-card kpi-card-ok">
+      <div class="kpi-icon kpi-icon-ok">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">SLA Compliance</div>
+        <div class="kpi-value kpi-value-ok" id="kpi-sla">100%</div>
+        <div class="kpi-sub">&lt; 5m MTTR threshold</div>
+      </div>
+    </div>
+
+    <!-- 5. Critic Rejection Rate -->
+    <div class="kpi-card kpi-card-warn">
+      <div class="kpi-icon kpi-icon-warn">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">Critic Gate Rate</div>
+        <div class="kpi-value kpi-value-warn" id="kpi-critic">0%</div>
+        <div class="kpi-sub" id="kpi-critic-sub">0 revisions / gates</div>
+      </div>
+    </div>
+
+    <!-- 6. KBHR Cache Hits -->
+    <div class="kpi-card kpi-card-violet">
+      <div class="kpi-icon kpi-icon-violet">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">Cache Hit Ratio</div>
+        <div class="kpi-value kpi-value-violet" id="kpi-cache">0%</div>
+        <div class="kpi-sub" id="kpi-cache-sub">0 instant resolutions</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Analytics Charts Grid (3 rows x 2 columns = 6 cards) -->
+  <div class="analytics-grid-2">
+    <!-- Chart 1: Auto-Resolution Over Time -->
+    <div class="analytics-card">
+      <div class="analytics-card-head">
+        <div>
+          <h3 class="analytics-card-title">Autonomous Resolution Trend</h3>
+          <div class="analytics-card-sub">Daily incident volume vs. autonomous AI resolution</div>
+        </div>
+        <span class="chip ok" id="trendBadge">High Automation</span>
+      </div>
+      <div class="chart-container" id="timelineChartContainer">
+        <!-- SVG rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Chart 2: Category Distribution -->
+    <div class="analytics-card">
+      <div class="analytics-card-head">
+        <div>
+          <h3 class="analytics-card-title">Incidents by Category</h3>
+          <div class="analytics-card-sub">Distribution of tickets across enterprise domains</div>
+        </div>
+        <span class="chip" id="categoryCountBadge">5 Categories</span>
+      </div>
+      <div class="chart-container" id="categoryChartContainer">
+        <!-- Donut rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Chart 3: Resolution Speed & MTTR Distribution -->
+    <div class="analytics-card">
+      <div class="analytics-card-head">
+        <div>
+          <h3 class="analytics-card-title">Resolution Speed &amp; MTTR Distribution</h3>
+          <div class="analytics-card-sub">Incident counts binned by operational execution duration</div>
+        </div>
+        <span class="chip accent" id="mttrBadge">High Velocity</span>
+      </div>
+      <div class="chart-container" id="mttrChartContainer">
+        <!-- MTTR Bar chart rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Chart 4: Priority & Risk Resolution Matrix -->
+    <div class="analytics-card">
+      <div class="analytics-card-head">
+        <div>
+          <h3 class="analytics-card-title">Priority &amp; Severity Matrix</h3>
+          <div class="analytics-card-sub">Autonomous resolution vs human review across P1-P5 tiers</div>
+        </div>
+        <span class="chip warn">Safety Controlled</span>
+      </div>
+      <div class="chart-container" id="priorityChartContainer">
+        <!-- Priority Stacked Bars rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Chart 5: Pipeline Status Breakdown -->
+    <div class="analytics-card">
+      <div class="analytics-card-head">
+        <div>
+          <h3 class="analytics-card-title">Pipeline Status Distribution</h3>
+          <div class="analytics-card-sub">Current lifecycle distribution of all ingested incidents</div>
+        </div>
+      </div>
+      <div class="chart-container" id="statusChartContainer">
+        <!-- Breakdown bars rendered dynamically -->
+      </div>
+    </div>
+
+    <!-- Chart 6: Agentic Quality & Guardrail Telemetry -->
+    <div class="analytics-card">
+      <div class="analytics-card-head">
+        <div>
+          <h3 class="analytics-card-title">Agentic Guardrails &amp; Governance</h3>
+          <div class="analytics-card-sub">Safety gates, human-in-the-loop triggers, and validation checks</div>
+        </div>
+        <span class="chip violet">Self-Governing</span>
+      </div>
+      <div class="chart-container" id="guardrailsContainer">
+        <!-- Guardrail metrics rendered dynamically -->
+      </div>
     </div>
   </div>
 
-  <section class="panel" aria-live="polite">
-    <div id="list"></div>
-    <div class="empty" id="empty" hidden></div>
-    <div class="load-more"><button class="btn btn-sm" id="loadMore" type="button" hidden>Load more</button></div>
-  </section>
+  <!-- Recent Pipeline Activity Table -->
+  <div class="analytics-card" style="margin-top: 8px;">
+    <div class="analytics-card-head">
+      <div>
+        <h3 class="analytics-card-title">Recent Incident Activity</h3>
+        <div class="analytics-card-sub">Latest executions processed through the agentic resolution pipeline</div>
+      </div>
+      <a href="pipeline.html" class="btn btn-sm">View Full Pipeline →</a>
+    </div>
+    <div class="data-table-wrap">
+      <table class="data-table" aria-label="Recent incidents">
+        <thead>
+          <tr>
+            <th>Incident</th>
+            <th>Short Description</th>
+            <th>Category</th>
+            <th>Priority</th>
+            <th>AI Status</th>
+            <th>Confidence</th>
+            <th>Duration</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="recentTableBody">
+          <tr><td colspan="8" style="text-align:center;padding:30px;color:var(--ink-3)">Loading analytics telemetry...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </main>
 
-<div class="overlay" id="modal" aria-hidden="true">
-  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-    <h3 id="modalTitle">New incident</h3>
-    <div class="field">
-      <label for="f-short">Short description</label>
-      <input class="input" type="text" id="f-short" placeholder="VPN authentication fails after password change" data-autofocus />
-    </div>
-    <div class="field">
-      <label for="f-desc">Description (optional)</label>
-      <textarea class="textarea sm" id="f-desc" placeholder="What happened, when it started, what you already tried"></textarea>
-    </div>
-    <div class="field">
-      <label for="f-category">Category</label>
-      <select class="select" id="f-category">
-        <option value="">Loading categories from ServiceNow...</option>
-      </select>
-      <div class="err-text" id="f-error"></div>
-    </div>
-    <p class="hint">Created in ServiceNow. Its AI Eligibility Check Business Rule decides whether the incident is sent for AI processing.</p>
-    <div class="dialog-actions">
-      <div class="right">
-        <button class="btn" type="button" id="modalCancel">Cancel</button>
-        <button class="btn btn-primary" type="button" id="modalSubmit">Create in ServiceNow</button>
-      </div>
-    </div>
-  </div>
-</div>
-
-<script src="dashboard.js"></script>
+<script src="dashboard.js?v=6"></script>
 </body>
 </html>

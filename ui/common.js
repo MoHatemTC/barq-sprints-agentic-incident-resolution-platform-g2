@@ -49,15 +49,35 @@
   }
 
   /* ---------- API ---------- */
-  // Deployed backend (ngrok tunnel); change it per browser in Connection settings, e.g. http://localhost:8000
-  const DEFAULT_API = 'https://revolving-snippet-sketch.ngrok-free.dev';
-  function apiBase() { return String(store.get('barq.api', DEFAULT_API)).replace(/\/$/, ''); }
+  const NGROK_URL = 'https://revolving-snippet-sketch.ngrok-free.dev';
+  const LOCAL_URL  = 'http://localhost:8000';
+  // Auto-detect: if browsing from localhost, file://, or 127.0.0.1 use local API, else use ngrok
+  const isLocalHost = !window.location.hostname || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const AUTO_DEFAULT = isLocalHost ? LOCAL_URL : NGROK_URL;
+  function apiBase() { return String(store.get('barq.api', AUTO_DEFAULT)).replace(/\/$/, ''); }
+
   async function api(path, opts = {}) {
     const headers = Object.assign(
       { 'ngrok-skip-browser-warning': 'true' },
       opts.headers || {}
     );
-    const res = await fetch(apiBase() + path, { ...opts, headers });
+    let base = apiBase();
+    let res;
+    try {
+      res = await fetch(base + path, { ...opts, headers });
+    } catch (netErr) {
+      if (base !== LOCAL_URL) {
+        try {
+          res = await fetch(LOCAL_URL + path, { ...opts, headers });
+          store.set('barq.api', LOCAL_URL);
+          setConn('ok', 'Connected (local)');
+        } catch (e2) {
+          throw netErr;
+        }
+      } else {
+        throw netErr;
+      }
+    }
     let data = null;
     try { data = await res.json(); } catch (e) { /* not json */ }
     if (!res.ok) {
@@ -68,6 +88,7 @@
     }
     return data;
   }
+
 
   /* ---------- toasts ---------- */
   function toast(message, kind, ms) {
@@ -156,14 +177,15 @@
     host.className = 'topbar';
     host.innerHTML = `
       <div class="topbar-in">
-        <a class="brand" href="dashboard.html" aria-label="Barq home">
+        <a class="brand" href="dashboard.html?v=20261003_s4" aria-label="Barq home">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
           <span>Barq</span><small>Incident resolution</small>
         </a>
         <nav class="nav" aria-label="Main">
-          <a href="dashboard.html" ${active === 'pipeline' ? 'aria-current="page"' : ''}>Pipeline</a>
-          <a href="kb.html" ${active === 'kb' ? 'aria-current="page"' : ''}>Knowledge base</a>
-          <a href="approvals.html" ${active === 'approvals' ? 'aria-current="page"' : ''}>Approvals <span class="badge" id="approvalCount" hidden></span></a>
+          <a href="dashboard.html?v=20261003_s4" ${active === 'dashboard' ? 'aria-current="page"' : ''}>Dashboard</a>
+          <a href="pipeline.html?v=20261003_s4" ${active === 'pipeline' ? 'aria-current="page"' : ''}>Pipeline</a>
+          <a href="kb.html?v=20261003_s4" ${active === 'kb' ? 'aria-current="page"' : ''}>Knowledge base</a>
+          <a href="approvals.html?v=20261003_s4" ${active === 'approvals' ? 'aria-current="page"' : ''}>Approvals <span class="badge" id="approvalCount" hidden></span></a>
         </nav>
         <div class="topbar-right">
           <span class="conn" id="conn" data-state="idle"><i></i><span id="connText">Connecting</span></span>

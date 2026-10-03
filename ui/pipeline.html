@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en" data-mode="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Barq — Incident Pipeline</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=20261003_s4">
+<script src="common.js?v=20261003_s4"></script>
+<style>
+.topbar-in { max-width: 1400px !important; margin: 0 auto !important; padding: 0 24px !important; }
+.page { max-width: 1400px !important; margin: 0 auto !important; padding: 24px 24px 72px !important; }
+/* KPI grid — inline to prevent caching issues */
+.kpi-grid {
+  display: grid !important;
+  grid-template-columns: repeat(5, 1fr) !important;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.kpi-card {
+  position: relative;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: box-shadow 0.18s, border-color 0.18s;
+  padding-bottom: 20px;
+}
+.kpi-card:hover { border-color: var(--line-strong); }
+.kpi-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 3px;
+  border-radius: 0 0 12px 12px;
+  background: var(--line);
+}
+.kpi-card-ok::after     { background: var(--ok); }
+.kpi-card-accent::after { background: var(--accent); }
+.kpi-card-violet::after { background: var(--violet); }
+.kpi-card-warn::after   { background: var(--warn); }
+.kpi-icon {
+  flex: none;
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  border-radius: 10px;
+  background: var(--surface-3);
+  color: var(--ink-3);
+}
+.kpi-icon-ok     { background: var(--ok-soft);    color: var(--ok); }
+.kpi-icon-accent { background: var(--accent-soft); color: var(--accent); }
+.kpi-icon-violet { background: var(--violet-soft); color: var(--violet); }
+.kpi-icon-warn   { background: var(--warn-soft);   color: var(--warn); }
+.kpi-body { flex: 1; min-width: 0; }
+.kpi-label { font-size: 11px; font-weight: 500; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+.kpi-value { font-size: 26px; font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1; margin-bottom: 3px; }
+.kpi-value-ok     { color: var(--ok); }
+.kpi-value-accent { color: var(--accent); }
+.kpi-value-violet { color: var(--violet); }
+.kpi-value-warn   { color: var(--warn); }
+.kpi-sub { font-size: 11px; color: var(--ink-3); }
+.kpi-action { position: absolute; bottom: 10px; right: 12px; font-size: 11px; font-weight: 600; color: var(--warn); text-decoration: none; }
+
+/* search icon */
+.search-wrap { position: relative; display: inline-flex; align-items: center; }
+.search-wrap .search-icon { position: absolute; left: 10px; color: var(--ink-3); pointer-events: none; }
+.search-wrap .input { padding-left: 32px; }
+
+/* priority badges */
+.prio-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 20px; padding: 0 8px; border-radius: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  white-space: nowrap; flex-shrink: 0; text-transform: uppercase;
+}
+.prio-badge-1 { background: rgba(239, 123, 108, 0.18); color: #ef7b6c; border: 1px solid rgba(239, 123, 108, 0.35); }
+.prio-badge-2 { background: rgba(232, 169, 74, 0.18); color: #e8a94a; border: 1px solid rgba(232, 169, 74, 0.35); }
+.prio-badge-3 { background: rgba(109, 156, 255, 0.14); color: #8db2ff; border: 1px solid rgba(109, 156, 255, 0.3); }
+.prio-badge-4 { background: var(--surface-3); color: var(--ink-3); border: 1px solid var(--line); }
+.prio-badge-5 { background: var(--surface-3); color: var(--ink-3); border: 1px solid var(--line); }
+
+/* gate badges */
+.gate-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 4px; font-size: 10px; font-weight: 700; background: var(--warn-soft); color: var(--warn-ink); white-space: nowrap; flex-shrink: 0; text-transform: uppercase; }
+.gate-badge.high-risk { background: rgba(239, 123, 108, 0.22); color: #ef7b6c; border: 1px solid rgba(239, 123, 108, 0.4); }
+.gate-badge.cache-hit { background: rgba(167, 147, 240, 0.22); color: #a793f0; border: 1px solid rgba(167, 147, 240, 0.4); }
+
+/* row item card appearance */
+.row {
+  border-radius: 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  transition: border-color 0.2s, background-color 0.2s;
+}
+.row:hover { border-color: var(--line-strong); }
+.row-head { border-radius: 10px; }
+.row-line { gap: 8px; }
+.inc { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 14px; font-weight: 700; }
+.desc { font-size: 13.5px; font-weight: 500; color: var(--ink); margin-top: 4px; }
+.sub { font-size: 12px; color: var(--ink-3); margin-top: 4px; }
+
+/* command layout + drawer */
+.command-layout { display: grid; grid-template-columns: 1fr; gap: 0; transition: grid-template-columns 0.3s; }
+@media (max-width: 860px) { .command-layout.drawer-open { grid-template-columns: 1fr; } .drawer[aria-hidden="false"] { position: fixed; inset: 0; top: 56px; z-index: 50; max-height: calc(100vh - 56px); border-radius: 0; } }
+@media (max-width: 1000px) { .kpi-grid { grid-template-columns: repeat(3, 1fr) !important; } }
+@media (max-width: 680px) { .kpi-grid { grid-template-columns: repeat(2, 1fr) !important; } }
+</style>
+
+</head>
+<body>
+<header id="chrome"></header>
+
+<main class="page">
+  <div class="page-head">
+    <div>
+      <h1>Incident Command Center</h1>
+      <p class="lede">Every incident, from webhook to resolution — fully autonomous.</p>
+    </div>
+    <div class="actions">
+      <button class="btn" id="kbSyncBtn" type="button"><span id="kbSyncLabel">Update Vector DB</span></button>
+      <button class="btn btn-primary" id="newIncidentBtn" type="button">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        New Incident
+      </button>
+    </div>
+  </div>
+
+  <!-- KPI Cards -->
+  <section class="kpi-grid" aria-label="Key performance indicators">
+    <div class="kpi-card">
+      <div class="kpi-icon kpi-icon-default">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M9 17H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5"/><path d="m14 14 2 2 4-4"/></svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">Total Incidents</div>
+        <div class="kpi-value" id="m-total" data-v="0">0</div>
+      </div>
+    </div>
+    <div class="kpi-card kpi-card-ok">
+      <div class="kpi-icon kpi-icon-ok">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="m12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">Auto-Resolved</div>
+        <div class="kpi-value kpi-value-ok" id="m-ok" data-v="0">0</div>
+        <div class="kpi-sub" id="m-auto-rate">— of total</div>
+      </div>
+    </div>
+    <div class="kpi-card kpi-card-accent">
+      <div class="kpi-icon kpi-icon-accent">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">Avg MTTR</div>
+        <div class="kpi-value kpi-value-accent" id="m-avg">—</div>
+        <div class="kpi-sub">median resolution time</div>
+      </div>
+    </div>
+    <div class="kpi-card kpi-card-violet">
+      <div class="kpi-icon kpi-icon-violet">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">Cache Hits</div>
+        <div class="kpi-value kpi-value-violet" id="m-cache">0</div>
+        <div class="kpi-sub">instant resolutions</div>
+      </div>
+    </div>
+    <div class="kpi-card kpi-card-warn" id="kpi-review-card">
+      <div class="kpi-icon kpi-icon-warn">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
+      </div>
+      <div class="kpi-body">
+        <div class="kpi-label">Needs Review</div>
+        <div class="kpi-value kpi-value-warn" id="m-review">0</div>
+        <div class="kpi-sub">awaiting your decision</div>
+      </div>
+      <a href="approvals.html" class="kpi-action" id="kpi-review-action" hidden>Review →</a>
+    </div>
+  </section>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="toolbar-group">
+      <div class="search-wrap">
+        <svg class="search-icon" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input class="input sm search" type="search" id="searchBox" placeholder="Search incident number or description…" aria-label="Search incidents" maxlength="100" autocomplete="off" />
+      </div>
+      <span class="lbl">Show</span>
+      <div class="segmented" id="limitSeg" role="group" aria-label="Number of incidents">
+        <button type="button" data-value="5">5</button>
+        <button type="button" data-value="10">10</button>
+        <button type="button" data-value="20">20</button>
+        <button type="button" data-value="30">30</button>
+      </div>
+
+      <!-- Priority filter (new) -->
+      <div class="segmented" id="prioritySeg" role="group" aria-label="Filter by priority">
+        <button type="button" data-value="">All</button>
+        <button type="button" data-value="1"><span class="prio-dot prio-1"></span>P1</button>
+        <button type="button" data-value="2"><span class="prio-dot prio-2"></span>P2</button>
+        <button type="button" data-value="3"><span class="prio-dot prio-3"></span>P3+</button>
+      </div>
+
+      <select class="select sm" id="statusFilter" aria-label="Filter by status">
+        <option value="">All statuses</option>
+        <option value="succeeded">Succeeded</option>
+        <option value="started">In progress</option>
+        <option value="failed">Failed</option>
+        <option value="blocked">Blocked</option>
+        <option value="awaiting_approval">Awaiting approval</option>
+        <option value="human_rejected">Human rejected</option>
+        <option value="not_sent">Not sent to AI</option>
+      </select>
+    </div>
+    <div class="toolbar-group">
+      <span class="updated" id="updated"></span>
+      <span class="switch-wrap">
+        <button class="switch" id="liveSwitch" type="button" role="switch" aria-checked="true" aria-label="Live updates"><span class="knob"></span></button>
+        Live
+      </span>
+      <button class="btn btn-sm" id="refreshBtn" type="button">Refresh</button>
+    </div>
+  </div>
+
+  <!-- Incident list + Drawer layout -->
+  <div class="command-layout" id="commandLayout">
+    <section class="panel" aria-live="polite" id="incidentPanel">
+      <div id="list"></div>
+      <div class="empty" id="empty" hidden></div>
+      <div class="load-more"><button class="btn btn-sm" id="loadMore" type="button" hidden>Load more</button></div>
+    </section>
+
+    <!-- Slide-over detail drawer -->
+    <aside class="drawer" id="drawer" aria-hidden="true" aria-label="Incident details">
+      <div class="drawer-header">
+        <div class="drawer-title-row">
+          <span class="drawer-inc" id="drawerInc"></span>
+          <span class="drawer-badge" id="drawerBadge"></span>
+          <button class="icon-btn drawer-close" id="drawerClose" type="button" aria-label="Close details">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
+        <div class="drawer-desc" id="drawerDesc"></div>
+        <div class="drawer-meta" id="drawerMeta"></div>
+      </div>
+
+      <div class="drawer-tabs" role="tablist">
+        <button class="drawer-tab active" role="tab" aria-selected="true" data-tab="summary" type="button">Summary</button>
+        <button class="drawer-tab" role="tab" aria-selected="false" data-tab="ai" type="button">AI Reasoning</button>
+        <button class="drawer-tab" role="tab" aria-selected="false" data-tab="evidence" type="button">Evidence</button>
+        <button class="drawer-tab" role="tab" aria-selected="false" data-tab="raw" type="button">Raw</button>
+      </div>
+
+      <div class="drawer-body" id="drawerBody">
+        <div class="drawer-empty">Select an incident to view details</div>
+      </div>
+
+      <div class="drawer-actions" id="drawerActions" hidden>
+        <a class="btn btn-sm" id="drawerSNLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Open in ServiceNow ↗</a>
+        <div class="drawer-actions-right">
+          <a class="btn btn-primary btn-sm" id="drawerReviewBtn" href="approvals.html" hidden>Review & Approve →</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<!-- New incident dialog -->
+<div class="overlay" id="modal" aria-hidden="true">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <h3 id="modalTitle">New incident</h3>
+    <div class="field">
+      <label for="f-short">Short description</label>
+      <input class="input" type="text" id="f-short" placeholder="VPN authentication fails after password change" data-autofocus />
+    </div>
+    <div class="field">
+      <label for="f-desc">Description (optional)</label>
+      <textarea class="textarea sm" id="f-desc" placeholder="What happened, when it started, what you already tried"></textarea>
+    </div>
+    <div class="field">
+      <label for="f-category">Category</label>
+      <select class="select" id="f-category">
+        <option value="">Loading categories from ServiceNow...</option>
+      </select>
+      <div class="err-text" id="f-error"></div>
+    </div>
+    <p class="hint">Created in ServiceNow. Its AI Eligibility Check Business Rule decides whether the incident is sent for AI processing.</p>
+    <div class="dialog-actions">
+      <div class="right">
+        <button class="btn" type="button" id="modalCancel">Cancel</button>
+        <button class="btn btn-primary" type="button" id="modalSubmit">Create in ServiceNow</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="pipeline.js?v=6"></script>
+</body>
+</html>
