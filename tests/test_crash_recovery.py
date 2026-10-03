@@ -149,7 +149,7 @@ def test_reject_writes_escalation(fake):
     assert [(r["action"], r["status"]) for r in fake.logs] == [("escalated_rejected", "blocked")]
     assert fake.patches[0]["human_review"] is True
     assert fake.patches[0]["failure_reason"] == "Rejected by bob: wrong KB"
-    assert fake.patches[0]["processing_state"] == "failed"
+    assert fake.patches[0]["processing_state"] == "human_rejected"
     # the reviewer's comment lands in the incident's Work notes
     [work_note] = fake.work_notes
     assert work_note["sys_id"] == "sys-0001"

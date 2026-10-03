@@ -40,9 +40,8 @@ def route_after_validate(state: AgentState) -> str:
 
 def route_after_risk(state: AgentState) -> str:
     """Route high-risk incidents to human review before automated action.
-
-    After a human approval the gate is already satisfied — do not re-open it
-    when the re-classification loop passes through determine_risk a second time.
+    
+    After a human approval, the gate is already satisfied.
     """
     decision = state.get("human_decision") or {}
     if decision.get("decision") == "approve":

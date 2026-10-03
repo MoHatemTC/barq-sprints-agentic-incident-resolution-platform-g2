@@ -642,3 +642,26 @@ class TestScreenIncidentPayloadWithLLM:
         assert meta.llm_masking_count == 1
         assert "password" in meta.llm_masking_types
         assert meta.llm_masking_error == ""
+
+    @patch("src.agent.guardrails.input_screening.mask_sensitive_with_llm")
+    def test_screen_incident_payload_regex_runs_first(self, mock_llm_mask):
+        """Verify regex redaction happens before LLM masking."""
+        from src.agent.guardrails.input_screening import LLMMaskingResult, screen_incident_payload
+        mock_llm_mask.return_value = LLMMaskingResult(
+            masked_text="dummy",
+            detection_count=0,
+            llm_used=True,
+        )
+        
+        payload = {
+            "description": "password=hunter2",
+        }
+        
+        screened, meta = screen_incident_payload(payload)
+        
+        # Check the text passed to the LLM (which is what mask_sensitive_with_llm received)
+        assert mock_llm_mask.call_count == 1
+        received_text = mock_llm_mask.call_args[0][0]
+        
+        # hunter2 should have been scrubbed by regex before reaching the LLM
+        assert "hunter2" not in received_text

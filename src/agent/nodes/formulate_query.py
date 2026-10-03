@@ -47,8 +47,6 @@ def formulate_query_node(state: Dict[str, Any]) -> Dict[str, Any]:
         if not search_query:
             # Fallback to direct concatenation if LLM returns empty
             search_query = f"{short_description}\n{description}"
-            if human_solution:
-                search_query += f"\nHuman-provided resolution:\n{human_solution}"
                 
         logger.info(f"Formulated search query: {search_query[:100]}...")
         return {"search_query": search_query}
@@ -57,6 +55,4 @@ def formulate_query_node(state: Dict[str, Any]) -> Dict[str, Any]:
         logger.exception(f"Query formulation failed: {e}. Falling back to default text.")
         # Fallback in case of JSON parse error or LLM failure
         fallback_query = f"{short_description}\n{description}"
-        if human_solution:
-            fallback_query += f"\nHuman-provided resolution:\n{human_solution}"
         return {"search_query": fallback_query}

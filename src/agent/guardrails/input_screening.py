@@ -345,7 +345,7 @@ def _parse_llm_masking_response(raw_response: str, original_text: str) -> LLMMas
     """Parse the JSON response from the LLM masking call.
 
     Falls back to the original text if parsing fails — the regex layer
-    downstream will still catch anything obvious.
+    upstream already caught anything obvious.
     """
     try:
         # Strip markdown code fences if the model wrapped the response
@@ -398,8 +398,8 @@ def mask_sensitive_with_llm(text: str) -> LLMMaskingResult:
 
     The LLM replaces sensitive *values* with ``****`` while preserving the
     surrounding context.  If the LLM is unavailable or errors out, the
-    original text is returned unchanged — the downstream regex layer will
-    still run.
+    original text is returned unchanged — the upstream regex layer already
+    ran.
 
     This function imports ``get_llm`` lazily to avoid circular imports.
     """
@@ -452,12 +452,12 @@ class ScreeningMetadata:
     screened: bool = True
     injection_flagged: bool = False
     injection_labels: List[str] = field(default_factory=list)
-    # LLM-based masking (Layer 1)
+    # LLM-based masking (Layer 2 - recall, sees only redacted text)
     llm_masking_count: int = 0
     llm_masking_types: List[str] = field(default_factory=list)
     llm_masking_used: bool = False
     llm_masking_error: str = ""
-    # Regex-based redaction (Layer 2 — safety net)
+    # Regex-based redaction (Layer 1 - deterministic, local)
     redaction_count: int = 0
     redaction_types: List[str] = field(default_factory=list)
     latency_ms: float = 0.0
@@ -474,12 +474,11 @@ def screen_incident_payload(
     Pipeline per text field
     -----------------------
     1. **Injection screening** — neutralise prompt-injection patterns.
-    2. **LLM masking (Layer 1)** — the LLM detects passwords, secrets,
-       PII, etc. and replaces the *value* with ``****`` while keeping the
+    2. **Regex redaction (Layer 1)** — deterministic regex patterns run first 
+       so credentials are scrubbed locally and no raw secret reaches the model.
+    3. **LLM masking (Layer 2)** — the LLM detects passwords, secrets,
+       PII, etc. missed by regex and replaces the *value* with ``****`` while keeping the
        surrounding context intact.
-    3. **Regex redaction (Layer 2)** — deterministic regex patterns run on
-       the LLM's output as a safety net, catching anything the model may
-       have missed.
 
     Returns
     -------

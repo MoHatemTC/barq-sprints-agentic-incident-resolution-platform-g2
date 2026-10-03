@@ -680,3 +680,43 @@ def test_safety_check_node_invalid_content():
     assert "OUTPUT_CONTENT_FLAGGED" in result["failure_reason"]
 
 
+
+from src.agent.nodes.formulate_query import formulate_query_node
+
+@patch("src.agent.nodes.formulate_query.get_llm")
+@patch("src.agent.nodes.retrieve.search")
+def test_formulate_query_fallback_deduplication(mock_search, mock_get_llm):
+    """
+    A test that drives formulate_query_node down its fallback path,
+    then retrieve_node, and asserts "Human-provided resolution"
+    appears once in the query passed to search.
+    """
+    mock_get_llm.side_effect = Exception("LLM is down")
+    
+    mock_chunk = MagicMock()
+    mock_chunk.number = "KB123"
+    mock_chunk.point_id = "KB123"
+    mock_chunk.text = "Reboot the router"
+    mock_chunk.score = 0.99
+    mock_search.return_value = [mock_chunk]
+
+    state = {
+        "incident_payload": {
+            "short_description": "DB slow",
+            "description": "Queries time out"
+        },
+        "human_solution": "Restart the pool"
+    }
+    
+    state.update(formulate_query_node(state))
+    retrieve_node(state)
+    
+    assert mock_search.call_count == 1
+    
+    args, kwargs = mock_search.call_args
+    query_passed_to_search = kwargs.get("query")
+    if query_passed_to_search is None:
+        query_passed_to_search = args[0]
+    
+    assert query_passed_to_search.count("Human-provided resolution:") == 1
+
