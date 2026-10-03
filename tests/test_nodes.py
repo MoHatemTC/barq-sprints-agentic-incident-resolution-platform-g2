@@ -699,7 +699,7 @@ def test_safety_check_node_invalid_content():
 
 
 def test_formulate_query_fallback_includes_human_solution(monkeypatch):
-    """Fallback search query must preserve human_solution when LLM fails."""
+    """Fallback query stays incident-only; retrieval appends human_solution once."""
     from src.agent.nodes.formulate_query import formulate_query_node
 
     class FailingLLM:
@@ -716,7 +716,7 @@ def test_formulate_query_fallback_includes_human_solution(monkeypatch):
         "human_solution": "Restart VPN concentrator daemon.",
     }
     result = formulate_query_node(state)
-    assert "Restart VPN concentrator daemon." in result["search_query"]
+    assert result["search_query"] == "VPN issue\nUser cannot connect to gateway"
     assert "VPN issue" in result["search_query"]
 
 
