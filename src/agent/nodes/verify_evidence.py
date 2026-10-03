@@ -34,7 +34,13 @@ def _extract_steps(resolution: str) -> List[Dict[str, Any]]:
 
 
 def _build_evidence_index(retrieved_evidence: List[Dict[str, Any]]) -> Dict[str, str]:
-    return {ev.get("id", ""): ev.get("text", "") for ev in retrieved_evidence if ev.get("id")}
+    index: Dict[str, List[str]] = {}
+    for ev in retrieved_evidence:
+        eid = str(ev.get("id", "")).strip()
+        text = str(ev.get("text", "")).strip()
+        if eid and text:
+            index.setdefault(eid, []).append(text)
+    return {eid: "\n\n".join(texts) for eid, texts in index.items()}
 
 
 def _parse_critic_response(content: str) -> Dict[str, Any]:

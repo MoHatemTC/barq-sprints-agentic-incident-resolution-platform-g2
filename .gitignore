@@ -50,3 +50,6 @@ data/servicenow_kb_mapping.bak-*.json
 
 #claude code memory
 CLAUDE.local.md
+
+# Embedding cache
+data/cache/

@@ -15,9 +15,9 @@ logger = logging.getLogger(__name__)
 # always go through diagnose/generate. The score is the cross-encoder logit (hybrid_rerank).
 CACHE_HIT_PREFIX = "KBHR-"
 CACHE_HIT_SCORE = float(os.getenv("RETRIEVAL_CACHE_HIT_SCORE", "5.0"))
-# Below this best score (cross-encoder logit) the incident's category is treated as wrong
+# Below this best score (cross-encoder probability or logit) the incident's category is treated as wrong
 # and the agent searches the FALLBACK_CATEGORIES categories it finds most likely instead.
-FALLBACK_MIN_SCORE = float(os.getenv("RETRIEVAL_FALLBACK_MIN_SCORE", "0.0"))
+FALLBACK_MIN_SCORE = float(os.getenv("RETRIEVAL_FALLBACK_MIN_SCORE", "0.35"))
 FALLBACK_CATEGORIES = int(os.getenv("RETRIEVAL_FALLBACK_CATEGORIES", "3"))
 
 
@@ -94,9 +94,9 @@ def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
         return {"retrieved_evidence": [], "retrieval_failed": False}
 
     try:
-        # The category chosen on the incident. Service is not filtered on: incidents carry
-        # business_service as a sys_id, which never equals an article's service name.
-        chunks = _with_full_articles(_search_by_category(text, payload.get("category") or None))
+        # Prefer classifier result (state['classification']), falling back to the raw incident category.
+        target_category = state.get("classification") or payload.get("category") or None
+        chunks = _with_full_articles(_search_by_category(text, target_category))
 
         retrieved = [
             {
@@ -117,11 +117,15 @@ def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
         # A strong match on a human-approved article is an existing resolution.
         # Reuse it directly to avoid repeating diagnose/generate/critic/LLM calls.
         top = retrieved[0] if retrieved else None
-        if (
-            top
-            and str(top["id"]).startswith(CACHE_HIT_PREFIX)
-            and top["score"] >= CACHE_HIT_SCORE
-        ):
+        is_cache_hit = False
+        if top and str(top["id"]).startswith(CACHE_HIT_PREFIX):
+            score = float(top["score"])
+            if score > 1.0:
+                is_cache_hit = score >= CACHE_HIT_SCORE
+            else:
+                is_cache_hit = score >= (CACHE_HIT_SCORE if CACHE_HIT_SCORE <= 1.0 else 0.90)
+
+        if is_cache_hit and top:
             cached = _cached_resolution(top["text"])
             result["cached_resolution"] = cached
             result["outputs"] = {
