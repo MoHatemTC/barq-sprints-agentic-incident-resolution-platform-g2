@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 # Manual sections and seeded KBs score high on unanswerable tickets too, so they
 # always go through diagnose/generate. The score is the cross-encoder logit (hybrid_rerank).
 CACHE_HIT_PREFIX = "KBHR-"
-CACHE_HIT_SCORE = float(os.getenv("RETRIEVAL_CACHE_HIT_SCORE", "5.0"))
-# Below this best score (cross-encoder logit) the incident's category is treated as wrong
+CACHE_HIT_SCORE = float(os.getenv("RETRIEVAL_CACHE_HIT_SCORE", "0.90"))
+# Below this best score (cross-encoder probability) the incident's category is treated as wrong
 # and the agent searches the FALLBACK_CATEGORIES categories it finds most likely instead.
-FALLBACK_MIN_SCORE = float(os.getenv("RETRIEVAL_FALLBACK_MIN_SCORE", "0.0"))
+FALLBACK_MIN_SCORE = float(os.getenv("RETRIEVAL_FALLBACK_MIN_SCORE", "0.35"))
 FALLBACK_CATEGORIES = int(os.getenv("RETRIEVAL_FALLBACK_CATEGORIES", "3"))
 
 
