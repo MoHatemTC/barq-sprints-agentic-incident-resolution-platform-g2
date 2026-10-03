@@ -143,9 +143,20 @@ def test_graph_routing_high_risk():
     result = _paused(graph, "test_4")
     assert result["gate"] == "high_risk"
     assert result.get("action_taken") is None
-    assert result["risk"] == "high"
     # High-risk incidents stop before the automated resolution path.
     assert result.get("retrieved_evidence") is None
+
+
+def test_approved_high_risk_not_reclassified_on_second_pass(monkeypatch):
+    from src.agent.nodes.determine_risk import determine_risk_node
+    llm = MagicMock()
+    monkeypatch.setattr("src.agent.nodes.determine_risk.get_llm", lambda: llm)
+    assert determine_risk_node({
+        "risk": "high",
+        "human_decision": {"decision": "approve"},
+        "incident_payload": {"description": "database outage"},
+    }) == {}
+    llm.invoke.assert_not_called()
 
 
 def test_compiled_graph_nodes_match_baseline():

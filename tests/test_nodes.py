@@ -720,6 +720,34 @@ def test_formulate_query_fallback_includes_human_solution(monkeypatch):
     assert "VPN issue" in result["search_query"]
 
 
+def test_fallback_query_does_not_duplicate_human_solution(monkeypatch):
+    from src.agent.nodes.formulate_query import formulate_query_node
+
+    class FailingLLM:
+        def invoke(self, *args, **kwargs):
+            raise RuntimeError("LLM service unavailable")
+
+    monkeypatch.setattr("src.agent.nodes.formulate_query.get_llm", lambda: FailingLLM())
+    solution = "Restart the pool"
+    result = formulate_query_node({
+        "incident_payload": {"description": "DB slow"},
+        "human_solution": solution,
+    })
+    assert result["search_query"].count("Human-provided resolution:") == 1
+    assert result["search_query"].count(solution) == 1
+
+    with patch("src.agent.nodes.retrieve.search", return_value=[]) as search:
+        from src.agent.nodes.retrieve import retrieve_node
+        retrieve_node({
+            "incident_payload": {"description": "DB slow"},
+            "search_query": result["search_query"],
+            "human_solution": solution,
+        })
+    query = search.call_args.kwargs["query"]
+    assert query.count("Human-provided resolution:") == 1
+    assert query.count(solution) == 1
+
+
 def test_formulate_query_combines_short_description_and_description(monkeypatch):
     """One query line written from both texts; greetings and signatures are the LLM's to drop."""
     from src.agent.nodes import formulate_query as fq
