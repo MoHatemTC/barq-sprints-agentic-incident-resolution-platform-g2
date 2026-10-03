@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 # Manual sections and seeded KBs score high on unanswerable tickets too, so they
 # always go through diagnose/generate. The score is the cross-encoder logit (hybrid_rerank).
 CACHE_HIT_PREFIX = "KBHR-"
-CACHE_HIT_SCORE = float(os.getenv("RETRIEVAL_CACHE_HIT_SCORE", "0.90"))
-# Below this best score (cross-encoder probability) the incident's category is treated as wrong
+CACHE_HIT_SCORE = float(os.getenv("RETRIEVAL_CACHE_HIT_SCORE", "5.0"))
+# Below this best score (cross-encoder probability or logit) the incident's category is treated as wrong
 # and the agent searches the FALLBACK_CATEGORIES categories it finds most likely instead.
 FALLBACK_MIN_SCORE = float(os.getenv("RETRIEVAL_FALLBACK_MIN_SCORE", "0.35"))
 FALLBACK_CATEGORIES = int(os.getenv("RETRIEVAL_FALLBACK_CATEGORIES", "3"))
@@ -117,11 +117,15 @@ def retrieve_node(state: Dict[str, Any]) -> Dict[str, Any]:
         # A strong match on a human-approved article is an existing resolution.
         # Reuse it directly to avoid repeating diagnose/generate/critic/LLM calls.
         top = retrieved[0] if retrieved else None
-        if (
-            top
-            and str(top["id"]).startswith(CACHE_HIT_PREFIX)
-            and top["score"] >= CACHE_HIT_SCORE
-        ):
+        is_cache_hit = False
+        if top and str(top["id"]).startswith(CACHE_HIT_PREFIX):
+            score = float(top["score"])
+            if score > 1.0:
+                is_cache_hit = score >= CACHE_HIT_SCORE
+            else:
+                is_cache_hit = score >= (CACHE_HIT_SCORE if CACHE_HIT_SCORE <= 1.0 else 0.90)
+
+        if is_cache_hit and top:
             cached = _cached_resolution(top["text"])
             result["cached_resolution"] = cached
             result["outputs"] = {
