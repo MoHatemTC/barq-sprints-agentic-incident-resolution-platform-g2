@@ -733,8 +733,8 @@ def test_fallback_query_does_not_duplicate_human_solution(monkeypatch):
         "incident_payload": {"description": "DB slow"},
         "human_solution": solution,
     })
-    assert result["search_query"].count("Human-provided resolution:") == 1
-    assert result["search_query"].count(solution) == 1
+    assert "Human-provided resolution:" not in result["search_query"]
+    assert solution not in result["search_query"]
 
     with patch("src.agent.nodes.retrieve.search", return_value=[]) as search:
         from src.agent.nodes.retrieve import retrieve_node
