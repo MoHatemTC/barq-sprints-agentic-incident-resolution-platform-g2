@@ -161,6 +161,10 @@ def test_dispatch_cannot_be_forged_with_permission_class_kwarg():
 #       to gate on.
 #   src/retrieval/sources/servicenow_source.py
 #       Read-only KB article sync run by ingestion/cron. No agent, no writes.
+#   scripts/bench_dashboard.py
+#       Manual latency benchmark (--live-servicenow N, opt-in). Times the same
+#       read-only incident-page read the dashboard makes; going through the
+#       registry would measure a different path. No agent, no writes.
 #
 # Everything outside this list must be clean, so a *new* direct client call
 # anywhere in src/ still fails -- the allowlist is an enumeration of reviewed
@@ -168,6 +172,7 @@ def test_dispatch_cannot_be_forged_with_permission_class_kwarg():
 ALLOWED_DIRECT_CLIENT = {
     "src/api/routers/dashboard.py",
     "src/retrieval/sources/servicenow_source.py",
+    "scripts/bench_dashboard.py",
     # Defines its own class *named* ServiceNowClient plus a FastAPI DI factory
     # of the same name, both dead: the factory raises NotImplementedError,
     # nothing imports either, and neither touches src/servicenow/client.py.

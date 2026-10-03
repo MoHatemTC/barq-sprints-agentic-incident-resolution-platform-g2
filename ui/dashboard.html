@@ -64,6 +64,8 @@
     </div>
   </div>
 
+  <div class="notice sync-notice" id="syncNotice" role="alert" hidden></div>
+
   <section class="panel" aria-live="polite">
     <div id="list"></div>
     <div class="empty" id="empty" hidden></div>
@@ -97,6 +99,18 @@
       </div>
     </div>
   </div>
+</div>
+
+<div class="overlay drawer-overlay" id="historyDrawer" aria-hidden="true">
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+    <div class="drawer-head">
+      <h3 id="historyTitle">Run history</h3>
+      <button class="btn btn-sm" type="button" id="historyClose" data-autofocus>Close</button>
+    </div>
+    <p class="hint" id="historyMeta">Every AI run of this incident, newest first. Open a step to see its full log.</p>
+    <div id="historyRuns"></div>
+    <div class="load-more"><button class="btn btn-sm" id="historyMore" type="button" hidden>Load older runs</button></div>
+  </aside>
 </div>
 
 <script src="dashboard.js"></script>
