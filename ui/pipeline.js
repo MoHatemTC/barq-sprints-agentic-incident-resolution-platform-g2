@@ -945,7 +945,7 @@
       } catch (err) { /* keep waiting; the API may be briefly busy */ }
     }
     toast(`${number} was not received from ServiceNow yet. If it is eligible, the delivery ` +
-      'sweep picks it up within about 3 minutes. If it is not eligible (category, AI enabled, ' +
+      'sweep picks it up within about 30 seconds. If it is not eligible (category, AI enabled, ' +
       'human lock), it stays with ServiceNow: see System Logs for "AI Orchestrator".', 'warn', 12000);
     return false;
   }

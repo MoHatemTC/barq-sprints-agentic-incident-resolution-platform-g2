@@ -50,12 +50,36 @@
   }
 
   /* ---------- API ---------- */
-  const NGROK_URL = 'https://revolving-snippet-sketch.ngrok-free.dev';
+  const NGROK_URL  = 'https://revolving-snippet-sketch.ngrok-free.dev';
   const LOCAL_URL  = 'http://localhost:8000';
-  // Auto-detect: if browsing from localhost, file://, or 127.0.0.1 use local API, else use ngrok
-  const isLocalHost = !window.location.hostname || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  const AUTO_DEFAULT = isLocalHost ? LOCAL_URL : NGROK_URL;
-  function apiBase() { return String(store.get('barq.api', AUTO_DEFAULT)).replace(/\/$/, ''); }
+  // All candidate bases tried in order — first alive wins.
+  const API_CANDIDATES = [LOCAL_URL, NGROK_URL];
+
+  function apiBase() { return String(store.get('barq.api', LOCAL_URL)).replace(/\/$/, ''); }
+
+  // Probe a single base URL — resolves with the base if alive, rejects otherwise.
+  async function _probe(base) {
+    const headers = { 'ngrok-skip-browser-warning': 'true' };
+    const res = await fetch(base + '/api/v1/dashboard/incidents?limit=1',
+                            { headers, signal: AbortSignal.timeout(4000) });
+    if (!res.ok) throw new Error('non-2xx');
+    return base;
+  }
+
+  // Auto-detect: try all candidates, pick the first that responds.
+  async function _autoDetect() {
+    for (const base of API_CANDIDATES) {
+      try {
+        await _probe(base);
+        store.set('barq.api', base);
+        return base;
+      } catch { /* try next */ }
+    }
+    return null; // all failed
+  }
+
+  // Run auto-detect once at startup (non-blocking — warms the stored URL).
+  _autoDetect();
 
   async function api(path, opts = {}) {
     const headers = Object.assign(
@@ -66,18 +90,12 @@
     let res;
     try {
       res = await fetch(base + path, { ...opts, headers });
-    } catch (netErr) {
-      if (base !== LOCAL_URL) {
-        try {
-          res = await fetch(LOCAL_URL + path, { ...opts, headers });
-          store.set('barq.api', LOCAL_URL);
-          setConn('ok', 'Connected (local)');
-        } catch (e2) {
-          throw netErr;
-        }
-      } else {
-        throw netErr;
-      }
+    } catch (_) {
+      // Primary failed — re-probe all candidates and retry with the winner.
+      const alive = await _autoDetect();
+      if (!alive) throw new Error('All API endpoints unreachable');
+      base = alive;
+      res = await fetch(base + path, { ...opts, headers });
     }
     let data = null;
     try { data = await res.json(); } catch (e) { /* not json */ }

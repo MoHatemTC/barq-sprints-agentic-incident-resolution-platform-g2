@@ -64,14 +64,20 @@
     $('kpi-auto-rate').textContent = `${autoRate}%`;
     $('kpi-auto-count').textContent = `${succeeded} of ${execs.length} AI runs`;
 
-    // 3. Throughput (Avg Duration)
-    const durations = execs
+    // 3. Throughput — avg duration of FULLY AUTONOMOUS runs only
+    //    (excludes incidents that paused for human review, which would inflate the time)
+    const autoExecs = execs.filter((e) => {
+      const res = e.latest_result || {};
+      return e.status === 'succeeded' && !res.gate;
+    });
+    const durations = autoExecs
       .filter((e) => e.duration_seconds !== null && e.duration_seconds !== undefined)
       .map((e) => e.duration_seconds);
     const avgDuration = durations.length
       ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
       : 0;
     $('kpi-throughput').textContent = durations.length ? fmtDuration(avgDuration) : '—';
+    $('kpi-throughput-sub').textContent = `avg of ${durations.length} fully autonomous runs`;
 
     // 4. SLA Compliance (resolutions <= 300s)
     const underSla = durations.filter((d) => d <= 300).length;
@@ -102,100 +108,139 @@
   }
 
   /* ─────────────────────────────────────────────────────────
-     2. CHART: RESOLUTION TREND OVER TIME (SVG Line/Area Chart)
+     2. CHART: INCIDENT OUTCOME BY CATEGORY
+        Horizontal stacked bar — one row per category.
+        Segments: Autonomous | High-Risk Gate | Low-Conf Gate | Failed
+        Shows which categories the AI resolves autonomously vs. routes to human.
      ───────────────────────────────────────────────────────── */
   function renderTimelineChart(items) {
     const container = $('timelineChartContainer');
-    if (!items.length) {
-      container.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:30px;text-align:center">No incident timeline data yet</div>';
+
+    const withExec = items.filter((i) => i.execution);
+    if (!withExec.length) {
+      container.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:40px;text-align:center">No execution data yet</div>';
       return;
     }
 
-    // Group items by day
-    const dateGroups = new Map();
-    const sorted = [...items].sort((a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0));
-
-    sorted.forEach((item) => {
-      const d = item.created_at ? new Date(item.created_at) : new Date();
-      const key = `${d.getMonth() + 1}/${d.getDate()}`;
-      if (!dateGroups.has(key)) dateGroups.set(key, { total: 0, resolved: 0 });
-      const g = dateGroups.get(key);
-      g.total += 1;
-      if (item.execution && item.execution.status === 'succeeded') g.resolved += 1;
-    });
-
-    let keys = Array.from(dateGroups.keys());
-    if (keys.length === 1) {
-      keys = ['Earlier', keys[0], 'Today'];
-      dateGroups.set('Earlier', { total: 0, resolved: 0 });
-      dateGroups.set('Today', { total: dateGroups.get(keys[1]).total, resolved: dateGroups.get(keys[1]).resolved });
+    /* ── classify each item ── */
+    function outcomeOf(item) {
+      const st   = statusOf(item);
+      const gate = (item.execution.latest_result || {}).gate || '';
+      if (st === 'failed' || st === 'human_rejected')             return 'failed';
+      if (gate === 'high_risk'    || st === 'awaiting_approval')  return 'hitl_risk';
+      if (gate === 'low_confidence' || gate === 'critic_exhausted') return 'hitl_conf';
+      if (st === 'started')                                       return 'running';
+      return 'auto';
     }
 
-    const dataPoints = keys.map((k) => dateGroups.get(k) || { total: 0, resolved: 0 });
-    const maxVal = Math.max(...dataPoints.map((d) => d.total), 4);
+    const OUTCOMES = [
+      { key: 'auto',      color: '#167a4b', label: 'Autonomous'    },
+      { key: 'hitl_risk', color: '#6a4fd1', label: 'High-Risk Gate' },
+      { key: 'hitl_conf', color: '#c97d0c', label: 'Low-Conf Gate' },
+      { key: 'running',   color: '#2159d6', label: 'In Progress'   },
+      { key: 'failed',    color: '#c03a2b', label: 'Failed'        },
+    ];
 
-    // SVG coordinates
-    const width = 520;
-    const height = 180;
-    const padL = 44;
-    const padR = 24;
-    const padT = 20;
-    const padB = 32;
+    /* ── build category buckets ── */
+    const buckets = new Map();
+    withExec.forEach((item) => {
+      const cat = (item.category || 'other').toLowerCase();
+      if (!buckets.has(cat)) buckets.set(cat, { auto: 0, hitl_risk: 0, hitl_conf: 0, running: 0, failed: 0 });
+      buckets.get(cat)[outcomeOf(item)]++;
+    });
 
-    const chartW = width - padL - padR;
-    const chartH = height - padT - padB;
+    const rows = [...buckets.entries()]
+      .map(([name, d]) => ({
+        name,
+        ...d,
+        total: d.auto + d.hitl_risk + d.hitl_conf + d.running + d.failed,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 7);
 
-    const getX = (i) => padL + (i / Math.max(dataPoints.length - 1, 1)) * chartW;
-    const getY = (val) => padT + chartH - (val / maxVal) * chartH;
+    const maxTotal = Math.max(...rows.map((r) => r.total), 1);
 
-    // Generate paths for Total and Resolved
-    const totalPoints = dataPoints.map((d, i) => `${getX(i)},${getY(d.total)}`).join(' ');
-    const resolvedPoints = dataPoints.map((d, i) => `${getX(i)},${getY(d.resolved)}`).join(' ');
+    /* ── layout ── */
+    const W = 560, H = 220;
+    const PAD = { t: 14, r: 80, b: 28, l: 88 };
+    const cW  = W - PAD.l - PAD.r;
+    const cH  = H - PAD.t - PAD.b;
+    const rowH = cH / rows.length;
+    const barH = Math.min(Math.floor(rowH * 0.52), 18);
 
-    const areaPoints = `${getX(0)},${padT + chartH} ${totalPoints} ${getX(dataPoints.length - 1)},${padT + chartH}`;
+    /* ── bars ── */
+    const bars = rows.map((row, i) => {
+      const cy = PAD.t + i * rowH + (rowH - barH) / 2;
+      let x = PAD.l;
+      const segs = OUTCOMES.map(({ key, color }) => {
+        const val = row[key] || 0;
+        const w   = (val / maxTotal) * cW;
+        if (val === 0) return '';
+        const seg = `<rect x="${x.toFixed(1)}" y="${cy}" width="${Math.max(w, 2).toFixed(1)}"
+                          height="${barH}" fill="${color}" rx="2" opacity="0.9">
+                       <title>${key}: ${val} incident${val !== 1 ? 's' : ''}</title>
+                     </rect>`;
+        x += w;
+        return seg;
+      }).join('');
 
-    let svg = `
-      <svg class="chart-svg" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.25" />
-            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0.0" />
-          </linearGradient>
-        </defs>
-        <!-- Horizontal Grid Lines -->
-        <line x1="${padL}" y1="${getY(0)}" x2="${width - padR}" y2="${getY(0)}" stroke="var(--line)" stroke-width="1" />
-        <line x1="${padL}" y1="${getY(maxVal / 2)}" x2="${width - padR}" y2="${getY(maxVal / 2)}" stroke="var(--line)" stroke-dasharray="3,3" stroke-width="1" />
-        <line x1="${padL}" y1="${getY(maxVal)}" x2="${width - padR}" y2="${getY(maxVal)}" stroke="var(--line)" stroke-dasharray="3,3" stroke-width="1" />
+      const autoPct = row.total > 0 ? Math.round((row.auto / row.total) * 100) : 0;
+      const label   = row.name.length > 11 ? row.name.slice(0, 10) + '…' : row.name;
+      const midY    = cy + barH / 2 + 4;
+      const pctColor = autoPct >= 70 ? '#167a4b' : autoPct >= 40 ? '#c97d0c' : '#c03a2b';
 
-        <!-- Area Fill -->
-        <polygon points="${areaPoints}" fill="url(#areaGrad)" />
+      return `
+        <text x="${PAD.l - 8}" y="${midY}" text-anchor="end" font-size="11"
+              fill="var(--ink-2)" style="text-transform:capitalize">${escapeHtml(label)}</text>
+        ${segs}
+        <text x="${x + 6}" y="${midY}" font-size="10" fill="${pctColor}" font-weight="700"
+              >${autoPct}%</text>`;
+    }).join('');
 
-        <!-- Lines -->
-        <polyline points="${totalPoints}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-        <polyline points="${resolvedPoints}" fill="none" stroke="var(--ok)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+    /* ── X axis grid & labels ── */
+    const xTicks = [0, Math.ceil(maxTotal / 2), maxTotal];
+    const grid = xTicks.map((v) => {
+      const x = PAD.l + (v / maxTotal) * cW;
+      return `
+        <line x1="${x.toFixed(1)}" y1="${PAD.t}" x2="${x.toFixed(1)}" y2="${PAD.t + cH}"
+              stroke="var(--line)" stroke-width="${v === 0 ? 1.2 : 0.7}" stroke-dasharray="${v ? '3,4' : ''}"/>
+        <text x="${x.toFixed(1)}" y="${H - PAD.b + 14}" text-anchor="middle"
+              font-size="10" fill="var(--ink-3)">${v}</text>`;
+    }).join('');
 
-        <!-- Dots -->
-        ${dataPoints.map((d, i) => `
-          <circle cx="${getX(i)}" cy="${getY(d.total)}" r="4.5" fill="var(--surface)" stroke="var(--accent)" stroke-width="2.2" />
-          <circle cx="${getX(i)}" cy="${getY(d.resolved)}" r="4" fill="var(--surface)" stroke="var(--ok)" stroke-width="2.2" />
-        `).join('')}
+    /* ── X axis label ── */
+    const xAxisLabel = `<text x="${PAD.l + cW / 2}" y="${H - 2}" text-anchor="middle"
+                               font-size="9.5" fill="var(--ink-3)">incidents</text>`;
 
-        <!-- X Labels -->
-        ${keys.map((k, i) => {
-          const anchor = i === 0 ? 'start' : i === keys.length - 1 ? 'end' : 'middle';
-          return `<text x="${getX(i)}" y="${height - 10}" text-anchor="${anchor}" font-size="11" fill="var(--ink-3)">${escapeHtml(k)}</text>`;
-        }).join('')}
+    /* ── update badge ── */
+    const totalAuto  = rows.reduce((s, r) => s + r.auto, 0);
+    const totalAll   = rows.reduce((s, r) => s + r.total, 0);
+    const overallPct = totalAll > 0 ? Math.round((totalAuto / totalAll) * 100) : 0;
+    const badge = $('trendBadge');
+    if (badge) {
+      badge.textContent = `${overallPct}% Autonomous`;
+      badge.className   = `chip ${overallPct >= 60 ? 'ok' : overallPct >= 30 ? 'warn' : 'bad'}`;
+    }
 
-        <!-- Y Labels -->
-        <text x="${padL - 10}" y="${getY(maxVal) + 4}" text-anchor="end" font-size="10.5" font-weight="600" fill="var(--ink-3)">${maxVal}</text>
-        <text x="${padL - 10}" y="${getY(0) + 3}" text-anchor="end" font-size="10.5" font-weight="600" fill="var(--ink-3)">0</text>
+    /* ── legend (only outcomes actually present) ── */
+    const legend = OUTCOMES
+      .filter(({ key }) => rows.some((r) => (r[key] || 0) > 0))
+      .map(({ color, label }) => `<span class="chart-legend-item">
+          <span class="chart-legend-dot" style="background:${color}"></span>${label}
+        </span>`)
+      .join('');
+
+    container.innerHTML = `
+      <svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        ${grid}
+        ${bars}
+        ${xAxisLabel}
       </svg>
-      <div class="chart-legend">
-        <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--accent)"></span> Total Ingested</span>
-        <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--ok)"></span> Autonomous Resolved</span>
+      <div class="chart-legend">${legend}
+        <span class="chart-legend-item" style="color:var(--ink-3);font-size:10px;margin-left:auto">
+          % = autonomous rate
+        </span>
       </div>`;
-
-    container.innerHTML = svg;
   }
 
   /* ─────────────────────────────────────────────────────────
@@ -528,31 +573,45 @@
   /* ─────────────────────────────────────────────────────────
      LOAD & REFRESH DATA
      ───────────────────────────────────────────────────────── */
+
+  // Safe wrapper — chart errors show in the container, not as "API unreachable".
+  function safeRender(fn, items, containerId) {
+    try {
+      fn(items);
+    } catch (err) {
+      console.error(`[dashboard] render error in ${fn.name || containerId}:`, err);
+      if (containerId) {
+        const el = $(containerId);
+        if (el) el.innerHTML = `<div style="color:var(--bad,#c03a2b);font-size:12px;padding:16px">
+          Chart error: ${err.message}</div>`;
+      }
+    }
+  }
+
   async function loadData() {
     try {
       setConn('idle', 'Updating...');
       const data = await api('/api/v1/dashboard/incidents?limit=50');
       latestData = data.incidents || [];
-      setConn('ok', 'Live Analytics');
-
-      renderKPIs(latestData);
-      renderTimelineChart(latestData);
-      renderCategoryChart(latestData);
-      renderMTTRChart(latestData);
-      renderPriorityChart(latestData);
-      renderStatusChart(latestData);
-      renderGuardrails(latestData);
-      renderRecentTable(latestData);
+      setConn('ok', 'Snapshot — click Refresh to update');
     } catch (err) {
       setConn('err', 'API unreachable');
+      return; // don't attempt renders if data fetch failed
     }
+
+    // Render each section independently — one crash won't break the others.
+    safeRender(renderKPIs,           latestData, null);
+    safeRender(renderTimelineChart,  latestData, 'timelineChartContainer');
+    safeRender(renderCategoryChart,  latestData, 'categoryChartContainer');
+    safeRender(renderMTTRChart,      latestData, 'mttrChartContainer');
+    safeRender(renderPriorityChart,  latestData, 'priorityChartContainer');
+    safeRender(renderStatusChart,    latestData, 'statusChartContainer');
+    safeRender(renderGuardrails,     latestData, 'guardrailsContainer');
+    safeRender(renderRecentTable,    latestData, 'recentTableBody');
   }
 
   $('refreshBtn').addEventListener('click', loadData);
 
   loadData();
-  // Refresh telemetry every 10 seconds
-  setInterval(() => {
-    if (!document.hidden) loadData();
-  }, 10000);
+  // Auto-refresh intentionally disabled — click Refresh to update.
 })();

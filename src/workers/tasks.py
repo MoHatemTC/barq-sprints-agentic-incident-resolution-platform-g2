@@ -23,6 +23,7 @@ from src.workers.retry_policy import RetryDecision, RetryPolicy
 from src.workers.runtime_integration import (
     ExecutionContext,
     StateManagerTaskRecorder,
+    _metadata_for_resume,
     _sync_servicenow_completion,
     _sync_servicenow_failure,
     context_from_task_headers,
@@ -137,7 +138,10 @@ class GraphAgentExecutor:
                     accepted_incident,
                     merged,
                     execution_id,
-                    {},
+                    # Fetch real started_at / ended_at from DB so ServiceNow
+                    # shows correct AI Processing Start & End times.
+                    # Previously {} was passed → None timestamps → fields cleared.
+                    _metadata_for_resume(execution_id),
                 )
         return merged
 
