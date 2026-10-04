@@ -98,6 +98,9 @@ async def list_recent_executions(limit: int = 30):
                         if execution.ended_at and execution.started_at
                         else None
                     ),
+                    "estimated_cost_usd": execution.estimated_cost_usd,
+                    "total_tokens_in": execution.total_tokens_in,
+                    "total_tokens_out": execution.total_tokens_out,
                     "checkpoints": [
                         {
                             "node_name": getattr(cp, "node_name", None),
@@ -428,6 +431,9 @@ def _latest_runs(db, numbers: list[str], live_graph=None) -> dict:
                 if run.ended_at and run.started_at
                 else None
             ),
+            "estimated_cost_usd": run.estimated_cost_usd,
+            "total_tokens_in": run.total_tokens_in,
+            "total_tokens_out": run.total_tokens_out,
             "latest_result": result,
             "live_node": live_node,
             "failures": failures.get(eid, []),
@@ -682,6 +688,9 @@ def _run_page(db, number: str, limit: int, before: int | None) -> dict:
                     (run.ended_at - run.started_at).total_seconds()
                     if run.ended_at and run.started_at else None
                 ),
+                "estimated_cost_usd": run.estimated_cost_usd,
+                "total_tokens_in": run.total_tokens_in,
+                "total_tokens_out": run.total_tokens_out,
                 "log": entries.get(run.execution_identifier, []),
                 "failures": failures.get(run.execution_identifier, []),
                 "approvals": approvals.get(run.execution_identifier, []),

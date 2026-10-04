@@ -79,10 +79,36 @@
     $('kpi-throughput').textContent = durations.length ? fmtDuration(avgDuration) : '—';
     $('kpi-throughput-sub').textContent = `avg of ${durations.length} fully autonomous runs`;
 
-    // 4. SLA Compliance (resolutions <= 300s)
-    const underSla = durations.filter((d) => d <= 300).length;
-    const slaRate = durations.length > 0 ? Math.round((underSla / durations.length) * 100) : 100;
-    $('kpi-sla').textContent = `${slaRate}%`;
+    // 4. Avg Cost per Incident (from DB-stored estimated_cost_usd)
+    //    Gemini Flash pricing: $0.075/1M input, $0.30/1M output
+    const PRICE_IN  = 0.075 / 1e6;  // per token
+    const PRICE_OUT = 0.30  / 1e6;  // per token
+    const costsUsd = execs
+      .map((e) => {
+        if (e.estimated_cost_usd !== null && e.estimated_cost_usd !== undefined) {
+          return e.estimated_cost_usd;
+        }
+        // Fallback: estimate from token counts if available
+        if (e.total_tokens_in || e.total_tokens_out) {
+          return (e.total_tokens_in || 0) * PRICE_IN + (e.total_tokens_out || 0) * PRICE_OUT;
+        }
+        return null;
+      })
+      .filter((c) => c !== null);
+    if (costsUsd.length > 0) {
+      const avgCost = costsUsd.reduce((a, b) => a + b, 0) / costsUsd.length;
+      // Format: show cents if < $0.10, else dollars
+      const fmtCost = avgCost < 0.001
+        ? `$${(avgCost * 1000).toFixed(3)}m`   // milli-dollars
+        : avgCost < 0.10
+          ? `${(avgCost * 100).toFixed(3)}¢`
+          : `$${avgCost.toFixed(4)}`;
+      $('kpi-cost').textContent = fmtCost;
+      $('kpi-cost-sub').textContent = `avg of ${costsUsd.length} tracked runs`;
+    } else {
+      $('kpi-cost').textContent = '—';
+      $('kpi-cost-sub').textContent = 'no cost data yet';
+    }
 
     // 5. Critic Gate / Rejection Rate
     const criticGated = execs.filter((e) => {

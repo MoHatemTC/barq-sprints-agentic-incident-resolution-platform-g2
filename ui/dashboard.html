@@ -76,15 +76,15 @@
       </div>
     </div>
 
-    <!-- 4. SLA Compliance -->
+    <!-- 4. Avg Cost per Incident -->
     <div class="kpi-card kpi-card-ok">
       <div class="kpi-icon kpi-icon-ok">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
       </div>
       <div class="kpi-body">
-        <div class="kpi-label">SLA Compliance</div>
-        <div class="kpi-value kpi-value-ok" id="kpi-sla">100%</div>
-        <div class="kpi-sub">&lt; 5m MTTR threshold</div>
+        <div class="kpi-label">Avg Cost / Incident</div>
+        <div class="kpi-value kpi-value-ok" id="kpi-cost">—</div>
+        <div class="kpi-sub" id="kpi-cost-sub">estimated LLM spend</div>
       </div>
     </div>
 
@@ -230,6 +230,6 @@
   </div>
 </main>
 
-<script src="dashboard.js?v=10"></script>
+<script src="dashboard.js?v=11"></script>
 </body>
 </html>

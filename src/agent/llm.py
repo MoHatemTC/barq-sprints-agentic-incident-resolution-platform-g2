@@ -65,12 +65,12 @@ def get_llm() -> Any:
                 # provider prefix so the proxy can route to the right backend.
                 if not model_name.startswith("gemini/"):
                     model_name = f"gemini/{model_name}"
-                # gemini-3.6-flash / gemini-2.0-flash on the Sprints free-tier
-                # path have low quotas or are deprecated.  Use gemini-3.8-flash
-                # which is the current recommended model.
+                # gemini-3.6-flash / gemini-2.0-flash are deprecated or have
+                # very low free-tier quotas.  gemini-3.8-flash is the lightest
+                # available model on the Sprints proxy.
                 if model_name in ("gemini/gemini-3.6-flash", "gemini/gemini-2.0-flash"):
                     model_name = "gemini/gemini-3.8-flash"
-                    logger.info("Remapped to gemini-3.8-flash (current recommended model)")
+                    logger.info("Remapped to gemini-3.8-flash (lightest available on proxy)")
 
             logger.info("LLM model: %s  base_url: %s", model_name, base_url)
             # max_retries=6 lets the underlying OpenAI client honour the

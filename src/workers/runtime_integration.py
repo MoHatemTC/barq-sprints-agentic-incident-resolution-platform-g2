@@ -162,6 +162,26 @@ class StateManagerTaskRecorder:
         )
 
     def record_success(self, accepted_incident: object, result: object) -> None:
+        # Drain the cost accumulator for this execution before writing to DB.
+        cost_kwargs: dict = {}
+        try:
+            from src.agent.cost_tracking import pop_accumulator
+            acc = pop_accumulator(self.context.execution_identifier)
+            if acc and (acc.tokens_in or acc.tokens_out):
+                cost_kwargs = {
+                    "total_tokens_in": acc.tokens_in,
+                    "total_tokens_out": acc.tokens_out,
+                    "estimated_cost_usd": acc.cost_usd,
+                }
+                logger.info(
+                    "Execution %s cost: in=%d out=%d usd=%.6f",
+                    self.context.execution_identifier,
+                    acc.tokens_in, acc.tokens_out, acc.cost_usd,
+                )
+        except Exception as exc:
+            logger.warning("Cost accumulator pop failed for %s: %s",
+                           self.context.execution_identifier, exc)
+
         state_manager, close = self.state_manager_factory()
         try:
             checkpoint = _dashboard_checkpoint(result)
@@ -178,6 +198,7 @@ class StateManagerTaskRecorder:
             execution = state_manager.update_execution_status(
                 self.context.execution_identifier,
                 execution_status_for(result),
+                **cost_kwargs,
             )
             get_retry_state = getattr(state_manager, "get_retry_state", None)
             retry_state = (
@@ -199,6 +220,7 @@ class StateManagerTaskRecorder:
         )
         if execution_status_for(result) == "awaiting_approval":
             _sync_servicenow_pause_note(accepted_incident, checkpoint, self.context.execution_identifier)
+
 
 
 def _sync_servicenow_pause_note(

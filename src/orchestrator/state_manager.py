@@ -71,11 +71,13 @@ class StateManager:
         self,
         execution_identifier: str,
         status: str,
+        **kwargs,
     ):
         return update_execution_status(
             self.db,
             execution_identifier,
             status,
+            **kwargs,
         )
 
     def save_checkpoint(

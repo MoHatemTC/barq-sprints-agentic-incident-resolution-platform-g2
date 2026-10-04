@@ -64,11 +64,15 @@ def update_execution_status(
     db: Session,
     execution_identifier: str,
     status: str,
+    total_tokens_in: int | None = None,
+    total_tokens_out: int | None = None,
+    estimated_cost_usd: float | None = None,
 ):
     """
     Update the status of an existing execution.
 
     Terminal statuses also receive an ended_at timestamp.
+    Optionally persists LLM cost/token totals when provided.
     """
 
     execution = (
@@ -87,7 +91,14 @@ def update_execution_status(
     if status in TERMINAL_STATUSES:
         execution.ended_at = datetime.now(timezone.utc)
 
+    if total_tokens_in is not None:
+        execution.total_tokens_in = (execution.total_tokens_in or 0) + total_tokens_in
+    if total_tokens_out is not None:
+        execution.total_tokens_out = (execution.total_tokens_out or 0) + total_tokens_out
+    if estimated_cost_usd is not None:
+        execution.estimated_cost_usd = (execution.estimated_cost_usd or 0.0) + estimated_cost_usd
+
     db.commit()
     db.refresh(execution)
 
-    return execution
+    return execution
