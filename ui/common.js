@@ -52,10 +52,11 @@
   /* ---------- API ---------- */
   const NGROK_URL  = 'https://revolving-snippet-sketch.ngrok-free.dev';
   const LOCAL_URL  = 'http://localhost:8000';
-  // All candidate bases tried in order — first alive wins.
-  const API_CANDIDATES = [LOCAL_URL, NGROK_URL];
+  // Candidates tried only on first-ever visit (no stored preference yet).
+  // Order: ngrok first so the default lands on the remote URL.
+  const API_CANDIDATES = [NGROK_URL, LOCAL_URL];
 
-  function apiBase() { return String(store.get('barq.api', LOCAL_URL)).replace(/\/$/, ''); }
+  function apiBase() { return String(store.get('barq.api', NGROK_URL)).replace(/\/$/, ''); }
 
   // Probe a single base URL — resolves with the base if alive, rejects otherwise.
   async function _probe(base) {
@@ -78,24 +79,25 @@
     return null; // all failed
   }
 
-  // Run auto-detect once at startup (non-blocking — warms the stored URL).
-  _autoDetect();
+  // Run auto-detect ONLY on first visit (no stored preference).
+  // If the user already has a URL saved, respect it — never override automatically.
+  if (store.get('barq.api', null) === null) {
+    _autoDetect();
+  }
 
   async function api(path, opts = {}) {
     const headers = Object.assign(
       { 'ngrok-skip-browser-warning': 'true' },
       opts.headers || {}
     );
-    let base = apiBase();
+    const base = apiBase();
     let res;
     try {
       res = await fetch(base + path, { ...opts, headers });
     } catch (_) {
-      // Primary failed — re-probe all candidates and retry with the winner.
-      const alive = await _autoDetect();
-      if (!alive) throw new Error('All API endpoints unreachable');
-      base = alive;
-      res = await fetch(base + path, { ...opts, headers });
+      // Network-level failure — do NOT auto-switch to another URL.
+      // The user chose this endpoint; show the error so they can fix it.
+      throw new Error('API unreachable — check the URL in Settings (' + base + ')');
     }
     let data = null;
     try { data = await res.json(); } catch (e) { /* not json */ }
