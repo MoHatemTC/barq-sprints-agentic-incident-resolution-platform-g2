@@ -4,8 +4,13 @@ import time
 from types import SimpleNamespace
 from uuid import uuid4
 
+
 import jwt
+import httpx
 import pytest
+import random
+import hashlib
+import os
 from sqlalchemy import text
 
 from src.db.approval_service import create_approval
@@ -187,7 +192,6 @@ def cleanup(execution_id):
     finally:
         db.close()
 
-
 # Test constants for operator auth
 TEST_OPERATOR_PASSWORD = "test-operator-password-123"
 TEST_OPERATOR_JWT_SECRET = "test-operator-jwt-secret-min-32-chars-long"
@@ -263,3 +267,34 @@ def api_client(test_settings):
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
+
+def _fake_embedding(text: str, dim: int) -> list[float]:
+    """Deterministic unit vector: the same text always gives the same vector."""
+    rng = random.Random(hashlib.sha256(text.encode()).digest())
+    vec = [rng.uniform(-1, 1) for _ in range(dim)]
+    norm = sum(v * v for v in vec) ** 0.5 or 1.0
+    return [v / norm for v in vec]
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _fake_embedding_api():
+    """Tests never spend embedding quota (CI 429s). LIVE_EMBEDDINGS=1 opts out."""
+    if os.environ.get("LIVE_EMBEDDINGS") == "1":
+        yield
+        return
+    real_post = httpx.post
+
+    def post(url, *args, **kwargs):
+        if str(url).rstrip("/").endswith("/embeddings"):
+            text = str((kwargs.get("json") or {}).get("input", ""))
+            dim = int(os.environ.get("QDRANT_DENSE_DIMENSION") or 64)
+            return httpx.Response(
+                200,
+                json={"data": [{"embedding": _fake_embedding(text, dim)}]},
+                request=httpx.Request("POST", url),
+            )
+        return real_post(url, *args, **kwargs)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(httpx, "post", post)
+        yield

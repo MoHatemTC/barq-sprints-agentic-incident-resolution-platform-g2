@@ -130,9 +130,12 @@ jobs:
         image: qdrant/qdrant:v1.12.4
         ports: ["6333:6333"]
     env:
-      LITELLM_BASE_URL: ${{ secrets.LITELLM_BASE_URL }}
-      LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
-      LITELLM_EMBEDDING_MODEL: ${{ secrets.LITELLM_EMBEDDING_MODEL }}
+      # Tests use the fake embedding API (tests/conftest.py). If a call ever
+      # escaped it, it would go to .invalid, which never resolves: no quota spent.
+      LITELLM_BASE_URL: http://litellm.invalid
+      LITELLM_API_KEY: ci-placeholder
+      LITELLM_EMBEDDING_MODEL: ci-placeholder-embedding
+
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -154,7 +157,7 @@ jobs:
         with:
           name: integration-test-report
           path: integration.xml
-
+      
   eval-gate:
     name: Evaluation gate
     runs-on: ubuntu-latest
