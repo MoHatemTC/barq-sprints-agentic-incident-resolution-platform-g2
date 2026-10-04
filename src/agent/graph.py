@@ -97,25 +97,21 @@ def route_after_critic(state: AgentState) -> str:
     S3.1 deterministic routing after Critic/Verifier Agent.
     - PASS  -> safety_check
     - FAIL + retries remain -> generate
-    - FAIL + retries exhausted -> prepare_review (S3.4: a human decides, no unreviewed write)
-    - FAIL + retries exhausted after a human approval -> safety_check: never pause a
-      second time; confidence_check then routes to act, which writes the approved
-      human solution instead of the unverified draft.
-    Routing is purely Python — no LLM involved.
+    - FAIL + retries exhausted, no prior approval -> prepare_review (human decides)
+    - FAIL + retries exhausted, human already approved -> safety_check: never pause
+      a second time.  confidence_check then routes to act, which writes the
+      approved human solution instead of the unverified draft.
 
-    After a human approval the gate is already satisfied — never re-open a
-    second prepare_review because the AI-generated enrichment of the reviewer's
-    solution failed the critic.  The human solution itself is the authoritative
-    output; skip straight to safety_check.
+    Routing is purely Python — no LLM involved.
     """
-    # Human approval is the definitive gate pass — do not re-interrupt.
-    decision = state.get("human_decision") or {}
-    if decision.get("decision") == "approve":
-        return "safety_check"
     verdict = state.get("critic_verdict") or {}
     if verdict.get("passed"):
         return "safety_check"
     if state.get("critic_exhausted"):
+        # Critic ran out of retries.  If a human already approved this run,
+        # never open a second approval gate — skip straight to safety_check.
+        # act_node will use the reviewer's human_solution as the authoritative
+        # resolution.  Otherwise, escalate to a human for the first time.
         decision = state.get("human_decision") or {}
         if decision.get("decision") == "approve":
             return "safety_check"
