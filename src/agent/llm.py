@@ -65,18 +65,28 @@ def get_llm() -> Any:
                 # provider prefix so the proxy can route to the right backend.
                 if not model_name.startswith("gemini/"):
                     model_name = f"gemini/{model_name}"
+                # gemini-3.6-flash on the Sprints free-tier path has a quota
+                # of only 5 RPM.  gemini-2.0-flash gives 15 RPM — use it as
+                # a drop-in replacement when the exact model has no custom quota.
+                if model_name == "gemini/gemini-3.6-flash":
+                    model_name = "gemini/gemini-2.0-flash"
+                    logger.info("Remapped gemini-3.6-flash → gemini-2.0-flash (higher free-tier quota)")
 
-            logger.info("LLM model: %s → base_url: %s", model_name, base_url)
+            logger.info("LLM model: %s  base_url: %s", model_name, base_url)
+            # max_retries=6 lets the underlying OpenAI client honour the
+            # Retry-After header returned by 429 responses (≈12 s per attempt).
             _llm_instance = ChatOpenAI(
                 model=model_name,
                 temperature=0,
                 api_key=os.environ["LITELLM_API_KEY"],
                 base_url=base_url,
+                max_retries=6,
             )
         else:
             logger.warning("LiteLLM configuration missing. Using MockLLM.")
             _llm_instance = MockLLM()
     return _llm_instance
+
 
 
 def get_embeddings() -> Any:
