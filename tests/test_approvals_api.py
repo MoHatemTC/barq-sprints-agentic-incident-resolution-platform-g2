@@ -475,7 +475,7 @@ class FakeStateManager:
     def __init__(self):
         self.statuses, self.failures = [], []
 
-    def update_execution_status(self, execution_id, status):
+    def update_execution_status(self, execution_id, status, **kwargs):
         self.statuses.append((execution_id, status))
 
     def record_failure(self, **kwargs):

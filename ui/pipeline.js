@@ -128,16 +128,51 @@
   }
 
   /* ---------- rows ---------- */
+  function priorityTier(priority) {
+    const match = String(priority == null ? '' : priority).match(/^(\d)/);
+    return match ? match[1] : '';
+  }
+
   function prioBadgeHtml(priority) {
     if (!priority && priority !== 0) return '';
-    const s = String(priority);
-    // Handle "5 - Planning" format from ServiceNow, or raw "5", or integer 5
-    const match = s.match(/^(\d)/);
-    if (!match) return '';
-    const p = match[1];
+    const p = priorityTier(priority);
+    if (!p) return '';
     const labels = { '1': 'P1 Critical', '2': 'P2 High', '3': 'P3 Moderate', '4': 'P4 Low', '5': 'P5 Planning' };
     const label = labels[p] || 'P' + p;
     return `<span class="prio-badge prio-badge-${p}">${label}</span>`;
+  }
+
+  function formatUsd(value) {
+    if (value === null || value === undefined || value === '') return '—';
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '—';
+    if (n < 0.001) return '$' + (n * 1000).toFixed(3) + 'm';
+    if (n < 0.10) return (n * 100).toFixed(3) + '¢';
+    return '$' + n.toFixed(4);
+  }
+
+  function tokenSummary(exec) {
+    const tin = exec.total_tokens_in;
+    const tout = exec.total_tokens_out;
+    if ((tin == null || tin === 0) && (tout == null || tout === 0)) return '—';
+    return (tin || 0) + ' in / ' + (tout || 0) + ' out';
+  }
+
+  function requestedDrawerId() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('sys_id') || params.get('id') || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function setDrawerQuery(sysId) {
+    const url = new URL(window.location.href);
+    if (sysId) url.searchParams.set('sys_id', sysId);
+    else url.searchParams.delete('sys_id');
+    url.searchParams.delete('id');
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
   }
 
   function gateBadgeHtml(exec) {
@@ -327,9 +362,12 @@
       if (list.children[i] !== el) list.insertBefore(el, list.children[i] || null);
     });
 
-    // Auto-open drawer for first incident on initial load so user sees full Command Center design
+    // Open a linked incident, or the first row on initial load
     if (state.firstLoad && items.length > 0 && !state.selectedId) {
-      setTimeout(() => openDrawer(items[0].sys_id), 80);
+      const wanted = requestedDrawerId();
+      const match = wanted && items.find((it) => it.sys_id === wanted || it.number === wanted);
+      const target = match ? match.sys_id : items[0].sys_id;
+      setTimeout(() => openDrawer(target), 80);
     }
 
     applyFilter(items);
@@ -342,11 +380,12 @@
       const el = state.rows.get(item.sys_id);
       if (!el) return;
       const matchStatus = !state.status || statusOf(item) === state.status;
-      // Priority filter: '1'=P1, '2'=P2, '3'=P3+
+      // Priority filter: '1'=P1, '2'=P2, '3'=P3+  (ServiceNow sends "1 - Critical")
+      const tier = priorityTier(item.priority);
       let matchPriority = true;
-      if (state.priority === '1') matchPriority = String(item.priority) === '1';
-      else if (state.priority === '2') matchPriority = String(item.priority) === '2';
-      else if (state.priority === '3') matchPriority = Number(item.priority) >= 3;
+      if (state.priority === '1') matchPriority = tier === '1';
+      else if (state.priority === '2') matchPriority = tier === '2';
+      else if (state.priority === '3') matchPriority = Number(tier) >= 3;
       const show = matchStatus && matchPriority;
       el.hidden = !show;
       if (show) visible += 1;
@@ -442,8 +481,7 @@
 
       /* ── 1. Incident details card ── */
       const prioLabels = { '1': 'P1 Critical', '2': 'P2 High', '3': 'P3 Moderate', '4': 'P4 Low', '5': 'P5 Planning' };
-      const prioStr   = String(item.priority || '');
-      const prioNum   = (prioStr.match(/^(\d)/) || [])[1] || '';
+      const prioNum   = priorityTier(item.priority);
       const prioLabel = prioLabels[prioNum] || (item.priority ? String(item.priority) : '—');
       const prioTone  = prioNum === '1' ? 'color:var(--bad-ink)' : prioNum === '2' ? 'color:var(--warn-ink)' : '';
 
@@ -611,6 +649,8 @@
         <div class="drawer-block" style="padding:0"><div class="di-grid">
           ${metaRow('Execution ID', exec.execution_id)}
           ${metaRow('ServiceNow Write', result.servicenow_write)}
+          ${metaRow('Estimated cost', formatUsd(exec.estimated_cost_usd))}
+          ${metaRow('Tokens', tokenSummary(exec))}
         </div></div>
       </div>`;
 
@@ -722,6 +762,7 @@
     }
 
     state.selectedId = sysId;
+    setDrawerQuery(sysId);
     const el = state.rows.get(sysId);
     if (el) el.classList.add('drawer-selected');
 
@@ -738,6 +779,7 @@
       if (prev) prev.classList.remove('drawer-selected');
       state.selectedId = null;
     }
+    setDrawerQuery(null);
     $('drawer').setAttribute('aria-hidden', 'true');
     $('commandLayout').classList.remove('drawer-open');
   }

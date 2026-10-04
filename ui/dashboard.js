@@ -50,10 +50,15 @@
   /* ─────────────────────────────────────────────────────────
      1. RENDER ADVANCED KPIS
      ───────────────────────────────────────────────────────── */
+  function setText(id, text) {
+    const el = $(id);
+    if (el) el.textContent = text;
+  }
+
   function renderKPIs(items) {
     const total = items.length;
-    $('kpi-total').textContent = String(total);
-    $('kpi-total-sub').textContent = `${total} incidents ingested`;
+    setText('kpi-total', String(total));
+    setText('kpi-total-sub', `${total} incidents ingested`);
 
     const withExec = items.filter((i) => i.execution);
     const execs = withExec.map((i) => i.execution);
@@ -61,8 +66,8 @@
 
     // 2. Autonomous Resolution Rate
     const autoRate = execs.length > 0 ? Math.round((succeeded / execs.length) * 100) : 0;
-    $('kpi-auto-rate').textContent = `${autoRate}%`;
-    $('kpi-auto-count').textContent = `${succeeded} of ${execs.length} AI runs`;
+    setText('kpi-auto-rate', `${autoRate}%`);
+    setText('kpi-auto-count', `${succeeded} of ${execs.length} AI runs`);
 
     // 3. Throughput — avg duration of FULLY AUTONOMOUS runs only
     //    (excludes incidents that paused for human review, which would inflate the time)
@@ -76,8 +81,10 @@
     const avgDuration = durations.length
       ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
       : 0;
-    $('kpi-throughput').textContent = durations.length ? fmtDuration(avgDuration) : '—';
-    $('kpi-throughput-sub').textContent = `avg of ${durations.length} fully autonomous runs`;
+    setText('kpi-throughput', durations.length ? fmtDuration(avgDuration) : '—');
+    setText('kpi-throughput-sub', durations.length
+      ? `avg of ${durations.length} fully autonomous runs`
+      : 'Avg resolution time');
 
     // 4. Avg Cost per Incident (from DB-stored estimated_cost_usd)
     //    Gemini Flash pricing: $0.075/1M input, $0.30/1M output
@@ -103,11 +110,11 @@
         : avgCost < 0.10
           ? `${(avgCost * 100).toFixed(3)}¢`
           : `$${avgCost.toFixed(4)}`;
-      $('kpi-cost').textContent = fmtCost;
-      $('kpi-cost-sub').textContent = `avg of ${costsUsd.length} tracked runs`;
+      setText('kpi-cost', fmtCost);
+      setText('kpi-cost-sub', `avg of ${costsUsd.length} tracked runs`);
     } else {
-      $('kpi-cost').textContent = '—';
-      $('kpi-cost-sub').textContent = 'no cost data yet';
+      setText('kpi-cost', '—');
+      setText('kpi-cost-sub', 'no cost data yet');
     }
 
     // 5. Critic Gate / Rejection Rate
@@ -120,8 +127,8 @@
              (e.failures && e.failures.length > 0);
     }).length;
     const criticRate = execs.length > 0 ? Math.round((criticGated / execs.length) * 100) : 0;
-    $('kpi-critic').textContent = `${criticRate}%`;
-    $('kpi-critic-sub').textContent = `${criticGated} interventions / gates`;
+    setText('kpi-critic', `${criticRate}%`);
+    setText('kpi-critic-sub', `${criticGated} interventions / gates`);
 
     // 6. Cache Hits
     const cacheHits = execs.filter((e) => {
@@ -129,8 +136,8 @@
       return res.retrieval_cache_hit === true || res.retrieval_cache_hit === 'True';
     }).length;
     const cacheRate = execs.length > 0 ? Math.round((cacheHits / execs.length) * 100) : 0;
-    $('kpi-cache').textContent = `${cacheRate}%`;
-    $('kpi-cache-sub').textContent = `${cacheHits} instant KBHR hits`;
+    setText('kpi-cache', `${cacheRate}%`);
+    setText('kpi-cache-sub', `${cacheHits} instant KBHR hits`);
   }
 
   /* ─────────────────────────────────────────────────────────
@@ -544,7 +551,7 @@
         <div style="padding:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px">
           <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.04em">Low Confidence Checks</div>
           <div style="font-size:24px;font-weight:700;color:var(--warn);margin-top:4px">${lowConf}</div>
-          <div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">Safety threshold &lt; 0.70</div>
+          <div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">Safety threshold &lt; 0.60</div>
         </div>
         <div style="padding:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px">
           <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.04em">KBHR Cache Resolutions</div>
@@ -588,7 +595,7 @@
           <td>${confCell}</td>
           <td style="font-variant-numeric:tabular-nums;color:var(--ink-3)">${exec ? fmtDuration(exec.duration_seconds) : '—'}</td>
           <td>
-            <a class="btn btn-sm" href="pipeline.html" style="padding:0 8px;font-size:11px">Inspect →</a>
+            <a class="btn btn-sm" href="pipeline.html?sys_id=${encodeURIComponent(item.sys_id || item.number || '')}" style="padding:0 8px;font-size:11px">Inspect →</a>
           </td>
         </tr>`;
     }).join('');

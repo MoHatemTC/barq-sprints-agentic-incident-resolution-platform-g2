@@ -136,6 +136,12 @@ class StateManagerTaskRecorder:
         retries_completed: int,
         error: BaseException,
     ) -> None:
+        cost_kwargs: dict = {}
+        try:
+            from src.agent.cost_tracking import consume_cost_fields
+            cost_kwargs = consume_cost_fields(self.context.execution_identifier)
+        except Exception:
+            cost_kwargs = {}
         state_manager, close = self.state_manager_factory()
         try:
             state_manager.record_failure(
@@ -148,6 +154,7 @@ class StateManagerTaskRecorder:
             state_manager.update_execution_status(
                 self.context.execution_identifier,
                 "failed",
+                **cost_kwargs,
             )
         finally:
             close()
@@ -162,21 +169,17 @@ class StateManagerTaskRecorder:
         )
 
     def record_success(self, accepted_incident: object, result: object) -> None:
-        # Drain the cost accumulator for this execution before writing to DB.
         cost_kwargs: dict = {}
         try:
-            from src.agent.cost_tracking import pop_accumulator
-            acc = pop_accumulator(self.context.execution_identifier)
-            if acc and (acc.tokens_in or acc.tokens_out):
-                cost_kwargs = {
-                    "total_tokens_in": acc.tokens_in,
-                    "total_tokens_out": acc.tokens_out,
-                    "estimated_cost_usd": acc.cost_usd,
-                }
+            from src.agent.cost_tracking import consume_cost_fields
+            cost_kwargs = consume_cost_fields(self.context.execution_identifier)
+            if cost_kwargs:
                 logger.info(
-                    "Execution %s cost: in=%d out=%d usd=%.6f",
+                    "Execution %s cost: in=%s out=%s usd=%.6f",
                     self.context.execution_identifier,
-                    acc.tokens_in, acc.tokens_out, acc.cost_usd,
+                    cost_kwargs.get("total_tokens_in"),
+                    cost_kwargs.get("total_tokens_out"),
+                    cost_kwargs.get("estimated_cost_usd") or 0.0,
                 )
         except Exception as exc:
             logger.warning("Cost accumulator pop failed for %s: %s",
@@ -303,7 +306,7 @@ class GraphAgentExecutor:
                 config={"configurable": {"thread_id": execution_id}},
             )
 
-        traced_invoke = tracing_module.trace_execution("execute_incident_graph")(
+        traced_invoke = tracing_module.trace_execution("worker.pickup")(
             invoke_graph
         )
         return traced_invoke(

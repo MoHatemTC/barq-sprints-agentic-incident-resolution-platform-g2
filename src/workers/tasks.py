@@ -398,16 +398,16 @@ def _set_execution_status(state_manager_factory, execution_id: str, status: str,
                           error: BaseException | None = None, retries: int = 0) -> None:
     cost_kwargs: dict = {}
     try:
-        from src.agent.cost_tracking import pop_accumulator
-        acc = pop_accumulator(execution_id)
-        if acc and (acc.tokens_in or acc.tokens_out):
-            cost_kwargs = {
-                "total_tokens_in": acc.tokens_in,
-                "total_tokens_out": acc.tokens_out,
-                "estimated_cost_usd": acc.cost_usd,
-            }
-            logger.info("Resume %s cost: in=%d out=%d usd=%.6f",
-                        execution_id, acc.tokens_in, acc.tokens_out, acc.cost_usd)
+        from src.agent.cost_tracking import consume_cost_fields
+        cost_kwargs = consume_cost_fields(execution_id)
+        if cost_kwargs:
+            logger.info(
+                "Resume %s cost: in=%s out=%s usd=%.6f",
+                execution_id,
+                cost_kwargs.get("total_tokens_in"),
+                cost_kwargs.get("total_tokens_out"),
+                cost_kwargs.get("estimated_cost_usd") or 0.0,
+            )
     except Exception as exc:
         logger.warning("Cost accumulator pop failed for %s on resume: %s", execution_id, exc)
 

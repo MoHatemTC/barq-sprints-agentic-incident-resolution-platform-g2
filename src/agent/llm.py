@@ -81,6 +81,7 @@ def get_llm() -> Any:
                 api_key=os.environ["LITELLM_API_KEY"],
                 base_url=base_url,
                 max_retries=6,
+                stream_usage=True,
             )
         else:
             logger.warning("LiteLLM configuration missing. Using MockLLM.")
