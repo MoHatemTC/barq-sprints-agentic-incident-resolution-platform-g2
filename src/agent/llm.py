@@ -52,18 +52,26 @@ def get_llm() -> Any:
             and os.environ.get("LITELLM_API_KEY")
             and os.environ.get("LITELLM_BASE_URL")
         ):
-            logger.info("Initializing Gemini through LiteLLM")
-            model_name = os.environ.get("LLM_MODEL", "gemini-3.6-flash")
-            if "2.5" in model_name or "2.0" in model_name or "1.5" in model_name:
-                model_name = "gemini/gemini-3.6-flash"
-            elif not model_name.startswith("gemini/") and "gemini" in model_name:
-                model_name = f"gemini/{model_name}"
+            logger.info("Initializing LLM")
+            base_url = os.environ["LITELLM_BASE_URL"]
+            model_name = os.environ.get("LLM_MODEL", "gemini-2.0-flash")
 
+            if "generativelanguage.googleapis.com" in base_url:
+                # Google AI Studio OpenAI-compatible endpoint — model name must
+                # NOT carry the 'gemini/' provider prefix; use as-is.
+                model_name = model_name.removeprefix("gemini/")
+            else:
+                # LiteLLM proxy (e.g. Sprints) — model name must carry the
+                # provider prefix so the proxy can route to the right backend.
+                if not model_name.startswith("gemini/"):
+                    model_name = f"gemini/{model_name}"
+
+            logger.info("LLM model: %s → base_url: %s", model_name, base_url)
             _llm_instance = ChatOpenAI(
                 model=model_name,
                 temperature=0,
                 api_key=os.environ["LITELLM_API_KEY"],
-                base_url=os.environ["LITELLM_BASE_URL"],
+                base_url=base_url,
             )
         else:
             logger.warning("LiteLLM configuration missing. Using MockLLM.")
