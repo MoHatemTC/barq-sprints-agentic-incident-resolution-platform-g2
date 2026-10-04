@@ -56,7 +56,14 @@
   // Order: ngrok first so the default lands on the remote URL.
   const API_CANDIDATES = [NGROK_URL, LOCAL_URL];
 
-  function apiBase() { return String(store.get('barq.api', NGROK_URL)).replace(/\/$/, ''); }
+  // 'barq.api.user' = explicitly set by the user via Settings → always wins.
+  // 'barq.api'      = auto-detected fallback → may be overwritten by old cached code.
+  // apiBase() reads user key first so manual saves are never lost.
+  function apiBase() {
+    const pinned = store.get('barq.api.user', null);
+    if (pinned) return pinned.replace(/\/$/, '');
+    return String(store.get('barq.api', NGROK_URL)).replace(/\/$/, '');
+  }
 
   // Probe a single base URL — resolves with the base if alive, rejects otherwise.
   async function _probe(base) {
@@ -68,7 +75,10 @@
   }
 
   // Auto-detect: try all candidates, pick the first that responds.
+  // Only writes to 'barq.api' (fallback) — never touches 'barq.api.user'.
   async function _autoDetect() {
+    // If the user has pinned a URL, do nothing — their choice always wins.
+    if (store.get('barq.api.user', null)) return store.get('barq.api.user');
     for (const base of API_CANDIDATES) {
       try {
         await _probe(base);
@@ -79,9 +89,8 @@
     return null; // all failed
   }
 
-  // Run auto-detect ONLY on first visit (no stored preference).
-  // If the user already has a URL saved, respect it — never override automatically.
-  if (store.get('barq.api', null) === null) {
+  // Run auto-detect ONLY on first visit (no stored preference at all).
+  if (!store.get('barq.api.user', null) && store.get('barq.api', null) === null) {
     _autoDetect();
   }
 
@@ -260,6 +269,9 @@
     function save() {
       const v = $('apiBaseInput').value.trim().replace(/\/$/, '');
       if (!/^https?:\/\//i.test(v)) { toast('Enter a full URL such as http://localhost:8000', 'err'); return; }
+      // Write to BOTH: barq.api.user (permanent pin, wins over auto-detect)
+      // and barq.api (legacy fallback for any older cached code).
+      store.set('barq.api.user', v);
       store.set('barq.api', v);
       closeOverlay(dlg);
       window.dispatchEvent(new Event('barq:api-changed'));
