@@ -15,8 +15,8 @@ class Settings(BaseSettings):
     redis_db: int = Field(default=0, description="The database number of the Redis server")
     redis_password: Optional[str] = Field(default=None, description="The password for the Redis server, if any")
     webhook_auth_token: str = Field(..., description="Shared bearer token ServiceNow must send")
-    langfuse_public_key: str = Field(..., description="Langfuse public key")
-    langfuse_secret_key: str = Field(..., description="Langfuse secret key")
+    langfuse_public_key: Optional[str] = Field(default=None, description="Langfuse public key")
+    langfuse_secret_key: Optional[str] = Field(default=None, description="Langfuse secret key")
     langfuse_base_url: str = Field(default="https://cloud.langfuse.com", description="Langfuse host URL")
 
     @computed_field
