@@ -35,7 +35,9 @@ logger = logging.getLogger(__name__)
 SUPPORTED_CATEGORIES = ("software", "hardware", "network", "database", "password_reset")
 
 # Leave the Business Rule's own webhook time to land before stepping in.
-GRACE_MINUTES = 2
+# Set DELIVERY_SWEEP_GRACE_MINUTES=0 in .env to pick up incidents immediately
+# (safe when ngrok is reliable; may double-dispatch if webhook also fires).
+GRACE_MINUTES = int(os.getenv("DELIVERY_SWEEP_GRACE_MINUTES", "2"))
 # Do not pull in old backlog the pipeline never saw.
 LOOKBACK_MINUTES = 24 * 60
 BATCH_LIMIT = 100

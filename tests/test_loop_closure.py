@@ -73,6 +73,24 @@ def test_full_human_resolution_loop_closes(monkeypatch):
     )
 
     # ---------------------------------------------------------
+    # 1b. Stub the embedding API so this test never calls a real
+    #     external service.  A uniform unit vector gives cosine
+    #     similarity = 1.0 between any two vectors, which is fine
+    #     because only one article is stored in this collection.
+    # ---------------------------------------------------------
+    _dim = get_dense_dimension()
+    _unit = [1.0 / (_dim ** 0.5)] * _dim
+    _sparse_stub = {"indices": [0, 1], "values": [0.5, 0.5]}
+
+    monkeypatch.setattr(ingest, "embed_dense", lambda text: _unit)
+    monkeypatch.setattr(ingest, "embed_sparse", lambda text: _sparse_stub)
+
+    from src.retrieval import hybrid_search as _hs
+    monkeypatch.setattr(_hs, "embed_dense", lambda text: _unit)
+    monkeypatch.setattr(_hs, "embed_sparse", lambda text: _sparse_stub)
+
+
+    # ---------------------------------------------------------
     # 2. Article Composer
     # ---------------------------------------------------------
 

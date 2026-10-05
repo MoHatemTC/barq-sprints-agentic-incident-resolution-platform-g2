@@ -54,7 +54,7 @@ class _StateManager:
     def record_failure(self, **kwargs):
         self.failures.append(kwargs)
 
-    def update_execution_status(self, execution_identifier, status):
+    def update_execution_status(self, execution_identifier, status, **kwargs):
         self.statuses.append((execution_identifier, status))
 
     def save_checkpoint(self, **kwargs):

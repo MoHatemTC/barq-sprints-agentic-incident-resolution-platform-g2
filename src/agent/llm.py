@@ -52,23 +52,42 @@ def get_llm() -> Any:
             and os.environ.get("LITELLM_API_KEY")
             and os.environ.get("LITELLM_BASE_URL")
         ):
-            logger.info("Initializing Gemini through LiteLLM")
-            model_name = os.environ.get("LLM_MODEL", "gemini-3.6-flash")
-            if "2.5" in model_name or "2.0" in model_name or "1.5" in model_name:
-                model_name = "gemini/gemini-3.6-flash"
-            elif not model_name.startswith("gemini/") and "gemini" in model_name:
-                model_name = f"gemini/{model_name}"
+            logger.info("Initializing LLM")
+            base_url = os.environ["LITELLM_BASE_URL"]
+            model_name = os.environ.get("LLM_MODEL", "gemini-2.0-flash")
 
+            if "generativelanguage.googleapis.com" in base_url:
+                # Google AI Studio OpenAI-compatible endpoint — model name must
+                # NOT carry the 'gemini/' provider prefix; use as-is.
+                model_name = model_name.removeprefix("gemini/")
+            else:
+                # LiteLLM proxy (e.g. Sprints) — model name must carry the
+                # provider prefix so the proxy can route to the right backend.
+                if not model_name.startswith("gemini/"):
+                    model_name = f"gemini/{model_name}"
+                # gemini-3.6-flash / gemini-2.0-flash are deprecated or have
+                # very low free-tier quotas.  gemini-3.8-flash is the lightest
+                # available model on the Sprints proxy.
+                if model_name in ("gemini/gemini-3.6-flash", "gemini/gemini-2.0-flash"):
+                    model_name = "gemini/gemini-3.8-flash"
+                    logger.info("Remapped to gemini-3.8-flash (lightest available on proxy)")
+
+            logger.info("LLM model: %s  base_url: %s", model_name, base_url)
+            # max_retries=3 allows handling brief rate-limit spikes without
+            # stalling the worker queue for too long during prolonged 429 bursts.
             _llm_instance = ChatOpenAI(
                 model=model_name,
                 temperature=0,
                 api_key=os.environ["LITELLM_API_KEY"],
-                base_url=os.environ["LITELLM_BASE_URL"],
+                base_url=base_url,
+                max_retries=3,
+                stream_usage=True,
             )
         else:
             logger.warning("LiteLLM configuration missing. Using MockLLM.")
             _llm_instance = MockLLM()
     return _llm_instance
+
 
 
 def get_embeddings() -> Any:

@@ -23,6 +23,7 @@ from src.workers.retry_policy import RetryDecision, RetryPolicy
 from src.workers.runtime_integration import (
     ExecutionContext,
     StateManagerTaskRecorder,
+    _metadata_for_resume,
     _sync_servicenow_completion,
     _sync_servicenow_failure,
     context_from_task_headers,
@@ -137,7 +138,10 @@ class GraphAgentExecutor:
                     accepted_incident,
                     merged,
                     execution_id,
-                    {},
+                    # Fetch real started_at / ended_at from DB so ServiceNow
+                    # shows correct AI Processing Start & End times.
+                    # Previously {} was passed → None timestamps → fields cleared.
+                    _metadata_for_resume(execution_id),
                 )
         return merged
 
@@ -392,6 +396,21 @@ def register_process_accepted_incident_task(
 
 def _set_execution_status(state_manager_factory, execution_id: str, status: str,
                           error: BaseException | None = None, retries: int = 0) -> None:
+    cost_kwargs: dict = {}
+    try:
+        from src.agent.cost_tracking import consume_cost_fields
+        cost_kwargs = consume_cost_fields(execution_id)
+        if cost_kwargs:
+            logger.info(
+                "Resume %s cost: in=%s out=%s usd=%.6f",
+                execution_id,
+                cost_kwargs.get("total_tokens_in"),
+                cost_kwargs.get("total_tokens_out"),
+                cost_kwargs.get("estimated_cost_usd") or 0.0,
+            )
+    except Exception as exc:
+        logger.warning("Cost accumulator pop failed for %s on resume: %s", execution_id, exc)
+
     state_manager, close = state_manager_factory()
     try:
         if error is not None:
@@ -402,7 +421,7 @@ def _set_execution_status(state_manager_factory, execution_id: str, status: str,
                 message=str(error),
                 retry_count=retries,
             )
-        state_manager.update_execution_status(execution_id, status)
+        state_manager.update_execution_status(execution_id, status, **cost_kwargs)
     finally:
         close()
 

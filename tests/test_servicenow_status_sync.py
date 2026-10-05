@@ -77,7 +77,7 @@ class _StateManager:
     def record_failure(self, **kwargs):
         self.failures.append(kwargs)
 
-    def update_execution_status(self, execution_id, status):
+    def update_execution_status(self, execution_id, status, **kwargs):
         self.statuses.append((execution_id, status))
 
 

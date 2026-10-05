@@ -136,6 +136,12 @@ class StateManagerTaskRecorder:
         retries_completed: int,
         error: BaseException,
     ) -> None:
+        cost_kwargs: dict = {}
+        try:
+            from src.agent.cost_tracking import consume_cost_fields
+            cost_kwargs = consume_cost_fields(self.context.execution_identifier)
+        except Exception:
+            cost_kwargs = {}
         state_manager, close = self.state_manager_factory()
         try:
             state_manager.record_failure(
@@ -148,6 +154,7 @@ class StateManagerTaskRecorder:
             state_manager.update_execution_status(
                 self.context.execution_identifier,
                 "failed",
+                **cost_kwargs,
             )
         finally:
             close()
@@ -162,6 +169,22 @@ class StateManagerTaskRecorder:
         )
 
     def record_success(self, accepted_incident: object, result: object) -> None:
+        cost_kwargs: dict = {}
+        try:
+            from src.agent.cost_tracking import consume_cost_fields
+            cost_kwargs = consume_cost_fields(self.context.execution_identifier)
+            if cost_kwargs:
+                logger.info(
+                    "Execution %s cost: in=%s out=%s usd=%.6f",
+                    self.context.execution_identifier,
+                    cost_kwargs.get("total_tokens_in"),
+                    cost_kwargs.get("total_tokens_out"),
+                    cost_kwargs.get("estimated_cost_usd") or 0.0,
+                )
+        except Exception as exc:
+            logger.warning("Cost accumulator pop failed for %s: %s",
+                           self.context.execution_identifier, exc)
+
         state_manager, close = self.state_manager_factory()
         try:
             checkpoint = _dashboard_checkpoint(result)
@@ -178,6 +201,7 @@ class StateManagerTaskRecorder:
             execution = state_manager.update_execution_status(
                 self.context.execution_identifier,
                 execution_status_for(result),
+                **cost_kwargs,
             )
             get_retry_state = getattr(state_manager, "get_retry_state", None)
             retry_state = (
@@ -199,6 +223,7 @@ class StateManagerTaskRecorder:
         )
         if execution_status_for(result) == "awaiting_approval":
             _sync_servicenow_pause_note(accepted_incident, checkpoint, self.context.execution_identifier)
+
 
 
 def _sync_servicenow_pause_note(
@@ -281,7 +306,7 @@ class GraphAgentExecutor:
                 config={"configurable": {"thread_id": execution_id}},
             )
 
-        traced_invoke = tracing_module.trace_execution("execute_incident_graph")(
+        traced_invoke = tracing_module.trace_execution("worker.pickup")(
             invoke_graph
         )
         return traced_invoke(
@@ -470,6 +495,55 @@ def _execution_metadata(execution: object, retry_state: object) -> dict[str, obj
     }
 
 
+def _metadata_for_resume(execution_id: str) -> dict[str, object]:
+    """Build execution_metadata for HITL resume completions by fetching the
+    Execution row from Postgres.
+
+    The HITL resume path in tasks.py has no Execution ORM object in scope, so
+    it used to pass ``{}`` — leaving ``processing_start`` / ``processing_end``
+    as ``None``, which caused ServiceNow to *clear* those Date/Time fields.
+    This function provides real timestamps so ServiceNow shows them correctly.
+    """
+    now_ts = _servicenow_timestamp(datetime.now(timezone.utc))
+    fallback: dict[str, object] = {
+        "processing_start": now_ts,   # best-effort when DB unreachable
+        "processing_end":   now_ts,
+        "retry_count":  0,
+        "max_retries":  _environment_non_negative_int("CELERY_TASK_MAX_RETRIES", 3),
+        "agent_version": os.environ.get("BARQ_AGENT_VERSION", "sprint-3.1"),
+        "model_name":    os.environ.get("LLM_MODEL", "gemini-3.8-flash"),
+    }
+    try:
+        # Lazy imports — keeps the circular-import surface small.
+        from src.db.database import SessionLocal  # type: ignore[import]
+        from src.db.models import Execution       # type: ignore[import]
+        with SessionLocal() as db:
+            execution = (
+                db.query(Execution)
+                .filter(Execution.execution_identifier == execution_id)
+                .first()
+            )
+        if execution is None:
+            logger.warning(
+                "HITL resume: execution %s not found in DB; "
+                "processing_start will default to now",
+                execution_id,
+            )
+            return fallback
+
+        class _ZeroRetryState:
+            attempt_count = 0
+
+        return _execution_metadata(execution, _ZeroRetryState())
+    except Exception:
+        logger.warning(
+            "HITL resume: could not fetch execution %s from DB for metadata",
+            execution_id,
+            exc_info=True,
+        )
+        return fallback
+
+
 def _servicenow_completion_fields(
     checkpoint: Mapping[str, object], execution_metadata: Mapping[str, object] | None = None
 ) -> dict[str, object]:
@@ -507,13 +581,20 @@ def _servicenow_completion_fields(
 
     # Only write AI suggestion/resolution AFTER the ticket is resolved (approved or auto-resolved).
     # While awaiting approval or when rejected, draft resolution is not written as official resolution.
+    # IMPORTANT: only include these fields when non-empty — sending "" would CLEAR a previously
+    # written value (e.g. from GraphRuntimeAdapter's first write during graph execution).
     if not is_awaiting_approval and not is_rejected:
-        fields["suggestion"] = _field_text(outputs.get("diagnosis"), 4_000)
+        suggestion = _field_text(outputs.get("diagnosis"), 4_000)
+        if suggestion:
+            fields["suggestion"] = suggestion
+
         final_res = outputs.get("resolution") or checkpoint.get("cached_resolution")
         if not final_res and checkpoint.get("human_solution"):
             human_sol = checkpoint.get("human_solution")
             final_res = f"Based on the human comments: {human_sol}, the solution of this incident is:\n{human_sol}"
-        fields["resolution"] = _field_text(final_res, 4_000)
+        resolution = _field_text(final_res, 4_000)
+        if resolution:
+            fields["resolution"] = resolution
 
     # Populate Resolution Information tab when ticket is resolved
     if is_resolved:

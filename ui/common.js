@@ -50,15 +50,64 @@
   }
 
   /* ---------- API ---------- */
-  // Deployed backend (ngrok tunnel); change it per browser in Connection settings, e.g. http://localhost:8000
-  const DEFAULT_API = 'https://revolving-snippet-sketch.ngrok-free.dev';
-  function apiBase() { return String(store.get('barq.api', DEFAULT_API)).replace(/\/$/, ''); }
+  const NGROK_URL  = 'https://revolving-snippet-sketch.ngrok-free.dev';
+  const LOCAL_URL  = 'http://localhost:8000';
+  // Candidates tried only on first-ever visit (no stored preference yet).
+  // Order: ngrok first so the default lands on the remote URL.
+  const API_CANDIDATES = [NGROK_URL, LOCAL_URL];
+
+  // 'barq.api.user' = explicitly set by the user via Settings → always wins.
+  // 'barq.api'      = auto-detected fallback → may be overwritten by old cached code.
+  // apiBase() reads user key first so manual saves are never lost.
+  function apiBase() {
+    const pinned = store.get('barq.api.user', null);
+    if (pinned) return pinned.replace(/\/$/, '');
+    return String(store.get('barq.api', NGROK_URL)).replace(/\/$/, '');
+  }
+
+  // Probe a single base URL — resolves with the base if alive, rejects otherwise.
+  async function _probe(base) {
+    const headers = { 'ngrok-skip-browser-warning': 'true' };
+    const res = await fetch(base + '/api/v1/dashboard/incidents?limit=1',
+                            { headers, signal: AbortSignal.timeout(4000) });
+    if (!res.ok) throw new Error('non-2xx');
+    return base;
+  }
+
+  // Auto-detect: try all candidates, pick the first that responds.
+  // Only writes to 'barq.api' (fallback) — never touches 'barq.api.user'.
+  async function _autoDetect() {
+    // If the user has pinned a URL, do nothing — their choice always wins.
+    if (store.get('barq.api.user', null)) return store.get('barq.api.user');
+    for (const base of API_CANDIDATES) {
+      try {
+        await _probe(base);
+        store.set('barq.api', base);
+        return base;
+      } catch { /* try next */ }
+    }
+    return null; // all failed
+  }
+
+  // Run auto-detect ONLY on first visit (no stored preference at all).
+  if (!store.get('barq.api.user', null) && store.get('barq.api', null) === null) {
+    _autoDetect();
+  }
+
   async function api(path, opts = {}) {
     const headers = Object.assign(
       { 'ngrok-skip-browser-warning': 'true' },
       opts.headers || {}
     );
-    const res = await fetch(apiBase() + path, { ...opts, headers });
+    const base = apiBase();
+    let res;
+    try {
+      res = await fetch(base + path, { ...opts, headers });
+    } catch (_) {
+      // Network-level failure — do NOT auto-switch to another URL.
+      // The user chose this endpoint; show the error so they can fix it.
+      throw new Error('API unreachable — check the URL in Settings (' + base + ')');
+    }
     let data = null;
     try { data = await res.json(); } catch (e) { /* not json */ }
     if (!res.ok) {
@@ -69,6 +118,7 @@
     }
     return data;
   }
+
 
   /* ---------- toasts ---------- */
   function toast(message, kind, ms) {
@@ -157,14 +207,15 @@
     host.className = 'topbar';
     host.innerHTML = `
       <div class="topbar-in">
-        <a class="brand" href="dashboard.html" aria-label="Barq home">
+        <a class="brand" href="dashboard.html?v=20261003_s4" aria-label="Barq home">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
           <span>Barq</span><small>Incident resolution</small>
         </a>
         <nav class="nav" aria-label="Main">
-          <a href="dashboard.html" ${active === 'pipeline' ? 'aria-current="page"' : ''}>Pipeline</a>
-          <a href="kb.html" ${active === 'kb' ? 'aria-current="page"' : ''}>Knowledge base</a>
-          <a href="approvals.html" ${active === 'approvals' ? 'aria-current="page"' : ''}>Approvals <span class="badge" id="approvalCount" hidden></span></a>
+          <a href="dashboard.html?v=20261003_s4" ${active === 'dashboard' ? 'aria-current="page"' : ''}>Dashboard</a>
+          <a href="pipeline.html?v=20261003_s4" ${active === 'pipeline' ? 'aria-current="page"' : ''}>Pipeline</a>
+          <a href="kb.html?v=20261003_s4" ${active === 'kb' ? 'aria-current="page"' : ''}>Knowledge base</a>
+          <a href="approvals.html?v=20261003_s4" ${active === 'approvals' ? 'aria-current="page"' : ''}>Approvals <span class="badge" id="approvalCount" hidden></span></a>
         </nav>
         <div class="topbar-right">
           <span class="conn" id="conn" data-state="idle"><i></i><span id="connText">Connecting</span></span>
@@ -218,6 +269,9 @@
     function save() {
       const v = $('apiBaseInput').value.trim().replace(/\/$/, '');
       if (!/^https?:\/\//i.test(v)) { toast('Enter a full URL such as http://localhost:8000', 'err'); return; }
+      // Write to BOTH: barq.api.user (permanent pin, wins over auto-detect)
+      // and barq.api (legacy fallback for any older cached code).
+      store.set('barq.api.user', v);
       store.set('barq.api', v);
       closeOverlay(dlg);
       window.dispatchEvent(new Event('barq:api-changed'));

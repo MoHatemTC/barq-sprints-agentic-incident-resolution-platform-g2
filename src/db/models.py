@@ -5,6 +5,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -130,6 +131,22 @@ class Execution(Base):
     ended_at = Column(
         DateTime(timezone=True),
         nullable=True
+    )
+
+    total_tokens_in = Column(
+        Integer,
+        nullable=True,
+        comment="Total LLM input tokens across all nodes",
+    )
+    total_tokens_out = Column(
+        Integer,
+        nullable=True,
+        comment="Total LLM output tokens across all nodes",
+    )
+    estimated_cost_usd = Column(
+        Float,
+        nullable=True,
+        comment="Estimated USD cost based on Gemini Flash pricing",
     )
 
     __table_args__ = (

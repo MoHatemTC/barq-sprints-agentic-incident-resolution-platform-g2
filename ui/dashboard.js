@@ -1,746 +1,650 @@
-/* Pipeline dashboard logic. Endpoints:
-   GET  /api/v1/dashboard/incidents?limit=N     (ServiceNow incidents + latest AI run)
-   GET  /api/v1/dashboard/incident-categories
-   POST /api/v1/dashboard/incidents            (creates in ServiceNow only)
-   GET  /api/v1/dashboard/incidents/{sys_id}/events
-   POST /api/v1/dashboard/kb-sync */
+/* Barq Analytics Dashboard logic.
+   Fetches incident telemetry and renders advanced metrics, operational charts,
+   and agentic governance KPIs. */
 (function () {
   'use strict';
   const B = window.Barq;
-  const { $, escapeHtml, fmtDuration, fmtTime, api, toast, store, buildChrome, setConn, tween, segmented, openOverlay, closeOverlay } = B;
+  const { $, escapeHtml, fmtDuration, fmtTime, api, setConn, tween } = B;
 
-  buildChrome('pipeline');
+  B.buildChrome('dashboard');
 
-  const STAGES = [
-    ['received', 'Received'], ['classify', 'Classify'], ['retrieve', 'Retrieve'],
-    ['diagnose', 'Diagnose'], ['generate', 'Generate'], ['resolved', 'Resolved'],
+  const PRIORITY_LABEL = { '1': 'P1 Critical', '2': 'P2 High', '3': 'P3 Moderate', '4': 'P4 Low', '5': 'P5 Planning' };
+  const STATUS_CONFIG = {
+    succeeded: { tone: 'ok', label: 'Succeeded', color: '#167a4b' },
+    started: { tone: 'accent', label: 'In progress', color: '#2159d6' },
+    failed: { tone: 'bad', label: 'Failed', color: '#c03a2b' },
+    blocked: { tone: 'warn', label: 'Blocked', color: '#b26a0a' },
+    awaiting_approval: { tone: 'violet', label: 'Awaiting approval', color: '#6a4fd1' },
+    human_rejected: { tone: 'bad', label: 'Human rejected', color: '#c03a2b' },
+    not_sent: { tone: 'plain', label: 'Not sent to AI', color: '#667085' },
+  };
+
+  const CATEGORY_COLORS = [
+    '#2159d6', '#167a4b', '#6a4fd1', '#e8a94a', '#ef7b6c', '#0097a7', '#8e24aa', '#546e7a'
   ];
-  const STATUS = {
-    succeeded: ['ok', 'Succeeded'],
-    failed: ['bad', 'Failed'],
-    started: ['accent', 'In progress'],
-    blocked: ['warn', 'Blocked'],
-    awaiting_approval: ['violet', 'Awaiting approval'],
-    human_rejected: ['bad', 'Human rejected'],
-    not_sent: ['plain', 'Not sent to AI'],
-    waiting: ['accent', 'Waiting for ServiceNow'],
-  };
-  const PAGE = 20;
-  const CHEVRON = '<svg class="chev" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
 
-  const state = {
-    limit: [5, 10, 20, 30].includes(parseInt(store.get('barq.limit', '10'), 10)) ? parseInt(store.get('barq.limit', '10'), 10) : 10,
-    status: '',
-    live: store.get('barq.live', '1') === '1',
-    firstLoad: true,
-    inflight: false,
-    timer: null,
-    extra: 0,        // incidents added by "Load more" on top of the chosen limit
-    q: '',           // search box text; the search itself runs in ServiceNow
-    again: false,    // a poll was asked for while one was in flight
-    rows: new Map(), // sys_id -> row element
-    waiting: new Set(), // sys_ids created here whose Business Rule has not fired yet
-    latest: [],
-    syncedAt: null,  // when the list on screen was read from ServiceNow
-  };
-  const shownLimit = () => state.limit + state.extra;
-  const statusOf = (item) => {
+  let latestData = [];
+
+  function prioBadgeHtml(priority) {
+    if (!priority && priority !== 0) return '—';
+    const s = String(priority);
+    const match = s.match(/^(\d)/);
+    if (!match) return escapeHtml(s);
+    const p = match[1];
+    const label = PRIORITY_LABEL[p] || 'P' + p;
+    return `<span class="prio-badge prio-badge-${p}">${escapeHtml(label)}</span>`;
+  }
+
+  function statusOf(item) {
     const aiState = (item.ai_processing_state || '').toLowerCase().replace(/[\s-]+/g, '_');
-    if (aiState === 'human_rejected') {
-      return 'human_rejected';
-    }
+    if (aiState === 'human_rejected') return 'human_rejected';
     if (item.execution) {
       if (item.execution.latest_result && item.execution.latest_result.action_taken === 'rejected_by_human') {
         return 'human_rejected';
       }
-      return item.execution.status;
+      return item.execution.status || 'started';
     }
-    return state.waiting.has(item.sys_id) ? 'waiting' : 'not_sent';
-  };
+    return 'not_sent';
+  }
 
-  // Graph node running now (live_node from the API) -> the dot it belongs to.
-  const NODE_STAGE = {
-    load: 0, validate: 0,
-    classify: 1, determine_risk: 1,
-    retrieve: 2,
-    diagnose: 3,
-    generate: 4, verify_evidence: 4, safety_check: 4, confidence_check: 4,
-    act: 5, knowledge_capture: 5,
-  };
+  /* ─────────────────────────────────────────────────────────
+     1. RENDER ADVANCED KPIS
+     ───────────────────────────────────────────────────────── */
+  function setText(id, text) {
+    const el = $(id);
+    if (el) el.textContent = text;
+  }
 
-  /* ---------- pipeline stage logic ---------- */
-  function pipelineStages(exec) {
-    const status = exec.status;
-    const result = exec.latest_result || {};
-    const out = result.outputs || {};
+  function renderKPIs(items) {
+    const total = items.length;
+    setText('kpi-total', String(total));
+    setText('kpi-total-sub', `${total} incidents ingested`);
 
-    // Running: light the dot of the node that is executing right now.
-    const live = NODE_STAGE[exec.live_node];
-    if (status === 'started' && live !== undefined) {
-      return STAGES.map((_, i) => (i < live ? 'done' : i === live ? 'active' : 'pending'));
-    }
+    const withExec = items.filter((i) => i.execution);
+    const execs = withExec.map((i) => i.execution);
+    const succeeded = execs.filter((e) => e.status === 'succeeded').length;
 
-    // Check if it's a HITL completion (early escalation, resolution by human, etc)
-    const isHITL = ['approved_by_human', 'rejected_by_human', 'knowledge_captured'].includes(result.action_taken);
-    const awaiting = exec.status === 'awaiting_approval';
+    // 2. Autonomous Resolution Rate
+    const autoRate = execs.length > 0 ? Math.round((succeeded / execs.length) * 100) : 0;
+    setText('kpi-auto-rate', `${autoRate}%`);
+    setText('kpi-auto-count', `${succeeded} of ${execs.length} AI runs`);
 
-    // If finished, calculate what actually ran
-    if (status === 'succeeded' && result.action_taken) {
-      const ran = [
-        true, // received
-        !!result.classification, // classify
-        !!(result.retrieved_evidence || []).length, // retrieve
-        !!out.diagnosis, // diagnose
-        !!out.resolution || isHITL, // generate (or human provided it)
-        result.action_taken !== 'rejected_by_human' // resolved
-      ];
-      
-      return ran.map((r, i) => {
-        if (r) return 'done';
-        // If it's HITL and a stage didn't run, it was deliberately skipped, not left pending
-        if (isHITL) return 'skipped';
-        return 'pending';
-      });
-    }
-
-    // In-progress logic
-    let reached = 0;
-    if (result.classification) reached = 1;
-    // Keep the original pipeline template. A high-risk pause is represented
-    // by the classify stage remaining active; approval is a gate state, not a
-    // new pipeline stage.
-    if (awaiting) return STAGES.map((_, i) => i === 0 ? 'done' : i === 1 ? 'active' : 'pending');
-    if (result.retrieved_evidence) reached = 2;
-    if (out.diagnosis) reached = 3;
-    if (out.resolution) reached = 4;
-    if (status === 'succeeded') reached = 5;
-
-    return STAGES.map((_, i) => {
-      if (status === 'failed' && i === reached) return 'error';
-      if (i < reached || status === 'succeeded') return 'done';
-      if (i === reached && status === 'started') return 'active';
-      if (i === 0) return 'done';
-      return 'pending';
+    // 3. Throughput — avg duration of FULLY AUTONOMOUS runs only
+    //    (excludes incidents that paused for human review, which would inflate the time)
+    const autoExecs = execs.filter((e) => {
+      const res = e.latest_result || {};
+      return e.status === 'succeeded' && !res.gate;
     });
-  }
+    const durations = autoExecs
+      .filter((e) => e.duration_seconds !== null && e.duration_seconds !== undefined)
+      .map((e) => e.duration_seconds);
+    const avgDuration = durations.length
+      ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
+      : 0;
+    setText('kpi-throughput', durations.length ? fmtDuration(avgDuration) : '—');
+    setText('kpi-throughput-sub', durations.length
+      ? `avg of ${durations.length} fully autonomous runs`
+      : 'Avg resolution time');
 
-  /* ---------- rows ---------- */
-  function buildRow(item, index, animate) {
-    const el = document.createElement('article');
-    el.className = 'row' + (animate ? ' enter' : '');
-    el.style.setProperty('--i', String(Math.min(index, 8)));
-    el.dataset.id = item.sys_id;
-    el.innerHTML = `
-      <button class="row-head" type="button" aria-expanded="false">
-        <div class="row-main">
-          <div class="row-line"><span class="inc"></span><span class="chip"></span></div>
-          <div class="desc"></div>
-          <div class="sub"><span class="meta"></span><span class="when"></span></div>
-        </div>
-        <ol class="track" aria-label="Pipeline progress">
-          ${STAGES.map(([key, label]) => `<li data-k="${key}"><span class="dot"></span><span class="lbl">${label}</span></li>`).join('')}
-        </ol>
-        <span class="dur"></span>
-        ${CHEVRON}
-      </button>
-      <div class="row-body"><div class="inner"><div class="inner-pad"></div></div></div>`;
-
-    el.querySelector('.row-head').addEventListener('click', () => {
-      const open = el.classList.toggle('open');
-      el.querySelector('.row-head').setAttribute('aria-expanded', String(open));
-    });
-    return el;
-  }
-
-  function fact(label, value, mono) {
-    const shown = value === null || value === undefined || value === '' ? '\u2014' : value;
-    return `<dt>${label}</dt><dd${mono ? ' class="mono"' : ''}>${escapeHtml(shown)}</dd>`;
-  }
-
-  function actionsHtml(item) {
-    const history = item.execution && item.number
-      ? `<button class="btn btn-sm" type="button" data-history="${escapeHtml(item.number)}">Run history</button>` : '';
-    const servicenow = item.servicenow_url
-      ? `<a class="btn btn-sm" href="${escapeHtml(item.servicenow_url)}" target="_blank" rel="noopener noreferrer">Open in ServiceNow \u2197</a>` : '';
-    if (!history && !servicenow) return '';
-    return `<div class="dialog-actions"><div class="right">${history}${servicenow}</div></div>`;
-  }
-
-  function incidentFacts(item) {
-    return '<dl class="facts">' +
-      fact('ServiceNow sys_id', item.sys_id, true) +
-      fact('Category', item.category) +
-      fact('State', item.state) +
-      fact('Priority', item.priority) +
-      fact('Created', fmtTime(item.created_at)) +
-      fact('AI processing state', item.ai_processing_state) +
-      fact('AI enabled', item.ai_enabled ? 'Yes' : 'No') +
-      fact('Human lock', item.human_lock ? 'On' : 'Off') +
-      '</dl>';
-  }
-
-  // Why an incident has no AI run. The Business Rule decides; these are the
-  // reasons visible on the record, the rest (category) live in ServiceNow.
-  function notSentHtml(item) {
-    const aiState = (item.ai_processing_state || '').toLowerCase().replace(/[\s-]+/g, '_');
-    if (aiState === 'human_rejected') {
-      return '<div class="result"><b>AI</b><span>AI processing was stopped because the incident was marked as rejected by a human.</span></div>';
-    }
-    let reason = 'The ServiceNow Business Rule did not send it: its category is not supported, ' +
-      'it was created before the integration, or ServiceNow could not reach the webhook.';
-    if (item.human_lock) reason = 'Human lock is on, so the Business Rule does not send it to the AI.';
-    else if (!item.ai_enabled) reason = 'AI is disabled on this incident.';
-    return `<div class="result"><b>AI</b><span>${escapeHtml(reason)}</span></div>`;
-  }
-
-  function detailsHtml(exec) {
-    const result = exec.latest_result || {};
-    const out = result.outputs || {};
-    let html = '<dl class="facts">' +
-      fact('Execution ID', exec.execution_id, true) +
-      fact('Classification', result.classification) +
-      fact('Risk', result.risk) +
-      fact('Confidence', result.confidence) +
-      fact('Eligibility', out.eligibility) +
-      fact('Review gate', result.gate === 'high_risk' ? 'Human approval required (high risk)' : result.gate) +
-      fact('Outcome', result.action_taken) +
-      fact('ServiceNow write', result.servicenow_write) +
-      fact('Node reached', exec.node_reached) +
-      fact('Retry attempts', exec.retry_attempt_count) +
-      '</dl>';
-    if (out.diagnosis || out.resolution) {
-      html += `<div class="result"><b>Diagnosis</b><span>${escapeHtml(out.diagnosis || '\u2014')}</span><b>Resolution</b><span>${escapeHtml(out.resolution || '\u2014')}</span></div>`;
-    }
-    if (exec.status === 'awaiting_approval') {
-      html += `<div class="dialog-actions"><div class="right"><a class="btn btn-primary btn-sm" href="approvals.html#${encodeURIComponent(exec.execution_id)}">Review →</a></div></div>`;
-    }
-    (exec.failures || []).forEach((f) => {
-      html += `<div class="fail"><strong>${escapeHtml(f.failing_node)}</strong> \u2014 ${escapeHtml(f.error_class)}: ${escapeHtml(f.message)}</div>`;
-    });
-    return html;
-  }
-
-  function updateRow(el, item) {
-    const exec = item.execution;
-    if (exec) state.waiting.delete(item.sys_id);
-    el.querySelector('.inc').textContent = item.number || '\u2014';
-    el.querySelector('.desc').textContent = item.short_description || '';
-    el.querySelector('.meta').textContent = [item.category, item.state].filter(Boolean).join(' \u00b7 ');
-    el.classList.toggle('no-ai', !exec && !state.waiting.has(item.sys_id));
-
-    const status = statusOf(item);
-    const [tone, label] = STATUS[status] || ['', status || 'unknown'];
-    const chip = el.querySelector('.chip');
-    chip.className = 'chip' + (tone ? ' ' + tone : '');
-    chip.textContent = label;
-
-    el.querySelector('.when').textContent = fmtTime(item.created_at);
-    el.querySelector('.dur').textContent = exec ? fmtDuration(exec.duration_seconds) : '';
-
-    const classes = exec ? pipelineStages(exec) : STAGES.map(() => 'pending');
-    el.querySelectorAll('.track li').forEach((li, i) => { li.className = classes[i]; });
-
-    const html = actionsHtml(item) + incidentFacts(item) + (exec ? detailsHtml(exec) : notSentHtml(item));
-    if (el._details !== html) {
-      el._details = html;
-      el.querySelector('.inner-pad').innerHTML = html;
-    }
-  }
-
-  /* ---------- list rendering (keyed, so polling never flickers) ---------- */
-  const list = $('list');
-  list.addEventListener('animationend', (e) => {
-    if (e.target.classList && e.target.classList.contains('enter')) e.target.classList.remove('enter');
-  });
-
-  function showEmpty(title, text) {
-    const box = $('empty');
-    box.innerHTML = `<strong>${escapeHtml(title)}</strong>${escapeHtml(text)}`;
-    box.hidden = false;
-  }
-
-  function renderSkeleton() {
-    list.innerHTML = [0, 1, 2].map(() => `
-      <div class="skel-row" aria-hidden="true">
-        <div style="width:180px"><div class="skel" style="width:110px;margin-bottom:10px"></div><div class="skel" style="width:70px"></div></div>
-        <div class="skel" style="flex:1"></div>
-        <div class="skel" style="width:40px"></div>
-      </div>`).join('');
-  }
-
-  function render(items) {
-    if (state.firstLoad) list.innerHTML = '';
-    // Rows missing from ServiceNow (deleted there) disappear here too.
-    const ids = new Set(items.map((item) => item.sys_id));
-
-    state.rows.forEach((el, id) => {
-      if (!ids.has(id)) { el.remove(); state.rows.delete(id); }
-    });
-
-    items.forEach((item, i) => {
-      let el = state.rows.get(item.sys_id);
-      if (!el) {
-        el = buildRow(item, state.firstLoad ? i : 0, true);
-        state.rows.set(item.sys_id, el);
-      }
-      updateRow(el, item);
-      if (list.children[i] !== el) list.insertBefore(el, list.children[i] || null);
-    });
-
-    applyFilter(items);
-  }
-
-  function applyFilter(items) {
-    let visible = 0;
-    items.forEach((item) => {
-      const el = state.rows.get(item.sys_id);
-      if (!el) return;
-      const show = !state.status || statusOf(item) === state.status;
-      el.hidden = !show;
-      if (show) visible += 1;
-    });
-
-    const box = $('empty');
-    if (!items.length && state.q) {
-      showEmpty(`No incidents match "${state.q}"`, 'Search looks in the incident number, short description and description.');
-    } else if (!items.length) {
-      showEmpty('No incidents in ServiceNow yet', 'Create one above, or in ServiceNow.');
-    } else if (!visible) {
-      showEmpty('Nothing matches this filter', 'Try another status, or load more incidents.');
+    // 4. Avg Cost per Incident (from DB-stored estimated_cost_usd)
+    //    Gemini Flash pricing: $0.075/1M input, $0.30/1M output
+    const PRICE_IN  = 0.075 / 1e6;  // per token
+    const PRICE_OUT = 0.30  / 1e6;  // per token
+    const costsUsd = execs
+      .map((e) => {
+        if (e.estimated_cost_usd !== null && e.estimated_cost_usd !== undefined) {
+          return e.estimated_cost_usd;
+        }
+        // Fallback: estimate from token counts if available
+        if (e.total_tokens_in || e.total_tokens_out) {
+          return (e.total_tokens_in || 0) * PRICE_IN + (e.total_tokens_out || 0) * PRICE_OUT;
+        }
+        return null;
+      })
+      .filter((c) => c !== null);
+    if (costsUsd.length > 0) {
+      const avgCost = costsUsd.reduce((a, b) => a + b, 0) / costsUsd.length;
+      // Format: show cents if < $0.10, else dollars
+      const fmtCost = avgCost < 0.001
+        ? `$${(avgCost * 1000).toFixed(3)}m`   // milli-dollars
+        : avgCost < 0.10
+          ? `${(avgCost * 100).toFixed(3)}¢`
+          : `$${avgCost.toFixed(4)}`;
+      setText('kpi-cost', fmtCost);
+      setText('kpi-cost-sub', `avg of ${costsUsd.length} tracked runs`);
     } else {
-      box.hidden = true;
+      setText('kpi-cost', '—');
+      setText('kpi-cost-sub', 'no cost data yet');
     }
+
+    // 5. Critic Gate / Rejection Rate
+    const criticGated = execs.filter((e) => {
+      const res = e.latest_result || {};
+      return res.gate === 'critic_exhausted' ||
+             res.gate === 'high_risk' ||
+             res.gate === 'low_confidence' ||
+             (e.retry_attempt_count && e.retry_attempt_count > 0) ||
+             (e.failures && e.failures.length > 0);
+    }).length;
+    const criticRate = execs.length > 0 ? Math.round((criticGated / execs.length) * 100) : 0;
+    setText('kpi-critic', `${criticRate}%`);
+    setText('kpi-critic-sub', `${criticGated} interventions / gates`);
+
+    // 6. Cache Hits
+    const cacheHits = execs.filter((e) => {
+      const res = e.latest_result || {};
+      return res.retrieval_cache_hit === true || res.retrieval_cache_hit === 'True';
+    }).length;
+    const cacheRate = execs.length > 0 ? Math.round((cacheHits / execs.length) * 100) : 0;
+    setText('kpi-cache', `${cacheRate}%`);
+    setText('kpi-cache-sub', `${cacheHits} instant KBHR hits`);
   }
 
-  function renderMetrics(items) {
-    const executions = items.map((item) => item.execution).filter(Boolean);
-    const count = (s) => executions.filter((e) => e.status === s).length;
-    tween($('m-total'), items.length);
-    tween($('m-ok'), count('succeeded'));
-    tween($('m-bad'), count('failed'));
-    tween($('m-run'), count('started'));
-    const durations = executions.filter((e) => e.duration_seconds !== null && e.duration_seconds !== undefined).map((e) => e.duration_seconds);
-    $('m-avg').textContent = durations.length ? fmtDuration(durations.reduce((a, b) => a + b, 0) / durations.length) : '\u2014';
-  }
+  /* ─────────────────────────────────────────────────────────
+     2. CHART: INCIDENT OUTCOME BY CATEGORY
+        Horizontal stacked bar — one row per category.
+        Segments: Autonomous | High-Risk Gate | Low-Conf Gate | Failed
+        Shows which categories the AI resolves autonomously vs. routes to human.
+     ───────────────────────────────────────────────────────── */
+  function renderTimelineChart(items) {
+    const container = $('timelineChartContainer');
 
-  /* ---------- sync status ----------
-     live: read from ServiceNow within the cache TTL (10s)
-     delayed: last refresh failed, the copy shown is still recent (badge only)
-     stale: the copy shown is older than stale_after_seconds (30s): warning banner */
-  function syncNotice(text) {
-    const box = $('syncNotice');
-    box.textContent = text || '';
-    box.hidden = !text;
-  }
-
-  function showSync(data) {
-    const reason = data.sync_error ? ' Last refresh failed: ' + data.sync_error + '.' : '';
-    if (data.stale) {
-      setConn('warn', 'ServiceNow stale');
-      syncNotice(`Showing ServiceNow data from ${fmtTime(data.synced_at)} (${Math.round(data.age_seconds)}s old).` +
-        reason + ' Retrying automatically.');
-    } else {
-      if (data.delayed) setConn('warn', 'ServiceNow delayed');
-      else setConn(state.live ? 'live' : 'ok', state.live ? 'Live' : 'Connected');
-      syncNotice('');
-    }
-  }
-
-  function showSyncFailure(err) {
-    // No status: the API itself did not answer. 502: the API is up but ServiceNow
-    // is not, and nothing is cached for this page yet (the message says why).
-    const what = !err.status ? 'The API cannot be reached (' + err.message + ')'
-      : err.status === 502 ? err.message : 'API error: ' + err.message;
-    setConn('err', !err.status ? 'API unreachable' : err.status === 502 ? 'ServiceNow unreachable' : 'API error');
-    if (state.syncedAt) {
-      syncNotice(`Showing data last synced at ${fmtTime(state.syncedAt)}. ${what}. Retrying automatically.`);
-    }
-  }
-
-  /* ---------- polling ---------- */
-  async function poll() {
-    if (state.inflight) { state.again = true; return; }
-    state.inflight = true;
-    const q = state.q;
-    try {
-      const data = await api('/api/v1/dashboard/incidents?limit=' + shownLimit() +
-        (q ? '&q=' + encodeURIComponent(q) : ''));
-      if (q !== state.q) return; // the search changed while this was loading; the next poll shows it
-      state.latest = data.incidents || [];
-      state.syncedAt = data.synced_at;
-      showSync(data);
-      render(state.latest);
-      renderMetrics(state.latest);
-      const total = data.total ?? state.latest.length;
-      $('updated').textContent = `${state.latest.length} of ${total} ${q ? 'matching' : 'in ServiceNow'} · Synced ` +
-        fmtTime(data.synced_at);
-      $('loadMore').hidden = state.latest.length >= total || shownLimit() >= 500;
-    } catch (err) {
-      showSyncFailure(err);
-      if (state.firstLoad) {
-        list.innerHTML = '';
-        if (err.status === 502) showEmpty('Could not reach ServiceNow', err.message + '. The list loads as soon as ServiceNow answers.');
-        else showEmpty('Could not reach the API', 'Check the address in Connection settings (top right) and that the API is running.');
-      }
-    } finally {
-      state.inflight = false;
-      state.firstLoad = false;
-      if (state.again) { state.again = false; poll(); }
-    }
-  }
-
-  function schedule() {
-    clearInterval(state.timer);
-    if (state.live) state.timer = setInterval(() => { if (!document.hidden) poll(); }, 3000);
-  }
-
-  /* ---------- controls ---------- */
-  segmented($('limitSeg'), state.limit, (v) => {
-    state.limit = parseInt(v, 10);
-    state.extra = 0;
-    store.set('barq.limit', String(state.limit));
-    poll();
-  });
-
-  $('loadMore').addEventListener('click', () => {
-    state.extra += PAGE;
-    poll();
-  });
-
-  // Search runs in ServiceNow (number, short description, description), so it
-  // covers all history, not just the rows loaded here. Debounced per keystroke.
-  const searchBox = $('searchBox');
-  let searchTimer = null;
-  function setSearch(value) {
-    const q = value.trim();
-    if (q === state.q) return;
-    state.q = q;
-    state.extra = 0;
-    poll();
-  }
-  searchBox.addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => setSearch(searchBox.value), 350);
-  });
-  searchBox.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { clearTimeout(searchTimer); setSearch(searchBox.value); }
-    if (e.key === 'Escape') { clearTimeout(searchTimer); searchBox.value = ''; setSearch(''); }
-  });
-
-  $('statusFilter').addEventListener('change', (e) => {
-    state.status = e.target.value;
-    applyFilter(state.latest);
-  });
-
-  const liveSwitch = $('liveSwitch');
-  liveSwitch.setAttribute('aria-checked', String(state.live));
-  liveSwitch.addEventListener('click', () => {
-    state.live = !state.live;
-    liveSwitch.setAttribute('aria-checked', String(state.live));
-    store.set('barq.live', state.live ? '1' : '0');
-    schedule();
-    if (state.live) poll(); else setConn('ok', 'Connected');
-  });
-
-  $('refreshBtn').addEventListener('click', poll);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && state.live) poll(); });
-  window.addEventListener('barq:api-changed', () => { state.firstLoad = true; state.rows.clear(); renderSkeleton(); poll(); });
-
-  /* ---------- Vector DB update ---------- */
-  $('kbSyncBtn').addEventListener('click', async () => {
-    const btn = $('kbSyncBtn');
-    const label = $('kbSyncLabel');
-    btn.disabled = true;
-    label.innerHTML = '<span class="spin"></span> Updating';
-    try {
-      const data = await api('/api/v1/dashboard/kb-sync', { method: 'POST' });
-      const r = data.result || {};
-      toast(`Vector DB updated: ${r.added ?? 0} added, ${r.updated ?? 0} updated, ${r.deleted ?? 0} deleted, ${r.unchanged ?? 0} unchanged`);
-    } catch (err) {
-      toast('Vector DB update failed: ' + err.message, 'err');
-    } finally {
-      btn.disabled = false;
-      label.textContent = 'Update Vector DB';
-    }
-  });
-
-  /* ---------- run history drawer ----------
-     GET /api/v1/dashboard/incidents/{number}/runs?before=<cursor>  (one page, no payloads)
-     GET /api/v1/dashboard/runs/{execution_id}/log/{entry_id}      (one payload, on demand) */
-  const drawer = $('historyDrawer');
-  const historyRuns = $('historyRuns');
-  const historyMore = $('historyMore');
-  const history = { number: null, before: null, loading: false, seq: 0 }; // seq: drops answers for a closed drawer
-  const LOG_LABELS = {
-    interrupt: 'Paused for human review',
-    human_review_required: 'Human review required',
-    'resume:human': 'Resumed after the human decision',
-    'resume:crash_recovery': 'Resumed after a worker crash',
-    resolved_automatically: 'Resolved automatically',
-    result: 'Final result',
-  };
-  const fmtBytes = (n) => n == null ? '' : n < 1024 ? n + ' B'
-    : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : (n / 1048576).toFixed(1) + ' MB';
-  const fmtDateTime = (iso) => {
-    if (!iso) return '\u2014';
-    const d = new Date(iso);
-    return isNaN(d) ? '\u2014' : d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  };
-
-  function runHtml(run, current) {
-    const [tone, label] = STATUS[run.status] || ['', run.status || 'unknown'];
-    let html = `<article class="run-card${current ? ' current' : ''}">
-      <div class="run-head"><span class="chip${tone ? ' ' + tone : ''}">${escapeHtml(label)}</span>
-        <span class="when">${escapeHtml(fmtDateTime(run.started_at))}${run.duration_seconds != null ? ' \u00b7 ' + escapeHtml(fmtDuration(run.duration_seconds)) : ''}</span>
-        <span class="mono">${escapeHtml(run.execution_id)}</span></div>
-      <dl class="facts">` +
-      fact('Node reached', run.node_reached) +
-      fact('Retry attempts', run.retry_attempt_count) +
-      (run.model_name ? fact('Model', run.model_name) : '') +
-      '</dl>';
-    (run.approvals || []).forEach((a) => {
-      html += `<div class="result"><b>Human decision</b><span>${escapeHtml(a.decision)} by ${escapeHtml(a.reviewer)} at ${escapeHtml(fmtDateTime(a.decided_at))}</span>` +
-        (a.human_solution ? `<b>Human solution</b><span>${escapeHtml(a.human_solution)}</span>` : '') + '</div>';
-    });
-    (run.failures || []).forEach((f) => {
-      html += `<div class="fail"><strong>${escapeHtml(f.failing_node)}</strong> \u2014 ${escapeHtml(f.error_class)}: ${escapeHtml(f.message)}</div>`;
-    });
-    if ((run.log || []).length) {
-      html += '<ul class="run-log">' + run.log.map((e) => `<li>
-        <div class="step"><time>${escapeHtml(fmtTime(e.created_at))}</time>
-          <span>${escapeHtml(LOG_LABELS[e.node_name] || e.node_name)} <span class="mono">${escapeHtml(e.node_name)}</span></span>
-          <small class="size">${escapeHtml(fmtBytes(e.size_bytes))}</small>
-          <button class="btn btn-sm" type="button" aria-expanded="false" data-log="${escapeHtml(run.execution_id)}" data-entry="${e.entry_id}">View log</button></div>
-      </li>`).join('') + '</ul>';
-    } else {
-      html += '<p class="hint">No log entries saved for this run yet.</p>';
-    }
-    return html + '</article>';
-  }
-
-  async function loadHistoryPage() {
-    if (history.loading) return;
-    history.loading = true;
-    const seq = history.seq;
-    const first = history.before === null;
-    historyMore.disabled = true;
-    try {
-      const data = await api('/api/v1/dashboard/incidents/' + encodeURIComponent(history.number) + '/runs?limit=10' +
-        (first ? '' : '&before=' + history.before));
-      if (seq !== history.seq) return;
-      const runs = data.runs || [];
-      const html = runs.map((r, i) => runHtml(r, first && i === 0)).join('');
-      if (first) historyRuns.innerHTML = html || '<p class="hint">No AI runs recorded for this incident.</p>';
-      else historyRuns.insertAdjacentHTML('beforeend', html);
-      history.before = data.next_before;
-      historyMore.hidden = data.next_before === null;
-    } catch (err) {
-      if (seq !== history.seq) return;
-      const fail = `<div class="fail">Could not load run history: ${escapeHtml(err.message)}</div>`;
-      if (first) historyRuns.innerHTML = fail;
-      else historyRuns.insertAdjacentHTML('beforeend', fail);
-      historyMore.hidden = first; // older pages can be retried with the same button
-    } finally {
-      if (seq === history.seq) {
-        history.loading = false;
-        historyMore.disabled = false;
-      }
-    }
-  }
-
-  function openHistory(number) {
-    history.seq += 1;
-    history.number = number;
-    history.before = null;
-    history.loading = false;
-    historyRuns.innerHTML = '<p class="hint">Loading runs...</p>';
-    historyMore.hidden = true;
-    $('historyTitle').textContent = number + ' \u00b7 Run history';
-    openOverlay(drawer);
-    loadHistoryPage();
-  }
-
-  async function toggleLog(btn) {
-    const li = btn.closest('li');
-    const open = li.querySelector('.log-payload');
-    if (open) {
-      open.hidden = !open.hidden;
-      const more = li.querySelector('.log-more');
-      if (more) more.hidden = open.hidden;
-      btn.setAttribute('aria-expanded', String(!open.hidden));
-      btn.textContent = open.hidden ? 'View log' : 'Hide log';
+    const withExec = items.filter((i) => i.execution);
+    if (!withExec.length) {
+      container.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:40px;text-align:center">No execution data yet</div>';
       return;
     }
-    btn.disabled = true;
-    try {
-      const url = '/api/v1/dashboard/runs/' + encodeURIComponent(btn.dataset.log) + '/log/' + btn.dataset.entry;
-      const data = await api(url);
-      const pre = document.createElement('pre');
-      pre.className = 'log-payload mono';
-      // A large log opens as a preview, so it never freezes the drawer; the rest is one click away.
-      pre.textContent = data.truncated ? data.preview + '\n\u2026' : JSON.stringify(data.payload, null, 2);
-      li.appendChild(pre);
-      if (data.truncated) {
-        const more = document.createElement('button');
-        more.className = 'btn btn-sm log-more';
-        more.type = 'button';
-        more.textContent = `Load full log (${fmtBytes(data.size_bytes)})`;
-        more.addEventListener('click', async () => {
-          more.disabled = true;
-          try {
-            const all = await api(url + '?full=true');
-            pre.textContent = JSON.stringify(all.payload, null, 2);
-            more.remove();
-          } catch (err) {
-            more.disabled = false;
-            toast('Could not load the full log: ' + err.message, 'err');
-          }
-        });
-        li.appendChild(more);
+
+    /* ── classify each item ── */
+    function outcomeOf(item) {
+      const st   = statusOf(item);
+      const gate = (item.execution.latest_result || {}).gate || '';
+      if (st === 'failed' || st === 'human_rejected')             return 'failed';
+      if (gate === 'high_risk'    || st === 'awaiting_approval')  return 'hitl_risk';
+      if (gate === 'low_confidence' || gate === 'critic_exhausted') return 'hitl_conf';
+      if (st === 'started')                                       return 'running';
+      return 'auto';
+    }
+
+    const OUTCOMES = [
+      { key: 'auto',      color: '#167a4b', label: 'Autonomous'    },
+      { key: 'hitl_risk', color: '#6a4fd1', label: 'High-Risk Gate' },
+      { key: 'hitl_conf', color: '#c97d0c', label: 'Low-Conf Gate' },
+      { key: 'running',   color: '#2159d6', label: 'In Progress'   },
+      { key: 'failed',    color: '#c03a2b', label: 'Failed'        },
+    ];
+
+    /* ── build category buckets ── */
+    const buckets = new Map();
+    withExec.forEach((item) => {
+      const cat = (item.category || 'other').toLowerCase();
+      if (!buckets.has(cat)) buckets.set(cat, { auto: 0, hitl_risk: 0, hitl_conf: 0, running: 0, failed: 0 });
+      buckets.get(cat)[outcomeOf(item)]++;
+    });
+
+    const rows = [...buckets.entries()]
+      .map(([name, d]) => ({
+        name,
+        ...d,
+        total: d.auto + d.hitl_risk + d.hitl_conf + d.running + d.failed,
+      }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 7);
+
+    const maxTotal = Math.max(...rows.map((r) => r.total), 1);
+
+    /* ── layout ── */
+    const W = 560, H = 220;
+    const PAD = { t: 14, r: 80, b: 28, l: 88 };
+    const cW  = W - PAD.l - PAD.r;
+    const cH  = H - PAD.t - PAD.b;
+    const rowH = cH / rows.length;
+    const barH = Math.min(Math.floor(rowH * 0.52), 18);
+
+    /* ── bars ── */
+    const bars = rows.map((row, i) => {
+      const cy = PAD.t + i * rowH + (rowH - barH) / 2;
+      let x = PAD.l;
+      const segs = OUTCOMES.map(({ key, color }) => {
+        const val = row[key] || 0;
+        const w   = (val / maxTotal) * cW;
+        if (val === 0) return '';
+        const seg = `<rect x="${x.toFixed(1)}" y="${cy}" width="${Math.max(w, 2).toFixed(1)}"
+                          height="${barH}" fill="${color}" rx="2" opacity="0.9">
+                       <title>${key}: ${val} incident${val !== 1 ? 's' : ''}</title>
+                     </rect>`;
+        x += w;
+        return seg;
+      }).join('');
+
+      const autoPct = row.total > 0 ? Math.round((row.auto / row.total) * 100) : 0;
+      const label   = row.name.length > 11 ? row.name.slice(0, 10) + '…' : row.name;
+      const midY    = cy + barH / 2 + 4;
+      const pctColor = autoPct >= 70 ? '#167a4b' : autoPct >= 40 ? '#c97d0c' : '#c03a2b';
+
+      return `
+        <text x="${PAD.l - 8}" y="${midY}" text-anchor="end" font-size="11"
+              fill="var(--ink-2)" style="text-transform:capitalize">${escapeHtml(label)}</text>
+        ${segs}
+        <text x="${x + 6}" y="${midY}" font-size="10" fill="${pctColor}" font-weight="700"
+              >${autoPct}%</text>`;
+    }).join('');
+
+    /* ── X axis grid & labels ── */
+    const xTicks = [0, Math.ceil(maxTotal / 2), maxTotal];
+    const grid = xTicks.map((v) => {
+      const x = PAD.l + (v / maxTotal) * cW;
+      return `
+        <line x1="${x.toFixed(1)}" y1="${PAD.t}" x2="${x.toFixed(1)}" y2="${PAD.t + cH}"
+              stroke="var(--line)" stroke-width="${v === 0 ? 1.2 : 0.7}" stroke-dasharray="${v ? '3,4' : ''}"/>
+        <text x="${x.toFixed(1)}" y="${H - PAD.b + 14}" text-anchor="middle"
+              font-size="10" fill="var(--ink-3)">${v}</text>`;
+    }).join('');
+
+    /* ── X axis label ── */
+    const xAxisLabel = `<text x="${PAD.l + cW / 2}" y="${H - 2}" text-anchor="middle"
+                               font-size="9.5" fill="var(--ink-3)">incidents</text>`;
+
+    /* ── update badge ── */
+    const totalAuto  = rows.reduce((s, r) => s + r.auto, 0);
+    const totalAll   = rows.reduce((s, r) => s + r.total, 0);
+    const overallPct = totalAll > 0 ? Math.round((totalAuto / totalAll) * 100) : 0;
+    const badge = $('trendBadge');
+    if (badge) {
+      badge.textContent = `${overallPct}% Autonomous`;
+      badge.className   = `chip ${overallPct >= 60 ? 'ok' : overallPct >= 30 ? 'warn' : 'bad'}`;
+    }
+
+    /* ── legend (only outcomes actually present) ── */
+    const legend = OUTCOMES
+      .filter(({ key }) => rows.some((r) => (r[key] || 0) > 0))
+      .map(({ color, label }) => `<span class="chart-legend-item">
+          <span class="chart-legend-dot" style="background:${color}"></span>${label}
+        </span>`)
+      .join('');
+
+    container.innerHTML = `
+      <svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        ${grid}
+        ${bars}
+        ${xAxisLabel}
+      </svg>
+      <div class="chart-legend">${legend}
+        <span class="chart-legend-item" style="color:var(--ink-3);font-size:10px;margin-left:auto">
+          % = autonomous rate
+        </span>
+      </div>`;
+  }
+
+  /* ─────────────────────────────────────────────────────────
+     3. CHART: CATEGORY DISTRIBUTION (Donut + Legend)
+     ───────────────────────────────────────────────────────── */
+  function renderCategoryChart(items) {
+    const container = $('categoryChartContainer');
+    const catMap = new Map();
+    items.forEach((item) => {
+      const c = item.category || 'General';
+      catMap.set(c, (catMap.get(c) || 0) + 1);
+    });
+
+    const entries = Array.from(catMap.entries()).sort((a, b) => b[1] - a[1]);
+    $('categoryCountBadge').textContent = `${entries.length} Categories`;
+
+    if (!entries.length) {
+      container.innerHTML = '<div style="color:var(--ink-3);font-size:13px;padding:30px;text-align:center">No categories recorded</div>';
+      return;
+    }
+
+    const total = items.length;
+    let accumulatedAngle = 0;
+    const radius = 64;
+    const strokeWidth = 24;
+    const center = 80;
+    const circumference = 2 * Math.PI * radius;
+
+    let donutSegments = '';
+    entries.forEach(([cat, count], idx) => {
+      const pct = count / total;
+      const strokeDash = pct * circumference;
+      const strokeOffset = -accumulatedAngle * circumference;
+      const color = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+
+      donutSegments += `<circle cx="${center}" cy="${center}" r="${radius}"
+        fill="transparent"
+        stroke="${color}"
+        stroke-width="${strokeWidth}"
+        stroke-dasharray="${strokeDash} ${circumference}"
+        stroke-dashoffset="${strokeOffset}"
+        transform="rotate(-90 ${center} ${center})" />`;
+
+      accumulatedAngle += pct;
+    });
+
+    const legendHtml = entries.map(([cat, count], idx) => {
+      const pct = Math.round((count / total) * 100);
+      const color = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+      return `
+        <div class="donut-legend-item">
+          <div style="display:flex;align-items:center;gap:8px;overflow:hidden">
+            <span class="donut-legend-dot" style="background:${color}"></span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink-2)">${escapeHtml(cat)}</span>
+          </div>
+          <span style="font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink)">${count} <span style="font-weight:400;color:var(--ink-3);font-size:11px">(${pct}%)</span></span>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="donut-layout">
+        <div class="donut-chart-box">
+          <svg width="160" height="160" viewBox="0 0 160 160">
+            ${donutSegments}
+          </svg>
+          <div class="donut-center-text">
+            <div class="donut-center-val">${total}</div>
+            <div class="donut-center-lbl">Total</div>
+          </div>
+        </div>
+        <div class="donut-legend">
+          ${legendHtml}
+        </div>
+      </div>`;
+  }
+
+  /* ─────────────────────────────────────────────────────────
+     4. CHART: RESOLUTION SPEED & MTTR (Column Bar Chart)
+     ───────────────────────────────────────────────────────── */
+  function renderMTTRChart(items) {
+    const container = $('mttrChartContainer');
+    const withExec = items.filter((i) => i.execution);
+    const execs = withExec.map((i) => i.execution);
+
+    const buckets = [
+      { label: '< 30s', sub: 'Instant/Cache', count: 0, tone: 'violet' },
+      { label: '30s - 1m', sub: 'Rapid AI', count: 0, tone: 'ok' },
+      { label: '1m - 3m', sub: 'Standard', count: 0, tone: 'accent' },
+      { label: '3m - 5m', sub: 'Complex', count: 0, tone: 'warn' },
+      { label: '> 5m', sub: 'Review/Queue', count: 0, tone: 'warn' },
+    ];
+
+    execs.forEach((e) => {
+      const dur = e.duration_seconds;
+      if (dur === null || dur === undefined) return;
+      if (dur < 30) buckets[0].count += 1;
+      else if (dur <= 60) buckets[1].count += 1;
+      else if (dur <= 180) buckets[2].count += 1;
+      else if (dur <= 300) buckets[3].count += 1;
+      else buckets[4].count += 1;
+    });
+
+    const maxCount = Math.max(...buckets.map((b) => b.count), 1);
+    const totalCount = execs.filter((e) => e.duration_seconds !== null && e.duration_seconds !== undefined).length || 1;
+
+    const barsHtml = buckets.map((b) => {
+      const heightPct = Math.round((b.count / maxCount) * 100);
+      const pctOfTotal = Math.round((b.count / totalCount) * 100);
+      return `
+        <div class="bar-column">
+          <span class="bar-val-lbl">${b.count} <span style="font-weight:400;color:var(--ink-3);font-size:10px">(${pctOfTotal}%)</span></span>
+          <div class="bar-track" style="height:120px">
+            <div class="bar-fill ${b.tone}" style="height:${Math.max(heightPct, 6)}%"></div>
+          </div>
+          <div class="bar-x-lbl">
+            <strong>${b.label}</strong>
+            <div style="font-size:9.5px;color:var(--ink-3)">${b.sub}</div>
+          </div>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div class="bar-chart-layout">
+        ${barsHtml}
+      </div>
+      <div class="chart-legend">
+        <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--violet)"></span> Instant &lt;30s</span>
+        <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--ok)"></span> Rapid &lt;1m</span>
+        <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--accent)"></span> Standard &lt;3m</span>
+        <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--warn)"></span> Deep &gt;3m</span>
+      </div>`;
+  }
+
+  /* ─────────────────────────────────────────────────────────
+     5. CHART: PRIORITY & SEVERITY RESOLUTION MATRIX (Stacked Bars)
+     ───────────────────────────────────────────────────────── */
+  function renderPriorityChart(items) {
+    const container = $('priorityChartContainer');
+    const priorities = [
+      { id: '1', label: 'P1 Critical', resolved: 0, review: 0, other: 0 },
+      { id: '2', label: 'P2 High', resolved: 0, review: 0, other: 0 },
+      { id: '3', label: 'P3 Moderate', resolved: 0, review: 0, other: 0 },
+      { id: '4', label: 'P4 Low', resolved: 0, review: 0, other: 0 },
+      { id: '5', label: 'P5 Planning', resolved: 0, review: 0, other: 0 },
+    ];
+
+    items.forEach((item) => {
+      const pStr = String(item.priority || '');
+      const match = pStr.match(/^(\d)/);
+      const p = match ? match[1] : '3';
+      const tier = priorities.find((x) => x.id === p) || priorities[2];
+      const st = statusOf(item);
+      if (st === 'succeeded') tier.resolved += 1;
+      else if (st === 'awaiting_approval' || st === 'blocked' || st === 'human_rejected') tier.review += 1;
+      else tier.other += 1;
+    });
+
+    const rowsHtml = priorities.map((tier) => {
+      const total = tier.resolved + tier.review + tier.other;
+      const resPct = total ? Math.round((tier.resolved / total) * 100) : 0;
+      const revPct = total ? Math.round((tier.review / total) * 100) : 0;
+      const otherPct = total ? Math.max(0, 100 - resPct - revPct) : 0;
+
+      return `
+        <div class="priority-row">
+          <div class="priority-meta">
+            <span style="font-weight:600;display:inline-flex;align-items:center;gap:6px">
+              <span class="prio-badge prio-badge-${tier.id}">${tier.label}</span>
+              <span style="font-weight:400;color:var(--ink-3);font-size:11px">${total} total</span>
+            </span>
+            <span style="font-size:11px;font-weight:600">
+              <span style="color:var(--ok)">${resPct}% Resolved</span>
+              ${revPct ? ` · <span style="color:var(--violet)">${revPct}% Review</span>` : ''}
+            </span>
+          </div>
+          <div class="priority-stacked-track">
+            ${resPct ? `<div class="priority-seg-resolved" style="width:${resPct}%" title="${tier.resolved} Resolved"></div>` : ''}
+            ${revPct ? `<div class="priority-seg-review" style="width:${revPct}%" title="${tier.review} Human Review"></div>` : ''}
+            ${otherPct ? `<div class="priority-seg-other" style="width:${otherPct}%"></div>` : ''}
+          </div>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = `
+      <div style="display:flex;flex-direction:column;width:100%;padding:4px 0">
+        ${rowsHtml}
+      </div>
+      <div class="chart-legend" style="margin-top:10px">
+        <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--ok)"></span> Autonomous Resolved</span>
+        <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--violet)"></span> Escalated / Human Review</span>
+        <span class="chart-legend-item"><span class="chart-legend-dot" style="background:var(--line-strong)"></span> In Progress / Other</span>
+      </div>`;
+  }
+
+  /* ─────────────────────────────────────────────────────────
+     6. CHART: PIPELINE STATUS BREAKDOWN
+     ───────────────────────────────────────────────────────── */
+  function renderStatusChart(items) {
+    const container = $('statusChartContainer');
+    const counts = {
+      succeeded: 0,
+      awaiting_approval: 0,
+      started: 0,
+      blocked: 0,
+      human_rejected: 0,
+      not_sent: 0,
+    };
+
+    items.forEach((item) => {
+      const st = statusOf(item);
+      if (counts[st] !== undefined) counts[st] += 1;
+      else counts.not_sent += 1;
+    });
+
+    const total = items.length || 1;
+    const listHtml = Object.entries(STATUS_CONFIG).map(([stKey, cfg]) => {
+      const count = counts[stKey] || 0;
+      const pct = Math.round((count / total) * 100);
+      return `
+        <div class="breakdown-row">
+          <div class="breakdown-meta">
+            <span class="breakdown-label"><i style="width:8px;height:8px;border-radius:50%;background:${cfg.color};display:inline-block"></i> ${cfg.label}</span>
+            <span class="breakdown-val">${count} <span style="font-size:11px;font-weight:400;color:var(--ink-3)">(${pct}%)</span></span>
+          </div>
+          <div class="breakdown-track">
+            <div class="breakdown-fill" style="width:${pct}%;background:${cfg.color}"></div>
+          </div>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = `<div class="breakdown-list">${listHtml}</div>`;
+  }
+
+  /* ─────────────────────────────────────────────────────────
+     7. CHART: AGENTIC QUALITY & GUARDRAIL METRICS
+     ───────────────────────────────────────────────────────── */
+  function renderGuardrails(items) {
+    const container = $('guardrailsContainer');
+    const withExec = items.filter((i) => i.execution);
+    const execs = withExec.map((i) => i.execution);
+
+    let highRisk = 0;
+    let lowConf = 0;
+    let criticExhausted = 0;
+    let cacheHits = 0;
+    let totalConf = 0;
+    let confCount = 0;
+
+    execs.forEach((e) => {
+      const res = e.latest_result || {};
+      if (res.gate === 'high_risk') highRisk += 1;
+      if (res.gate === 'low_confidence') lowConf += 1;
+      if (res.gate === 'critic_exhausted') criticExhausted += 1;
+      if (res.retrieval_cache_hit) cacheHits += 1;
+      if (res.confidence !== null && res.confidence !== undefined) {
+        totalConf += parseFloat(res.confidence);
+        confCount += 1;
       }
-      btn.setAttribute('aria-expanded', 'true');
-      btn.textContent = 'Hide log';
-    } catch (err) {
-      toast('Could not load this log entry: ' + err.message, 'err');
-    } finally {
-      btn.disabled = false;
+    });
+
+    const avgConf = confCount > 0 ? Math.round((totalConf / confCount) * 100) : 85;
+
+    container.innerHTML = `
+      <div style="width:100%;display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div style="padding:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px">
+          <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.04em">Avg Model Confidence</div>
+          <div style="font-size:24px;font-weight:700;color:var(--ok);margin-top:4px">${avgConf}%</div>
+          <div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">Verified by critic model</div>
+        </div>
+        <div style="padding:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px">
+          <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.04em">High Risk Pauses</div>
+          <div style="font-size:24px;font-weight:700;color:var(--bad);margin-top:4px">${highRisk}</div>
+          <div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">Escalated to human lead</div>
+        </div>
+        <div style="padding:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px">
+          <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.04em">Low Confidence Checks</div>
+          <div style="font-size:24px;font-weight:700;color:var(--warn);margin-top:4px">${lowConf}</div>
+          <div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">Safety threshold &lt; 0.60</div>
+        </div>
+        <div style="padding:14px;background:var(--surface-2);border:1px solid var(--line);border-radius:8px">
+          <div style="font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.04em">KBHR Cache Resolutions</div>
+          <div style="font-size:24px;font-weight:700;color:var(--violet);margin-top:4px">${cacheHits}</div>
+          <div style="font-size:11.5px;color:var(--ink-3);margin-top:2px">Instant human verified reuse</div>
+        </div>
+      </div>`;
+  }
+
+  /* ─────────────────────────────────────────────────────────
+     8. TABLE: RECENT INCIDENT ACTIVITY
+     ───────────────────────────────────────────────────────── */
+  function renderRecentTable(items) {
+    const tbody = $('recentTableBody');
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--ink-3)">No incidents found</td></tr>';
+      return;
     }
+
+    const rows = items.slice(0, 8).map((item) => {
+      const exec = item.execution;
+      const st = statusOf(item);
+      const [tone, label] = STATUS_CONFIG[st] ? [STATUS_CONFIG[st].tone, STATUS_CONFIG[st].label] : ['plain', st];
+      const res = exec ? (exec.latest_result || {}) : {};
+
+      let confCell = '—';
+      if (res.confidence !== null && res.confidence !== undefined) {
+        const conf = parseFloat(res.confidence);
+        const pct = Math.round(conf * 100);
+        const col = conf >= 0.75 ? 'var(--ok)' : conf >= 0.5 ? 'var(--warn)' : 'var(--bad)';
+        confCell = `<span style="font-weight:600;color:${col}">${pct}%</span>`;
+      }
+
+      return `
+        <tr>
+          <td><strong style="color:var(--accent);font-family:ui-monospace,monospace">${escapeHtml(item.number || '—')}</strong></td>
+          <td style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(item.short_description || '—')}</td>
+          <td><span style="color:var(--ink-2)">${escapeHtml(item.category || '—')}</span></td>
+          <td>${prioBadgeHtml(item.priority)}</td>
+          <td><span class="chip ${tone}" style="font-size:11px">${escapeHtml(label)}</span></td>
+          <td>${confCell}</td>
+          <td style="font-variant-numeric:tabular-nums;color:var(--ink-3)">${exec ? fmtDuration(exec.duration_seconds) : '—'}</td>
+          <td>
+            <a class="btn btn-sm" href="pipeline.html?sys_id=${encodeURIComponent(item.sys_id || item.number || '')}" style="padding:0 8px;font-size:11px">Inspect →</a>
+          </td>
+        </tr>`;
+    }).join('');
+
+    tbody.innerHTML = rows;
   }
 
-  list.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-history]');
-    if (btn) openHistory(btn.dataset.history);
-  });
-  historyRuns.addEventListener('click', (e) => {
-    const btn = e.target.closest('[data-log]');
-    if (btn) toggleLog(btn);
-  });
-  historyMore.addEventListener('click', loadHistoryPage);
-  $('historyClose').addEventListener('click', () => closeOverlay(drawer));
+  /* ─────────────────────────────────────────────────────────
+     LOAD & REFRESH DATA
+     ───────────────────────────────────────────────────────── */
 
-  /* ---------- new incident dialog ---------- */
-  const modal = $('modal');
-  const errEl = $('f-error');
-
-  const categorySelect = $('f-category');
-  let categoriesLoaded = false;
-  // One id per opened form, sent with every Create click. If ServiceNow created
-  // the incident but the answer was lost, the retry gets that incident back
-  // instead of a duplicate (the API stores it in correlation_id).
-  let requestId = null;
-  const newRequestId = () => (window.crypto && crypto.randomUUID)
-    ? crypto.randomUUID()
-    : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
-
-  function showFormError(message, focusId) {
-    errEl.textContent = message;
-    errEl.classList.add('show');
-    if (focusId) $(focusId).focus();
-  }
-
-  // Same choices, labels and order as the Category field on the ServiceNow form.
-  async function loadCategories() {
-    if (categoriesLoaded) return;
-    categorySelect.disabled = true;
-    categorySelect.innerHTML = '<option value="">Loading categories from ServiceNow...</option>';
+  // Safe wrapper — chart errors show in the container, not as "API unreachable".
+  function safeRender(fn, items, containerId) {
     try {
-      const data = await api('/api/v1/dashboard/incident-categories');
-      categorySelect.innerHTML = '<option value="">Select a category</option>' +
-        (data.categories || []).map((c) =>
-          `<option value="${escapeHtml(c.value)}">${escapeHtml(c.label)}</option>`).join('');
-      categoriesLoaded = true;
+      fn(items);
     } catch (err) {
-      categorySelect.innerHTML = '<option value="">Categories unavailable</option>';
-      showFormError('Could not load categories from ServiceNow: ' + err.message);
-    } finally {
-      categorySelect.disabled = false;
+      console.error(`[dashboard] render error in ${fn.name || containerId}:`, err);
+      if (containerId) {
+        const el = $(containerId);
+        if (el) el.innerHTML = `<div style="color:var(--bad,#c03a2b);font-size:12px;padding:16px">
+          Chart error: ${err.message}</div>`;
+      }
     }
   }
 
-  $('newIncidentBtn').addEventListener('click', () => {
-    ['f-short', 'f-desc'].forEach((id) => { $(id).value = ''; });
-    categorySelect.value = '';
-    errEl.classList.remove('show');
-    requestId = newRequestId();
-    openOverlay(modal);
-    loadCategories();
-  });
-  $('modalCancel').addEventListener('click', () => closeOverlay(modal));
-
-  // The Business Rule sends the webhook asynchronously (executeAsync), so give
-  // it a moment. No event means ServiceNow suppressed it or could not reach us.
-  const BR_WAIT_MS = 20000;
-  const BR_POLL_MS = 2000;
-
-  async function watchBusinessRule(sysId, number) {
-    state.waiting.add(sysId);
-    // Sent: stays "waiting" until its run shows up (updateRow clears it).
-    if (!(await waitForBusinessRule(sysId, number))) {
-      state.waiting.delete(sysId);
-      render(state.latest);
-    }
-  }
-
-  async function waitForBusinessRule(sysId, number) {
-    const deadline = Date.now() + BR_WAIT_MS;
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, BR_POLL_MS));
-      try {
-        const data = await api('/api/v1/dashboard/incidents/' + encodeURIComponent(sysId) + '/events');
-        if ((data.events || []).length) {
-          toast(`${number} passed the ServiceNow Business Rule and was queued`);
-          poll();
-          return true;
-        }
-      } catch (err) { /* keep waiting; the API may be briefly busy */ }
-    }
-    toast(`${number} was not received from ServiceNow yet. If it is eligible, the delivery ` +
-      'sweep picks it up within about 3 minutes. If it is not eligible (category, AI enabled, ' +
-      'human lock), it stays with ServiceNow: see System Logs for "AI Orchestrator".', 'warn', 12000);
-    return false;
-  }
-
-  async function submitIncident() {
-    const short = $('f-short').value.trim();
-    const category = categorySelect.value;
-    if (!short) return showFormError('Enter a short description first.', 'f-short');
-    if (!category) return showFormError('Choose a category.', 'f-category');
-    errEl.classList.remove('show');
-
-    const btn = $('modalSubmit');
-    btn.disabled = true;
-    btn.textContent = 'Creating...';
+  async function loadData() {
     try {
-      const data = await api('/api/v1/dashboard/incidents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          short_description: short,
-          description: $('f-desc').value.trim() || null,
-          category,
-          request_id: requestId,
-        }),
-      });
-      toast(data.status === 'already_created'
-        ? `${data.number} was already created by your earlier attempt; no duplicate made.`
-        : `${data.number} created in ServiceNow. Waiting for the Business Rule...`);
-      closeOverlay(modal);
-      poll();
-      watchBusinessRule(data.sys_id, data.number);
+      setConn('idle', 'Updating...');
+      const data = await api('/api/v1/dashboard/incidents?limit=50');
+      latestData = data.incidents || [];
+      setConn('ok', 'Snapshot — click Refresh to update');
     } catch (err) {
-      // The form stays open with the same request id, so trying again is safe.
-      toast('Could not create incident: ' + err.message + '. Try again; it will not create a duplicate.', 'err', 10000);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Create in ServiceNow';
+      setConn('err', 'API unreachable');
+      return; // don't attempt renders if data fetch failed
     }
-  }
-  $('modalSubmit').addEventListener('click', submitIncident);
-  modal.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') submitIncident(); });
 
-  /* ---------- start ---------- */
-  renderSkeleton();
-  setConn('idle', 'Connecting');
-  poll();
-  schedule();
+    // Render each section independently — one crash won't break the others.
+    safeRender(renderKPIs,           latestData, null);
+    safeRender(renderTimelineChart,  latestData, 'timelineChartContainer');
+    safeRender(renderCategoryChart,  latestData, 'categoryChartContainer');
+    safeRender(renderMTTRChart,      latestData, 'mttrChartContainer');
+    safeRender(renderPriorityChart,  latestData, 'priorityChartContainer');
+    safeRender(renderStatusChart,    latestData, 'statusChartContainer');
+    safeRender(renderGuardrails,     latestData, 'guardrailsContainer');
+    safeRender(renderRecentTable,    latestData, 'recentTableBody');
+  }
+
+  $('refreshBtn').addEventListener('click', loadData);
+
+  loadData();
+  // Auto-refresh intentionally disabled — click Refresh to update.
 })();

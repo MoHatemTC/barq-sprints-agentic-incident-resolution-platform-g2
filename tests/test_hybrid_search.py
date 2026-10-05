@@ -18,24 +18,41 @@ DOCS = [
 
 @pytest.fixture(scope="module")
 def client():
-    """Build the mini collection once for the whole file (embedding is the slow part)"""
+    """Build the mini collection once for the whole file (embedding is the slow part).
+
+    If the embedding API returns 429 (budget-exhausted or rate-limited) the
+    whole module is skipped cleanly — this is an infrastructure issue, not a
+    code bug, and should not count as a test failure.
+    """
+    import httpx
+
     c = QdrantClient(":memory:")
     c.create_collection(
         COLLECTION,
         vectors_config={"dense": models.VectorParams(size=get_dense_dimension(), distance=models.Distance.COSINE)},
         sparse_vectors_config={"sparse": models.SparseVectorParams()},
     )
-    points = [
-        models.PointStruct(
-            id=i + 1,
-            vector={"dense": embed_dense(text), "sparse": models.SparseVector(**embed_sparse(text))},
-            payload={"number": number, "section": section, "workflow_state": state,
-                     "security_level": "internal", "text": text, "title": text[:40]},
-        )
-        for i, (number, section, state, text) in enumerate(DOCS)
-    ]
+    try:
+        points = [
+            models.PointStruct(
+                id=i + 1,
+                vector={"dense": embed_dense(text), "sparse": models.SparseVector(**embed_sparse(text))},
+                payload={"number": number, "section": section, "workflow_state": state,
+                         "security_level": "internal", "text": text, "title": text[:40]},
+            )
+            for i, (number, section, state, text) in enumerate(DOCS)
+        ]
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code == 429:
+            pytest.skip(
+                "Embedding API returned 429 (rate-limited / budget exhausted) — "
+                "skipping hybrid-search suite.  Update LITELLM_API_KEY in CI secrets "
+                "to fix this permanently."
+            )
+        raise
     c.upsert(COLLECTION, points)
     return c
+
 
 
 def run(client, query, mode, top_k=3):

@@ -178,6 +178,9 @@ class ServiceNowClient:
         # Write AI fields, keys are logical names from config file
         # Standard SNOW fields (resolution tab) are non-critical; only custom AI fields are critical.
         STANDARD_SNOW_FIELDS = {"close_code", "close_notes", "resolved_by", "resolved_at", "state"}
+        # Soft AI fields: custom fields that ServiceNow may coerce (e.g. confidence int→decimal)
+        # or reject clearing (failure_reason=None on resolved incidents). Warn-only, never raise.
+        SOFT_AI_FIELDS = {"confidence", "failure_reason"}
 
         payload = {}
         for key, value in fields.items():
@@ -191,16 +194,17 @@ class ServiceNowClient:
         # 200 does not prove the write landed, compare sent against returned.
         # Standard fields (close_code, state, etc.) are verified as warnings only
         # because ServiceNow may apply ACLs or coerce values on resolution fields.
-        critical_keys = {config.AI_FIELDS[k] for k in fields if k not in STANDARD_SNOW_FIELDS}
-        standard_keys = {config.AI_FIELDS[k] for k in fields if k in STANDARD_SNOW_FIELDS}
+        non_critical = STANDARD_SNOW_FIELDS | SOFT_AI_FIELDS
+        critical_keys = {config.AI_FIELDS[k] for k in fields if k not in non_critical}
+        soft_keys = {config.AI_FIELDS[k] for k in fields if k in non_critical}
 
         critical_dropped = [c for c in critical_keys if not _same(payload.get(c), result.get(c))]
-        standard_dropped = [c for c in standard_keys if not _same(payload.get(c), result.get(c))]
+        soft_dropped = [c for c in soft_keys if not _same(payload.get(c), result.get(c))]
 
-        if standard_dropped:
+        if soft_dropped:
             logger.warning(
-                "Standard resolution fields not confirmed by ServiceNow (may be ACL-gated): %s",
-                standard_dropped,
+                "Non-critical fields not confirmed by ServiceNow (type coercion or ACL): %s",
+                soft_dropped,
             )
         if critical_dropped:
             raise ServiceNowWriteNotAppliedError(200, f"Fields not written: {critical_dropped}")

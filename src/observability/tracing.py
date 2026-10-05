@@ -26,6 +26,116 @@ logger = logging.getLogger(__name__)
 from langgraph.errors import GraphBubbleUp
 
 
+def _extract_execution_ids(args, kwargs) -> tuple[Any, Any]:
+    """Resolve execution_id / incident_number from a decorated call.
+
+    Bound methods pass ``self`` first, then the incident dict. Taking
+    ``args[1]`` blindly used to stamp the whole payload as the execution id,
+    so worker.pickup cost never matched the per-node accumulator.
+    """
+    exec_id = kwargs.get("execution_id")
+    inc_num = kwargs.get("incident_number")
+    positional = list(args)
+    if positional and not isinstance(positional[0], (dict, str)):
+        positional = positional[1:]
+    if exec_id is None:
+        for arg in positional:
+            if isinstance(arg, str) and arg:
+                exec_id = arg
+                break
+            if isinstance(arg, dict) and arg.get("execution_id"):
+                exec_id = arg.get("execution_id")
+                break
+    if inc_num is None:
+        for arg in positional:
+            if isinstance(arg, dict):
+                inc_num = arg.get("number") or arg.get("sys_id")
+                break
+        if inc_num is None:
+            strings = [a for a in positional if isinstance(a, str)]
+            if exec_id and exec_id in strings:
+                strings = [s for s in strings if s != exec_id]
+            if strings:
+                inc_num = strings[0]
+    return exec_id, inc_num
+
+
+def _attach_root_execution_cost(root_span, client, exec_id) -> None:
+    """Write the run's summed LLM usage onto worker.pickup (and the trace).
+
+    Child generations already carry their own Langfuse usage. The parent span
+    does not roll those up unless we set usage_details / cost_details here.
+    """
+    if root_span is None or not exec_id:
+        return
+    try:
+        from src.agent.cost_tracking import snapshot_cost
+        snap = snapshot_cost(str(exec_id))
+        if not snap:
+            return
+        usage_details = {
+            "input": snap["total_tokens_in"],
+            "output": snap["total_tokens_out"],
+            "total": snap["total_tokens_in"] + snap["total_tokens_out"],
+        }
+        cost_details = {
+            "input": round(snap["input_cost_usd"], 8),
+            "output": round(snap["output_cost_usd"], 8),
+            "total": round(snap["total_cost_usd"], 8),
+        }
+        metadata = {
+            "total_tokens_in": snap["total_tokens_in"],
+            "total_tokens_out": snap["total_tokens_out"],
+            "estimated_cost_usd": round(snap["total_cost_usd"], 8),
+        }
+        # Stamp the parent span (worker.pickup) AND the trace header. Langfuse
+        # shows generation-level usage automatically; the parent does not roll
+        # up unless usage_details / cost_details are set here.
+        updated = False
+        for payload in (
+            {"usage_details": usage_details, "cost_details": cost_details, "metadata": metadata},
+            {"metadata": metadata},
+        ):
+            try:
+                root_span.update(**payload)
+                updated = True
+                break
+            except TypeError:
+                continue
+            except Exception:
+                logger.debug("Langfuse root span cost update failed", exc_info=True)
+                break
+        if not updated:
+            logger.debug("Langfuse root span rejected usage payload")
+        for updater in (
+            getattr(root_span, "update_trace", None),
+            getattr(client, "update_current_trace", None) if client is not None else None,
+        ):
+            if not callable(updater):
+                continue
+            try:
+                updater(
+                    usage_details=usage_details,
+                    cost_details=cost_details,
+                    metadata=metadata,
+                )
+                break
+            except TypeError:
+                try:
+                    updater(metadata=metadata)
+                    break
+                except Exception:
+                    continue
+            except Exception:
+                continue
+        logger.info(
+            "Langfuse root cost attached for %s: in=%d out=%d usd=%.6f",
+            exec_id, snap["total_tokens_in"], snap["total_tokens_out"], snap["total_cost_usd"],
+        )
+    except Exception:
+        logger.debug("Langfuse root cost attach failed", exc_info=True)
+
+
 def _is_graph_pause(error: BaseException) -> bool:
     """A LangGraph pause for human review is control flow, not a failure."""
     return isinstance(error, GraphBubbleUp)
@@ -43,6 +153,9 @@ _current_span_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar
 )
 _current_root_span_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
     "_current_root_span_id", default=None
+)
+_current_execution_id: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "_current_execution_id", default=None
 )
 
 # ---------------------------------------------------------------------------
@@ -93,16 +206,17 @@ def trace_execution(name: str):
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
-            if not LANGFUSE_AVAILABLE or get_client is None:
-                return func(*args, **kwargs)
+            exec_id, inc_num = _extract_execution_ids(args, kwargs)
 
-            # Extract identifiers for keying
-            exec_id = kwargs.get("execution_id") or (
-                args[1] if len(args) > 1 else None
-            )
-            inc_num = kwargs.get("incident_number") or (
-                args[2] if len(args) > 2 else None
-            )
+            # Always set execution_id context so cost tracking works even
+            # when Langfuse is unavailable.
+            exec_id_token = _current_execution_id.set(str(exec_id) if exec_id else None)
+
+            if not LANGFUSE_AVAILABLE or get_client is None:
+                try:
+                    return func(*args, **kwargs)
+                finally:
+                    _current_execution_id.reset(exec_id_token)
 
             client = get_client()
 
@@ -131,7 +245,6 @@ def trace_execution(name: str):
                     try:
                         result = func(*args, **kwargs)
 
-                        # Record success on the root span
                         try:
                             root_span.update(
                                 output=sanitize_payload(result) if isinstance(result, dict) else str(result),
@@ -146,14 +259,22 @@ def trace_execution(name: str):
                     except Exception as e:
                         # Record the error on the root span
                         try:
-                            root_span.update(
-                                level="ERROR",
-                                status_message=f"{type(e).__name__}: {e}",
-                            )
+                            if _is_graph_pause(e):
+                                root_span.update(
+                                    level="DEFAULT",
+                                    status_message="paused for human approval",
+                                )
+                            else:
+                                root_span.update(
+                                    level="ERROR",
+                                    status_message=f"{type(e).__name__}: {e}",
+                                )
                         except Exception:
                             pass
                         raise
                     finally:
+                        # Always stamp summed usage on worker.pickup, including pauses.
+                        _attach_root_execution_cost(root_span, client, exec_id)
                         if root_span_token is not None:
                             _current_root_span_id.reset(root_span_token)
 
@@ -172,6 +293,7 @@ def trace_execution(name: str):
                 )
                 # Reset context
                 _current_trace_id.reset(token)
+                _current_execution_id.reset(exec_id_token)
                 # Flush — never crash on flush failure
                 try:
                     if client:
@@ -250,6 +372,25 @@ def trace_node(name: str, observation_type: str = "span"):
             except Exception:
                 pass
 
+            # Snapshot token counts before this node runs
+            acc = None
+            tin_before = 0
+            tout_before = 0
+            execution_id = _current_execution_id.get()
+            if not execution_id and isinstance(state_arg, dict):
+                execution_id = state_arg.get("execution_id")
+                if execution_id:
+                    _current_execution_id.set(str(execution_id))
+
+            if execution_id:
+                try:
+                    from src.agent.cost_tracking import get_accumulator
+                    acc = get_accumulator(str(execution_id))
+                    tin_before = acc.tokens_in
+                    tout_before = acc.tokens_out
+                except Exception:
+                    pass
+
             start = time.perf_counter()
             try:
                 result = func(*args, **kwargs)
@@ -262,6 +403,41 @@ def trace_node(name: str, observation_type: str = "span"):
                     except Exception:
                         structured_output = sanitize_payload(result)
 
+                # Compute tokens and cost consumed specifically by this node
+                node_tin = (acc.tokens_in - tin_before) if acc else 0
+                node_tout = (acc.tokens_out - tout_before) if acc else 0
+                cost_kwargs = {}
+                if node_tin > 0 or node_tout > 0:
+                    try:
+                        from src.agent.cost_tracking import calculate_cost
+                        in_c, out_c, tot_c = calculate_cost(node_tin, node_tout)
+                        cost_kwargs = {
+                            "usage_details": {
+                                "input": node_tin,
+                                "output": node_tout,
+                                "total": node_tin + node_tout,
+                            },
+                            "cost_details": {
+                                "input": round(in_c, 8),
+                                "output": round(out_c, 8),
+                                "total": round(tot_c, 8),
+                            },
+                            "metadata": {
+                                "node_tokens_in": node_tin,
+                                "node_tokens_out": node_tout,
+                                "node_cost_usd": round(tot_c, 8),
+                                "cumulative_cost_usd": round(acc.cost_usd, 8) if acc else 0.0,
+                            },
+                        }
+                        if isinstance(structured_output, dict):
+                            structured_output["_cost"] = {
+                                "tokens_in": node_tin,
+                                "tokens_out": node_tout,
+                                "cost_usd": round(tot_c, 6),
+                            }
+                    except Exception:
+                        pass
+
                 # Record outcome in the span: update() then end()
                 if span:
                     try:
@@ -269,6 +445,7 @@ def trace_node(name: str, observation_type: str = "span"):
                             output=structured_output or str(result)[:300],
                             level="DEFAULT",
                             status_message="success",
+                            **cost_kwargs,
                         )
                         span.end()
                     except Exception:
@@ -280,12 +457,25 @@ def trace_node(name: str, observation_type: str = "span"):
                 # Record error — never let tracing crash execution
                 if span:
                     try:
+                        node_tin = (acc.tokens_in - tin_before) if acc else 0
+                        node_tout = (acc.tokens_out - tout_before) if acc else 0
+                        cost_kwargs = {}
+                        if node_tin > 0 or node_tout > 0:
+                            from src.agent.cost_tracking import calculate_cost
+                            in_c, out_c, tot_c = calculate_cost(node_tin, node_tout)
+                            cost_kwargs = {
+                                "usage_details": {"input": node_tin, "output": node_tout, "total": node_tin + node_tout},
+                                "cost_details": {"input": round(in_c, 8), "output": round(out_c, 8), "total": round(tot_c, 8)},
+                                "metadata": {"node_cost_usd": round(tot_c, 8)},
+                            }
+
                         if _is_graph_pause(e):
-                            span.update(level="DEFAULT", status_message="paused for human approval")
+                            span.update(level="DEFAULT", status_message="paused for human approval", **cost_kwargs)
                         else:
                             span.update(
                                 level="ERROR",
                                 status_message=f"{type(e).__name__}: {e}",
+                                **cost_kwargs,
                             )
                         span.end()
                     except Exception:
@@ -481,34 +671,50 @@ def build_node_output(node_name: str, result: dict) -> dict:
 def get_llm_callback():
 
     """
-    Returns a LangChain CallbackHandler tied to the current node span.
+    Returns a LangChain CallbackHandler list tied to the current node span.
 
-    Links the handler to both the root trace_id AND the current node's
+    Links the Langfuse handler to both the root trace_id AND the current node's
     span_id (parent_observation_id), so LLM generations appear nested
     under their node span in Langfuse:
         trace → node span → LLM generation
 
-    This restores proper parent-child hierarchy (fixes BUG-16) and makes
-    the Critic → Revision → Critic loop clearly visible in Langfuse.
+    Also appends the cost-tracking callback so every LLM call in every node
+    automatically accumulates token usage against the current execution_id.
     """
-    if not LANGFUSE_AVAILABLE or CallbackHandler is None:
-        return []
+    callbacks: list = []
 
-    parent_trace_id = _current_trace_id.get()
-    parent_span_id = _current_span_id.get()
+    # --- Langfuse tracing callback ---
+    if LANGFUSE_AVAILABLE and CallbackHandler is not None:
+        parent_trace_id = _current_trace_id.get()
+        parent_span_id = _current_span_id.get()
 
-    # Build trace_context with both trace and parent span so LLM calls
-    # nest under the current node span, not at the root trace level.
-    trace_context = {}
-    if parent_trace_id:
-        trace_context["trace_id"] = parent_trace_id
-    if parent_span_id:
-        trace_context["parent_span_id"] = parent_span_id
+        trace_context = {}
+        if parent_trace_id:
+            trace_context["trace_id"] = parent_trace_id
+        if parent_span_id:
+            trace_context["parent_span_id"] = parent_span_id
 
+        try:
+            handler = CallbackHandler(
+                trace_context=trace_context if trace_context else None
+            )
+            callbacks.append(handler)
+        except Exception:
+            pass
+
+    # --- Cost-tracking callback ---
+    # Imported here (not at module level) to keep tracing.py free of circular deps.
     try:
-        handler = CallbackHandler(
-            trace_context=trace_context if trace_context else None
-        )
-        return [handler]
+        from src.agent.cost_tracking import get_cost_callback as _get_cost_cb
+        # The execution_id flows through state["execution_id"] and is stamped on
+        # the root trace_id seed (see trace_execution). We mirror that here by
+        # re-deriving it from the trace_id context var which is always set when
+        # a node runs inside a tracked execution.  Nodes that call get_llm()
+        # directly (e.g. in tests) without a trace context simply get no cost cb.
+        execution_id = _current_execution_id.get()
+        if execution_id:
+            callbacks.extend(_get_cost_cb(execution_id))
     except Exception:
-        return []
+        pass  # never break LLM calls due to cost tracking issues
+
+    return callbacks

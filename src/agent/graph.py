@@ -97,16 +97,21 @@ def route_after_critic(state: AgentState) -> str:
     S3.1 deterministic routing after Critic/Verifier Agent.
     - PASS  -> safety_check
     - FAIL + retries remain -> generate
-    - FAIL + retries exhausted -> prepare_review (S3.4: a human decides, no unreviewed write)
-    - FAIL + retries exhausted after a human approval -> safety_check: never pause a
-      second time; confidence_check then routes to act, which writes the approved
-      human solution instead of the unverified draft.
+    - FAIL + retries exhausted, no prior approval -> prepare_review (human decides)
+    - FAIL + retries exhausted, human already approved -> safety_check: never pause
+      a second time.  confidence_check then routes to act, which writes the
+      approved human solution instead of the unverified draft.
+
     Routing is purely Python — no LLM involved.
     """
     verdict = state.get("critic_verdict") or {}
     if verdict.get("passed"):
         return "safety_check"
     if state.get("critic_exhausted"):
+        # Critic ran out of retries.  If a human already approved this run,
+        # never open a second approval gate — skip straight to safety_check.
+        # act_node will use the reviewer's human_solution as the authoritative
+        # resolution.  Otherwise, escalate to a human for the first time.
         decision = state.get("human_decision") or {}
         if decision.get("decision") == "approve":
             return "safety_check"
@@ -115,8 +120,12 @@ def route_after_critic(state: AgentState) -> str:
 
 
 def route_after_human_review(state: AgentState) -> str:
-    """After approval, enrich with KB evidence and generate resolution before writing."""
+    """Route after human review decision.
 
+    - Approved with human_solution: loops back to 'classify' so the agent can
+      re-evaluate the category using the human feedback.
+    - Approved without human_solution (or rejected): goes directly to 'act'.
+    """
     decision = state.get("human_decision") or {}
     if (
         decision.get("decision") == "approve"
@@ -336,8 +345,10 @@ def create_graph():
         },
     )
 
-    # High-risk approval resumes through retrieval and generation so the model
-    # can combine the human solution with matching KB evidence before writing.
+    # After an approval with a human solution, the graph routes back to classify
+    # so the solution can be synthesized with KB evidence. determine_risk returns {}
+    # for approved runs so no second approval gate opens on the same incident.
+    # Rejected incidents route straight to act to record the rejection.
     workflow.add_edge("prepare_review", "interrupt")
     workflow.add_conditional_edges(
         "interrupt",
