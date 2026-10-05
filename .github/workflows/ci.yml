@@ -7,6 +7,11 @@ on:
   push:
     branches: [main, development]
   workflow_dispatch:
+    inputs:
+      allow_cold_cache:
+        type: boolean
+        default: false
+        description: "Allow eval-gate to re-embed the whole KB snapshot live when the embedding cache is empty"
 
 # A newer push to the same PR cancels the run in progress. Pushes to main /
 # development are never cancelled, so every merge gets a full run (and publish).
@@ -185,6 +190,21 @@ jobs:
           if [ -z "$LITELLM_API_KEY" ] && [ -z "$(ls -A .embedding-cache 2>/dev/null)" ]; then
             echo "::error::LITELLM_API_KEY secret is not set and there is no embedding cache. Add the LITELLM_* repository secrets (docs/CI_CD.md)."
             exit 1
+          fi
+      - name: Refuse a cold embedding cache
+        env:
+          ALLOW_COLD: ${{ inputs.allow_cold_cache }}
+        run: |
+          n=$(find .embedding-cache -type f 2>/dev/null | wc -l)
+          if [ "$n" -eq 0 ]; then
+            if [ "$ALLOW_COLD" != "true" ]; then
+              echo "::error title=Cold embedding cache::The cache is empty: evicted after 7 days without use, or the key changed; continuing would embed the whole KB snapshot live and risk the quota wall; run this workflow manually on this branch with allow_cold_cache=true to warm it"
+              exit 1
+            else
+              echo "::warning::A full live embed was explicitly allowed via allow_cold_cache=true; continuing without cache."
+            fi
+          else
+            echo "Restored $n cached vectors from .embedding-cache"
           fi
       - name: Wait for Qdrant
         run: |

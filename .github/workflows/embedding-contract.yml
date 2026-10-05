@@ -1,0 +1,35 @@
+# Embedding contract (nightly)
+#
+# Deliberately NOT part of ci-passed; scheduled workflows only run from
+# the default branch. Runs a standalone contract check against the live
+# embedding provider to detect model/dimension drift or quota issues.
+
+name: Embedding contract (nightly)
+
+on:
+  schedule:
+    - cron: "17 1 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    name: Embedding contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      LITELLM_BASE_URL: ${{ secrets.LITELLM_BASE_URL }}
+      LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
+      LITELLM_EMBEDDING_MODEL: ${{ secrets.LITELLM_EMBEDDING_MODEL }}
+      QDRANT_DENSE_DIMENSION: "3072"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install httpx
+        run: pip install httpx==0.28.1
+      - name: Run embedding contract check
+        run: python scripts/embedding_contract.py
