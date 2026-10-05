@@ -198,7 +198,7 @@ jobs:
           n=$(find .embedding-cache -type f 2>/dev/null | wc -l)
           if [ "$n" -eq 0 ]; then
             if [ "$ALLOW_COLD" != "true" ]; then
-              echo "::error title=Cold embedding cache::The cache is empty: evicted after 7 days without use, or the key changed; continuing would embed the whole KB snapshot live and risk the quota wall; run this workflow manually on this branch with allow_cold_cache=true to warm it"
+              echo "::error title=Cold embedding cache::The cache is empty: evicted after 7 days without use, or the key changed; continuing would embed the whole KB snapshot live and risk the quota wall; run this workflow manually on development with allow_cold_cache=true to warm it (a PR can only restore caches saved on development or main)"
               exit 1
             else
               echo "::warning::A full live embed was explicitly allowed via allow_cold_cache=true; continuing without cache."
