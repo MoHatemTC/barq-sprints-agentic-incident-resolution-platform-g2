@@ -195,9 +195,9 @@ jobs:
           echo "::error::Qdrant did not become ready"
           exit 1
       - name: Ingest the KB snapshot into a fresh Qdrant
-        run: python -m src.retrieval.ingest local
+        run: bash scripts/ci_quota_guard.sh python -m src.retrieval.ingest local
       - name: Score dense / hybrid / hybrid_rerank
-        run: python eval/ablation.py --k 5
+        run: bash scripts/ci_quota_guard.sh python eval/ablation.py --k 5
       - name: Compare against eval/thresholds.json
         run: python eval/gate.py
       # Sprint 4 DeepEval regression suite: runs as soon as the file lands in
