@@ -7,6 +7,11 @@ on:
   push:
     branches: [main, development]
   workflow_dispatch:
+    inputs:
+      allow_cold_cache:
+        type: boolean
+        default: false
+        description: "Allow eval-gate to re-embed the whole KB snapshot live when the embedding cache is empty"
 
 # A newer push to the same PR cancels the run in progress. Pushes to main /
 # development are never cancelled, so every merge gets a full run (and publish).
@@ -130,9 +135,12 @@ jobs:
         image: qdrant/qdrant:v1.12.4
         ports: ["6333:6333"]
     env:
-      LITELLM_BASE_URL: ${{ secrets.LITELLM_BASE_URL }}
-      LITELLM_API_KEY: ${{ secrets.LITELLM_API_KEY }}
-      LITELLM_EMBEDDING_MODEL: ${{ secrets.LITELLM_EMBEDDING_MODEL }}
+      # Tests use the fake embedding API (tests/conftest.py). If a call ever
+      # escaped it, it would go to .invalid, which never resolves: no quota spent.
+      LITELLM_BASE_URL: http://litellm.invalid
+      LITELLM_API_KEY: ci-placeholder
+      LITELLM_EMBEDDING_MODEL: ci-placeholder-embedding
+
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
@@ -154,7 +162,7 @@ jobs:
         with:
           name: integration-test-report
           path: integration.xml
-
+      
   eval-gate:
     name: Evaluation gate
     runs-on: ubuntu-latest
@@ -183,6 +191,21 @@ jobs:
             echo "::error::LITELLM_API_KEY secret is not set and there is no embedding cache. Add the LITELLM_* repository secrets (docs/CI_CD.md)."
             exit 1
           fi
+      - name: Refuse a cold embedding cache
+        env:
+          ALLOW_COLD: ${{ inputs.allow_cold_cache }}
+        run: |
+          n=$(find .embedding-cache -type f 2>/dev/null | wc -l)
+          if [ "$n" -eq 0 ]; then
+            if [ "$ALLOW_COLD" != "true" ]; then
+              echo "::error title=Cold embedding cache::The cache is empty: evicted after 7 days without use, or the key changed; continuing would embed the whole KB snapshot live and risk the quota wall; run this workflow manually on development with allow_cold_cache=true to warm it (a PR can only restore caches saved on development or main)"
+              exit 1
+            else
+              echo "::warning::A full live embed was explicitly allowed via allow_cold_cache=true; continuing without cache."
+            fi
+          else
+            echo "Restored $n cached vectors from .embedding-cache"
+          fi
       - name: Wait for Qdrant
         run: |
           for i in $(seq 1 30); do
@@ -192,9 +215,9 @@ jobs:
           echo "::error::Qdrant did not become ready"
           exit 1
       - name: Ingest the KB snapshot into a fresh Qdrant
-        run: python -m src.retrieval.ingest local
+        run: bash scripts/ci_quota_guard.sh python -m src.retrieval.ingest local
       - name: Score dense / hybrid / hybrid_rerank
-        run: python eval/ablation.py --k 5
+        run: bash scripts/ci_quota_guard.sh python eval/ablation.py --k 5
       - name: Compare against eval/thresholds.json
         run: python eval/gate.py
       # Sprint 4 DeepEval regression suite: runs as soon as the file lands in

@@ -56,3 +56,6 @@ Cases.md
 # Embedding cache
 data/cache/
 
+# DeepEval local cache
+.deepeval/
+
