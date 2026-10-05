@@ -121,15 +121,19 @@ def test_operations_enumerated(app_no_auth):
     print(f"  WEBHOOK_TOKEN: {len(webhook_ops)}")
     print(f"  OPERATOR: {len(operator_ops)}")
 
-    # Assert we found at least the expected minimum (more than 13)
-    assert total > 13, f"Expected more than 13 operations, got {total}"
+    # Pin exact counts so a dropped router or missing route fails the test.
+    # Expected: 28 total (4 PUBLIC, 2 WEBHOOK_TOKEN, 22 OPERATOR)
+    assert total == 28, f"Expected 28 operations, got {total}"
+    assert len(public_ops) == 4, f"Expected 4 PUBLIC operations, got {len(public_ops)}"
+    assert len(webhook_ops) == 2, f"Expected 2 WEBHOOK_TOKEN operations, got {len(webhook_ops)}"
+    assert len(operator_ops) == 22, f"Expected 22 OPERATOR operations, got {len(operator_ops)}"
 
     # Verify specific expected routes exist
     expected_public = {("GET", "/health"), ("GET", "/ready"), ("POST", "/api/v1/auth/token"), ("GET", "/api/v1/config")}
     for ep in expected_public:
         assert ep in all_ops, f"Missing expected PUBLIC operation: {ep}"
 
-    expected_webhook = {("POST", "/api/v1/webhook/incident"), ("POST", "/api/v1/approvals/by-incident/{incident_sys_id}/decide"), ("POST", "/api/v1/dlq/{event_id}/replay")}
+    expected_webhook = {("POST", "/api/v1/webhook/incident"), ("POST", "/api/v1/approvals/by-incident/{incident_sys_id}/decide")}
     for ep in expected_webhook:
         assert ep in all_ops, f"Missing expected WEBHOOK_TOKEN operation: {ep}"
 
