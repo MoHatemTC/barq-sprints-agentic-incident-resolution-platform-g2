@@ -29,6 +29,7 @@ from src.api.schemas import (
 )
 
 router = APIRouter()
+servicenow_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 VALID_ACTIONS = {"approve", "reject"}
@@ -295,7 +296,7 @@ def decide_approval(
     )
 
 
-@router.post(
+@servicenow_router.post(
     "/api/v1/approvals/by-incident/{incident_sys_id}/decide",
     response_model=ApprovalDecisionResponse,
     dependencies=[Depends(verify_token)],

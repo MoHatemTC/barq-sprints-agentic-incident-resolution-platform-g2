@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from src.api.routers import dashboard
+from tests.conftest import operator_headers
 
 CHOICES = [
     {"label": "Inquiry / Help", "value": "inquiry"},
@@ -51,7 +52,7 @@ class FakeServiceNowClient:
 
 
 @pytest.fixture
-def api(monkeypatch):
+def api(api_client, monkeypatch):
     FakeServiceNowClient.created = []
     FakeServiceNowClient.by_correlation = {}
     FakeServiceNowClient.lose_create_answer = None
@@ -62,9 +63,9 @@ def api(monkeypatch):
         raise AssertionError("dashboard create must not touch the database")
 
     monkeypatch.setattr(dashboard, "SessionLocal", _no_db)
-    app = FastAPI()
-    app.include_router(dashboard.router)
-    return TestClient(app)
+    # Use the main app client with auth headers
+    api_client.headers.update(operator_headers())
+    return api_client
 
 
 def test_categories_are_servicenow_choices_in_form_order(api):

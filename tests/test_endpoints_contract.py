@@ -27,6 +27,7 @@ def get_test_settings() -> Settings:
         redis_host="localhost",
         redis_port=6379,
         webhook_auth_token=TEST_TOKEN,
+        cors_allowed_origins="http://localhost:8082,http://127.0.0.1:8082",
     )
 
 

@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from src.api.routers import dashboard
 from src.db.database import engine
 from src.db.models import Approval, Execution, Failure, RetryState, WorkflowState
+from tests.conftest import operator_headers
 
 NOW = datetime(2026, 10, 1, 12, 0, tzinfo=timezone.utc)
 
@@ -36,10 +37,10 @@ def db(monkeypatch):
 
 
 @pytest.fixture
-def api(db):
-    app = FastAPI()
-    app.include_router(dashboard.router)
-    return TestClient(app)
+def api(api_client, db):
+    # Use the main app client with auth headers
+    api_client.headers.update(operator_headers())
+    return api_client
 
 
 def _run(db, number, minutes_ago, status="succeeded", **kwargs):

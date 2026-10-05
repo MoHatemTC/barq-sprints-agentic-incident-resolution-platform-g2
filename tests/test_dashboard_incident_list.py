@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 from src.api.routers import dashboard
 from src.db.database import SessionLocal
 from src.db.models import Execution, Failure, RetryState, WorkflowState
+from tests.conftest import operator_headers
 
 
 def _cell(value, display=None):
@@ -55,7 +56,7 @@ RUN = {"execution_id": "run-1", "status": "succeeded"}
 
 
 @pytest.fixture
-def api(monkeypatch):
+def api(api_client, monkeypatch):
     fake = FakeServiceNow([
         _sn_row("INC0010002", "sys-2"),
         _sn_row("INC0010001", "sys-1", category="inquiry", human_lock="true"),
@@ -65,9 +66,9 @@ def api(monkeypatch):
     monkeypatch.setattr(dashboard, "_latest_runs", lambda db, numbers, live_graph=None: {"INC0010002": RUN})
     monkeypatch.setattr(dashboard, "_live_graph", lambda: None)
     monkeypatch.setattr(dashboard, "SessionLocal", lambda: type("DB", (), {"close": lambda self: None})())
-    app = FastAPI()
-    app.include_router(dashboard.router)
-    return TestClient(app), fake
+    # Use the main app client with auth headers
+    api_client.headers.update(operator_headers())
+    return api_client, fake
 
 
 def test_lists_every_servicenow_incident_with_its_ai_run(api):
