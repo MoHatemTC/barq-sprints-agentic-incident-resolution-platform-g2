@@ -15,6 +15,12 @@ class Settings(BaseSettings):
     redis_db: int = Field(default=0, description="The database number of the Redis server")
     redis_password: Optional[str] = Field(default=None, description="The password for the Redis server, if any")
     webhook_auth_token: str = Field(..., description="Shared bearer token ServiceNow must send")
+    cors_allowed_origins: str = Field(
+        default="http://localhost:8082,http://127.0.0.1:8082,http://localhost:3000,http://127.0.0.1:3000",
+        description="Comma-separated list of allowed CORS origins (no '*', no 'null')"
+    )
+    operator_password: str = Field(default="", description="Operator login password; empty = login refused")
+    operator_jwt_secret: str = Field(default="", description="HS256 secret for operator JWTs; generate with: python -c \"import secrets; print(secrets.token_urlsafe(48))\"")
     langfuse_public_key: Optional[str] = Field(default=None, description="Langfuse public key")
     langfuse_secret_key: Optional[str] = Field(default=None, description="Langfuse secret key")
     langfuse_base_url: str = Field(default="https://cloud.langfuse.com", description="Langfuse host URL")

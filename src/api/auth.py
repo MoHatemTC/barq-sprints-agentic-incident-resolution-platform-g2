@@ -1,19 +1,25 @@
+import hmac
 import jwt
 from fastapi import Header, HTTPException, Depends
 from src.api.dependencies import get_settings
 
 def verify_token(authorization: str = Header(None), settings = Depends(get_settings)):
+    if not settings.webhook_auth_token:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     expected = f"Bearer {settings.webhook_auth_token}"
-    if authorization != expected:
+    if not hmac.compare_digest((authorization or "").encode(), expected.encode()):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 def decode_bearer_token(authorization: str = Header(None), settings = Depends(get_settings)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+    if not settings.operator_jwt_secret:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     token = authorization.removeprefix("Bearer ")
     try:
-        payload = jwt.decode(token, settings.webhook_auth_token, algorithms=["HS256"])
+        payload = jwt.decode(token, settings.operator_jwt_secret, algorithms=["HS256"], options={"require": ["exp"]})
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Unauthorized")
 

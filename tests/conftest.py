@@ -1,8 +1,10 @@
 import importlib
 import json
+import time
 from types import SimpleNamespace
 from uuid import uuid4
 
+import jwt
 import pytest
 from sqlalchemy import text
 
@@ -20,6 +22,7 @@ _INTEGRATION_MODULES = {
     "test_app_wiring",
     "test_approval_service",
     "test_approvals_api",
+    "test_api_auth_coverage",
     "test_audit_service",
     "test_dashboard_incident_list",
     "test_dashboard_run_history",
@@ -35,6 +38,7 @@ _INTEGRATION_MODULES = {
     "test_ingest",
     "test_knowledge_capture_service",
     "test_loop_closure",
+    "test_operator_login",
     "test_permissions",
     "test_referential_integrity",
     "test_registry_enforcement",
@@ -182,3 +186,80 @@ def cleanup(execution_id):
         db.commit()
     finally:
         db.close()
+
+
+# Test constants for operator auth
+TEST_OPERATOR_PASSWORD = "test-operator-password-123"
+TEST_OPERATOR_JWT_SECRET = "test-operator-jwt-secret-min-32-chars-long"
+
+
+def _operator_token(operator_jwt_secret: str, role: str = "operator", exp_delta: int = 3600) -> str:
+    """Mint a JWT signed with the operator_jwt_secret (HS256)."""
+    payload = {"role": role, "exp": int(time.time()) + exp_delta}
+    return jwt.encode(payload, operator_jwt_secret, algorithm="HS256")
+
+
+def operator_headers(operator_jwt_secret: str = TEST_OPERATOR_JWT_SECRET) -> dict:
+    """Return Authorization headers with a valid operator JWT."""
+    return {"Authorization": f"Bearer {_operator_token(operator_jwt_secret)}"}
+
+
+def non_operator_headers(operator_jwt_secret: str = TEST_OPERATOR_JWT_SECRET) -> dict:
+    """Return Authorization headers with a valid JWT but non-operator role."""
+    return {"Authorization": f"Bearer {_operator_token(operator_jwt_secret, role='viewer')}"}
+
+
+@pytest.fixture
+def test_settings():
+    """Test settings with defaults for auth and CORS."""
+    from src.api.schemas import Settings
+    return Settings(
+        postgres_host="localhost",
+        postgres_port=5432,
+        postgres_user="test",
+        postgres_password="test",
+        postgres_db="test",
+        redis_host="localhost",
+        redis_port=6379,
+        webhook_auth_token="test-token-123",
+        cors_allowed_origins="http://localhost:8082,http://127.0.0.1:8082,http://localhost:3000,http://127.0.0.1:3000",
+        operator_password=TEST_OPERATOR_PASSWORD,
+        operator_jwt_secret=TEST_OPERATOR_JWT_SECRET,
+    )
+
+
+@pytest.fixture
+def api_client(test_settings):
+    """Main FastAPI app with test settings and common overrides.
+    
+    Does NOT override require_operator_role - tests must send valid operator JWT.
+    Does NOT override verify_token - tests must send valid webhook token for ServiceNow routes.
+    """
+    from src.api.app import create_app
+    from src.api.dependencies import get_settings, get_redis, get_db_session, get_sync_db
+    from src.api.auth import require_operator_role
+    from src.api.routers import approvals
+    from langgraph.checkpoint.memory import MemorySaver
+    from src.agent.graph import create_graph
+    from unittest.mock import AsyncMock, MagicMock
+    from fastapi.testclient import TestClient
+
+    app = create_app(test_settings)
+    app.dependency_overrides[get_settings] = lambda: test_settings
+    app.dependency_overrides[get_redis] = lambda: AsyncMock()
+
+    async def override_db():
+        yield AsyncMock()
+    app.dependency_overrides[get_db_session] = override_db
+    app.dependency_overrides[get_sync_db] = lambda: MagicMock()
+    # S3.4 approvals: no paused executions by default
+    empty_store = MagicMock()
+    empty_store.awaiting_execution_ids.return_value = []
+    empty_store.executions_for_incident.return_value = []
+    app.dependency_overrides[approvals.get_approval_store] = lambda: empty_store
+    app.dependency_overrides[approvals.get_approval_graph] = lambda: create_graph().compile(checkpointer=MemorySaver())
+    app.dependency_overrides[approvals.get_resume_dispatcher] = lambda: MagicMock()
+
+    with TestClient(app) as client:
+        yield client
+    app.dependency_overrides.clear()

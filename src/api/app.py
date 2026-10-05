@@ -4,15 +4,17 @@ import threading
 
 
 from pythonjsonlogger import jsonlogger
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException
 from src.api.exceptions import unhandled_exception_handler
+from src.api.auth import require_operator_role
+from src.api.schemas import Settings
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from src.api.dependencies import get_settings
-from src.api.routers import approvals, dlq, webhook, health, config, executions, eval, dashboard, kb
+from src.api.routers import approvals, dlq, webhook, health, config, executions, eval, dashboard, kb, operator_auth
 from src.api.middleware import CorrelationIDMiddleware, LangfuseTracingMiddleware
 from src.api.exceptions import http_exception_handler
 from langfuse import get_client
@@ -51,13 +53,21 @@ async def lifespan(app: FastAPI):
     await app.state.redis.close()  # cleanup on shutdown
     await app.state.engine.dispose()  # cleanup on shutdown
 
-def create_app() -> FastAPI:
+def create_app(settings: Settings | None = None) -> FastAPI:
+
+    if settings is None:
+        settings = get_settings()
+    cors_origins = [o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()]
+    if "*" in cors_origins:
+        raise ValueError("CORS_ALLOWED_ORIGINS must not contain '*'; list explicit origins")
+    if any(o.lower() == "null" for o in cors_origins):
+        raise ValueError("CORS_ALLOWED_ORIGINS must not contain 'null'; list explicit origins")
 
     app = FastAPI(lifespan=lifespan)
     
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -70,12 +80,14 @@ def create_app() -> FastAPI:
     app.include_router(webhook.router)
     app.include_router(health.router)
     app.include_router(config.router)
-    app.include_router(executions.router)
-    app.include_router(approvals.router)
-    app.include_router(dlq.router)
-    app.include_router(eval.router)
-    app.include_router(dashboard.router)
-    app.include_router(kb.router)
+    app.include_router(executions.router, dependencies=[Depends(require_operator_role)])
+    app.include_router(approvals.router, dependencies=[Depends(require_operator_role)])
+    app.include_router(approvals.servicenow_router)
+    app.include_router(dlq.router, dependencies=[Depends(require_operator_role)])
+    app.include_router(eval.router, dependencies=[Depends(require_operator_role)])
+    app.include_router(dashboard.router, dependencies=[Depends(require_operator_role)])
+    app.include_router(kb.router, dependencies=[Depends(require_operator_role)])
+    app.include_router(operator_auth.router)
 
     return app
 

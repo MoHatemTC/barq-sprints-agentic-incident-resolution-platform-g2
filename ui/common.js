@@ -50,7 +50,7 @@
   }
 
   /* ---------- API ---------- */
-  const NGROK_URL  = 'https://revolving-snippet-sketch.ngrok-free.dev';
+const NGROK_URL  = 'https://revolving-snippet-sketch.ngrok-free.dev';
   const LOCAL_URL  = 'http://localhost:8000';
   // Candidates tried only on first-ever visit (no stored preference yet).
   // Order: ngrok first so the default lands on the remote URL.
@@ -64,6 +64,18 @@
     if (pinned) return pinned.replace(/\/$/, '');
     return String(store.get('barq.api', NGROK_URL)).replace(/\/$/, '');
   }
+
+  function apiToken() {
+    return sessionStorage.getItem('barq_operator_token');
+  }
+
+  // Shared in-flight login promise so parallel 401s open ONE overlay and all wait on it.
+  let _loginPromise = null;
+  let _loginResolve = null;
+  let _loginReject = null;
+
+  // Module-level hook set by buildChrome; pages without chrome reject login attempts.
+  let _loginHandler = null;
 
   // Probe a single base URL — resolves with the base if alive, rejects otherwise.
   async function _probe(base) {
@@ -94,20 +106,17 @@
     _autoDetect();
   }
 
-  async function api(path, opts = {}) {
+  async function _fetchWithAuth(path, opts = {}) {
     const headers = Object.assign(
       { 'ngrok-skip-browser-warning': 'true' },
       opts.headers || {}
     );
-    const base = apiBase();
-    let res;
-    try {
-      res = await fetch(base + path, { ...opts, headers });
-    } catch (_) {
-      // Network-level failure — do NOT auto-switch to another URL.
-      // The user chose this endpoint; show the error so they can fix it.
-      throw new Error('API unreachable — check the URL in Settings (' + base + ')');
+
+    const token = apiToken();
+    if (token && !path.startsWith('/api/v1/auth/token')) {
+      headers.Authorization = 'Bearer ' + token;
     }
+    const res = await fetch(apiBase() + path, { ...opts, headers });
     let data = null;
     try { data = await res.json(); } catch (e) { /* not json */ }
     if (!res.ok) {
@@ -119,6 +128,45 @@
     return data;
   }
 
+  // Build a login promise from the handler set by buildChrome, or reject if no handler (pages without chrome).
+  function openOperatorLoginOverlay() {
+    if (!_loginHandler) {
+      return Promise.reject(new Error('Operator login required'));
+    }
+    if (_loginPromise) {
+      return _loginPromise;
+    }
+    _loginPromise = new Promise((resolve, reject) => {
+      _loginResolve = resolve;
+      _loginReject = reject;
+      _loginHandler();
+    });
+    _loginPromise.finally(() => {
+      _loginPromise = null;
+      _loginResolve = null;
+      _loginReject = null;
+    });
+    return _loginPromise;
+  }
+
+  // Try once; on 401 (except for /auth/token), prompt for password, retry once.
+  // If another call already logged in (token changed), just retry.
+  async function api(path, opts = {}) {
+    const used = apiToken();
+    try {
+      return await _fetchWithAuth(path, opts);
+    } catch (err) {
+      if (err.status !== 401 || path.startsWith('/api/v1/auth/token')) throw err;
+    }
+    // 401: if another call already refreshed the token, just retry
+    if (apiToken() !== used) {
+      return _fetchWithAuth(path, opts);
+    }
+    // Otherwise clear stale token, prompt for login, then retry once
+    sessionStorage.removeItem('barq_operator_token');
+    await openOperatorLoginOverlay();
+    return _fetchWithAuth(path, opts);
+  }
 
   /* ---------- toasts ---------- */
   function toast(message, kind, ms) {
@@ -155,6 +203,10 @@
     el.classList.remove('open');
     el.setAttribute('aria-hidden', 'true');
     if (el._prev && el._prev.focus) el._prev.focus();
+    // If a login is in flight and the overlay is dismissed without login, reject the promise.
+    if (_loginReject) {
+      _loginReject(new Error('Operator login cancelled'));
+    }
   }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(closeOverlay);
@@ -252,10 +304,17 @@
           <input class="input" id="apiBaseInput" type="text" placeholder="http://localhost:8000" data-autofocus />
           <div class="hint">Where the Barq API is running. Saved in this browser.</div>
         </div>
+        <div class="field">
+          <label for="operatorPasswordInput">Operator password</label>
+          <input class="input" id="operatorPasswordInput" type="password" placeholder="Enter operator password" autocomplete="current-password" />
+          <div class="hint">Logs in as operator; token stored in session storage for this tab.</div>
+          <div class="hint" id="operatorPasswordError" hidden style="color:var(--err)"></div>
+        </div>
         <div class="dialog-actions">
           <div class="right">
             <button class="btn" type="button" id="settingsCancel">Cancel</button>
             <button class="btn btn-primary" type="button" id="settingsSave">Save</button>
+            <button class="btn btn-primary" type="button" id="operatorLoginBtn">Log in</button>
           </div>
         </div>
       </div>`;
@@ -263,6 +322,8 @@
 
     $('settingsBtn').addEventListener('click', () => {
       $('apiBaseInput').value = apiBase();
+      $('operatorPasswordInput').value = '';
+      $('operatorPasswordError').hidden = true;
       openOverlay(dlg);
     });
     $('settingsCancel').addEventListener('click', () => closeOverlay(dlg));
@@ -278,10 +339,63 @@
     }
     $('settingsSave').addEventListener('click', save);
     $('apiBaseInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+
+    // Operator login handler
+    async function doOperatorLogin() {
+      const pwd = $('operatorPasswordInput').value;
+      const errEl = $('operatorPasswordError');
+      if (!pwd) { errEl.textContent = 'Enter password'; errEl.hidden = false; return; }
+      errEl.hidden = true;
+      const btn = $('operatorLoginBtn');
+      btn.disabled = true;
+      btn.textContent = 'Logging in...';
+      try {
+        const data = await _fetchWithAuth('/api/v1/auth/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password: pwd }),
+        });
+        sessionStorage.setItem('barq_operator_token', data.access_token);
+        $('operatorPasswordInput').value = '';
+        closeOverlay(dlg);
+        toast('Operator login successful');
+        // Refresh approvals badge now that we have a token
+        try {
+          const appr = await api('/api/v1/approvals');
+          const badge = $('approvalCount');
+          if (badge) {
+            badge.textContent = String(appr.total || 0);
+            badge.hidden = !appr.total;
+          }
+        } catch (_) {
+          // ignore badge errors; login succeeded
+        }
+      } catch (err) {
+        errEl.textContent = err.data?.error?.message || err.message || 'Wrong password';
+        errEl.hidden = false;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Log in';
+      }
+      // Resolve the shared login promise on success
+      if (_loginResolve) {
+        _loginResolve();
+      }
+    }
+    $('operatorLoginBtn').addEventListener('click', doOperatorLogin);
+    $('operatorPasswordInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doOperatorLogin(); });
+
+    // Install the login handler so api() can call it.
+    _loginHandler = () => {
+      $('operatorPasswordInput').value = '';
+      $('operatorPasswordError').hidden = true;
+      openOverlay(dlg);
+    };
   }
 
   window.Barq = {
     $, store, escapeHtml, fmtDuration, fmtTime, errorMessage,
-    api, apiBase, toast, openOverlay, closeOverlay, segmented, tween, setConn, buildChrome,
+    api, apiBase, apiToken, toast, openOverlay, closeOverlay, segmented, tween, setConn, buildChrome,
+    openOperatorLoginOverlay,
   };
 })();

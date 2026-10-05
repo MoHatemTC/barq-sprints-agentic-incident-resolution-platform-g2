@@ -134,10 +134,16 @@ def graph():
 
 
 @pytest.fixture
-def setup(graph):
+def setup(graph, test_settings):
+    from src.api.app import create_app
+    from src.api.dependencies import get_settings, get_redis, get_db_session
+    from tests.conftest import operator_headers
+
     store = FakeStore()
     dispatcher = SyncDispatcher(graph)
-    app = create_app()
+    app = create_app(test_settings)
+
+    app.dependency_overrides[get_settings] = lambda: test_settings
     app.dependency_overrides[get_redis] = lambda: AsyncMock()
 
     async def override_db():
@@ -148,6 +154,7 @@ def setup(graph):
     app.dependency_overrides[approvals.get_resume_dispatcher] = lambda: dispatcher
 
     with TestClient(app) as client:
+        client.headers.update(operator_headers())
         yield client, store, dispatcher
     app.dependency_overrides.clear()
 
@@ -363,9 +370,10 @@ SN_URL = "/api/v1/approvals/by-incident/{}/decide"
 
 @pytest.fixture
 def servicenow(setup):
-    """The ServiceNow button client: same app, token check satisfied."""
+    """The ServiceNow button client: same app, webhook token in header."""
     client, store, dispatcher = setup
-    client.app.dependency_overrides[verify_token] = lambda: None
+    # The by-incident route uses verify_token (webhook token), not operator JWT
+    client.headers.update({"Authorization": "Bearer test-token-123"})
     return client, store, dispatcher
 
 
