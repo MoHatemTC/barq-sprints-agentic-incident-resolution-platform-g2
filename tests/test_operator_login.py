@@ -179,6 +179,61 @@ def test_empty_operator_jwt_secret_refuses_login_and_token(app_with_auth):
     app.dependency_overrides.clear()
 
 
+def test_empty_webhook_auth_token_refuses_verify_token():
+    """If WEBHOOK_AUTH_TOKEN is empty, verify_token must reject all credentials including empty."""
+    from src.api.auth import verify_token
+    from src.api.schemas import Settings
+
+    settings = Settings(
+        postgres_host="localhost",
+        postgres_port=5432,
+        postgres_user="test",
+        postgres_password="test",
+        postgres_db="test",
+        redis_host="localhost",
+        redis_port=6379,
+        webhook_auth_token="",  # EMPTY
+        cors_allowed_origins="http://localhost:8082",
+        operator_password=TEST_OPERATOR_PASSWORD,
+        operator_jwt_secret=TEST_OPERATOR_JWT_SECRET,
+    )
+
+    test_cases = ["Bearer ", "Bearer", "", None]
+    for auth_header in test_cases:
+        with pytest.raises(HTTPException) as exc:
+            verify_token(authorization=auth_header, settings=settings)
+        assert exc.value.status_code == 401, f"auth_header={repr(auth_header)} should raise 401"
+
+
+def test_non_empty_webhook_auth_token_verify_token_works():
+    """verify_token with non-empty webhook_auth_token accepts correct token and rejects wrong."""
+    from src.api.auth import verify_token
+    from src.api.schemas import Settings
+
+    settings = Settings(
+        postgres_host="localhost",
+        postgres_port=5432,
+        postgres_user="test",
+        postgres_password="test",
+        postgres_db="test",
+        redis_host="localhost",
+        redis_port=6379,
+        webhook_auth_token="test-token-123",
+        cors_allowed_origins="http://localhost:8082",
+        operator_password=TEST_OPERATOR_PASSWORD,
+        operator_jwt_secret=TEST_OPERATOR_JWT_SECRET,
+    )
+
+    # Correct token - should not raise
+    result = verify_token(authorization="Bearer test-token-123", settings=settings)
+    assert result is None
+
+    # Wrong token - should raise
+    with pytest.raises(HTTPException) as exc:
+        verify_token(authorization="Bearer wrong", settings=settings)
+    assert exc.value.status_code == 401
+
+
 def test_expired_token_rejected(app_with_auth):
     import time
     import jwt

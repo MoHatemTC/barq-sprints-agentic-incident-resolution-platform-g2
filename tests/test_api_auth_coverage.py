@@ -1,9 +1,10 @@
 """API auth coverage tests.
 
-- Every /api/v1/dashboard/* and /api/v1/approvals/* route requires auth.
-- The by-incident route uses verify_token (webhook token), not operator JWT.
-- /health stays open.
-- CORS: allowed origins echoed; evil origin gets no ACAO; "*" raises at startup.
+- Enumerates ALL operations from app.openapi()["paths"]
+- Every operation not in PUBLIC must return 401 without credentials
+- Every operation not in PUBLIC and not in WEBHOOK_TOKEN must return 403 with viewer role
+- WEBHOOK_TOKEN routes use verify_token (webhook token), not operator JWT
+- /health, /ready, POST /api/v1/auth/token, GET /api/v1/config stay open
 """
 
 import pytest
@@ -16,10 +17,20 @@ from src.api.auth import verify_token
 from tests.conftest import TEST_OPERATOR_JWT_SECRET, operator_headers, non_operator_headers
 
 
-# Explicit allowlist of routes that are intentionally NOT protected by operator JWT
-# (they use verify_token or are public). Add new routes here with a comment.
-ALLOWLIST_NO_OPERATOR_JWT = {
-    ("POST", "/api/v1/approvals/by-incident/{incident_sys_id}/decide"),  # verify_token (webhook)
+# Explicit PUBLIC allowlist: routes that MUST stay open (no auth required)
+PUBLIC = {
+    ("GET", "/health"),
+    ("GET", "/ready"),
+    ("POST", "/api/v1/auth/token"),
+    ("GET", "/api/v1/config"),
+}
+
+# Explicit WEBHOOK_TOKEN allowlist: routes that use verify_token (webhook token), not operator JWT
+# These return 401 for operator JWT, 200/404 for correct webhook token
+WEBHOOK_TOKEN = {
+    ("POST", "/api/v1/webhook/incident"),
+    ("POST", "/api/v1/approvals/by-incident/{incident_sys_id}/decide"),
+    # Note: dlq replay uses require_operator_role (operator JWT), not verify_token
 }
 
 
@@ -27,19 +38,14 @@ def _webhook_headers(webhook_auth_token: str = "test-token-123") -> dict:
     return {"Authorization": f"Bearer {webhook_auth_token}"}
 
 
-def _collect_protected_operations(app: FastAPI) -> list[tuple[str, str]]:
-    """Return (method, path) for all operations under /api/v1/dashboard or /api/v1/approvals.
-
-    Uses app.openapi()['paths'] which lists all included routes immediately after create_app().
-    Each (HTTP method, path) pair is one operation (e.g., GET and POST on same path = 2 operations).
-    """
+def _collect_all_operations(app: FastAPI) -> list[tuple[str, str]]:
+    """Return (method, path) for ALL operations from app.openapi()['paths']."""
     paths = app.openapi()["paths"]
     operations = []
     for path, methods in paths.items():
-        if path.startswith("/api/v1/dashboard") or path.startswith("/api/v1/approvals"):
-            for method in methods:
-                if method != "head":  # HEAD mirrors GET
-                    operations.append((method.upper(), path))
+        for method in methods:
+            if method != "head":  # HEAD mirrors GET
+                operations.append((method.upper(), path))
     return operations
 
 
@@ -52,6 +58,7 @@ def _fill_path_params(path: str) -> str:
         "{sys_id}": "sys-dummy",
         "{execution_id}": "exec-dummy",
         "{entry_id}": "1",
+        "{event_id}": "evt-dummy",
     }
     for param, value in replacements.items():
         path = path.replace(param, value)
@@ -87,58 +94,82 @@ def app_no_auth(test_settings):
     app.dependency_overrides.clear()
 
 
-def test_protected_routes_exist(app_no_auth):
-    """Assert we actually found routes to test."""
-    operations = _collect_protected_operations(app_no_auth)
-    print(f"Found {len(operations)} protected operations:")
-    for method, path in sorted(operations):
-        print(f"  {method} {path}")
-    assert operations, "No /api/v1/dashboard or /api/v1/approvals operations found"
-    # Should have at least 13 operations (12 paths, with /incidents having GET+POST)
-    assert len(operations) >= 13, f"Expected at least 13 operations, got {len(operations)}"
+def test_operations_enumerated(app_no_auth):
+    """Print and assert all operations with their auth group."""
+    all_ops = _collect_all_operations(app_no_auth)
+
+    # Classify each operation
+    public_ops = []
+    webhook_ops = []
+    operator_ops = []
+
+    for method, path in all_ops:
+        if (method, path) in PUBLIC:
+            group = "PUBLIC"
+            public_ops.append((method, path))
+        elif (method, path) in WEBHOOK_TOKEN:
+            group = "WEBHOOK_TOKEN"
+            webhook_ops.append((method, path))
+        else:
+            group = "OPERATOR"
+            operator_ops.append((method, path))
+        print(f"  {group}: {method} {path}")
+
+    total = len(all_ops)
+    print(f"\nTotal operations: {total}")
+    print(f"  PUBLIC: {len(public_ops)}")
+    print(f"  WEBHOOK_TOKEN: {len(webhook_ops)}")
+    print(f"  OPERATOR: {len(operator_ops)}")
+
+    # Assert we found at least the expected minimum (more than 13)
+    assert total > 13, f"Expected more than 13 operations, got {total}"
+
+    # Verify specific expected routes exist
+    expected_public = {("GET", "/health"), ("GET", "/ready"), ("POST", "/api/v1/auth/token"), ("GET", "/api/v1/config")}
+    for ep in expected_public:
+        assert ep in all_ops, f"Missing expected PUBLIC operation: {ep}"
+
+    expected_webhook = {("POST", "/api/v1/webhook/incident"), ("POST", "/api/v1/approvals/by-incident/{incident_sys_id}/decide"), ("POST", "/api/v1/dlq/{event_id}/replay")}
+    for ep in expected_webhook:
+        assert ep in all_ops, f"Missing expected WEBHOOK_TOKEN operation: {ep}"
 
 
-def test_all_protected_routes_return_401_without_credentials(app_no_auth):
-    """Every dashboard/approvals operation returns 401 with no credentials."""
-    operations = _collect_protected_operations(app_no_auth)
+def test_all_non_public_return_401_without_credentials(app_no_auth):
+    """Every operation not in PUBLIC must return 401 with no credentials."""
+    all_ops = _collect_all_operations(app_no_auth)
     with TestClient(app_no_auth) as client:
-        for method, path in operations:
+        for method, path in all_ops:
+            if (method, path) in PUBLIC:
+                continue
             test_path = _fill_path_params(path)
             resp = client.request(method, test_path)
             assert resp.status_code == 401, f"{method} {path} -> {resp.status_code}, expected 401: {resp.text}"
 
 
-def test_all_protected_routes_return_403_with_non_operator_role(app_no_auth):
-    """Operator routes return 403 with valid JWT but wrong role."""
-    operations = _collect_protected_operations(app_no_auth)
+def test_all_operator_routes_return_403_with_non_operator_role(app_no_auth):
+    """Every OPERATOR operation returns 403 with valid JWT but wrong role (viewer)."""
+    all_ops = _collect_all_operations(app_no_auth)
     with TestClient(app_no_auth) as client:
-        for method, path in operations:
-            if (method, path) in ALLOWLIST_NO_OPERATOR_JWT:
-                continue  # this route uses verify_token, not operator JWT
+        for method, path in all_ops:
+            if (method, path) in PUBLIC or (method, path) in WEBHOOK_TOKEN:
+                continue
             test_path = _fill_path_params(path)
             resp = client.request(method, test_path, headers=non_operator_headers())
             assert resp.status_code == 403, f"{method} {path} -> {resp.status_code}, expected 403: {resp.text}"
 
 
-def test_by_incident_route_accepts_webhook_token_not_operator_jwt(app_no_auth):
-    """POST /api/v1/approvals/by-incident/{sys_id}/decide accepts webhook token, not operator JWT."""
+def test_webhook_token_routes_accept_webhook_not_operator(app_no_auth):
+    """WEBHOOK_TOKEN routes accept webhook token, reject operator JWT."""
     with TestClient(app_no_auth) as client:
-        # With operator JWT -> 401 (verify_token expects webhook token)
-        resp = client.post(
-            "/api/v1/approvals/by-incident/sys-dummy/decide",
-            json={"action": "approve", "reviewer": "test", "human_solution": "fix it"},
-            headers=operator_headers(),
-        )
-        assert resp.status_code == 401, f"operator JWT should not work: {resp.status_code} {resp.text}"
+        for method, path in WEBHOOK_TOKEN:
+            test_path = _fill_path_params(path)
+            # Operator JWT -> 401 (verify_token expects webhook token)
+            resp = client.request(method, test_path, json={}, headers=operator_headers())
+            assert resp.status_code == 401, f"{method} {path}: operator JWT should not work: {resp.status_code} {resp.text}"
 
-        # With webhook token -> passes verify_token (then hits 404 because no execution, but auth passed)
-        resp = client.post(
-            "/api/v1/approvals/by-incident/sys-dummy/decide",
-            json={"action": "approve", "reviewer": "test", "human_solution": "fix it"},
-            headers=_webhook_headers(),
-        )
-        # 404 = auth passed, no execution found. 401 = auth failed.
-        assert resp.status_code == 404, f"webhook token should pass verify_token: {resp.status_code} {resp.text}"
+            # Webhook token -> passes verify_token (may hit 404/422 but auth passed)
+            resp = client.request(method, test_path, json={}, headers=_webhook_headers())
+            assert resp.status_code != 401, f"{method} {path}: webhook token should pass verify_token: {resp.status_code} {resp.text}"
 
 
 def test_health_stays_open(app_no_auth):
@@ -163,6 +194,61 @@ def test_verify_token_constant_time(test_settings):
     # Non-ASCII header - should give 401 cleanly, not raise TypeError/500
     with pytest.raises(HTTPException) as exc:
         verify_token(authorization="Bearer é", settings=test_settings)
+    assert exc.value.status_code == 401
+
+
+def test_verify_token_empty_webhook_token_refuses_all():
+    """verify_token with empty webhook_auth_token must reject all credentials including empty."""
+    from src.api.auth import verify_token
+    from src.api.schemas import Settings
+
+    settings = Settings(
+        postgres_host="localhost",
+        postgres_port=5432,
+        postgres_user="test",
+        postgres_password="test",
+        postgres_db="test",
+        redis_host="localhost",
+        redis_port=6379,
+        webhook_auth_token="",  # EMPTY
+        cors_allowed_origins="http://localhost:8082",
+        operator_password="test-operator-password-123",
+        operator_jwt_secret="test-operator-jwt-secret-min-32-chars-long",
+    )
+
+    test_cases = ["Bearer ", "Bearer", "", None]
+    for auth_header in test_cases:
+        with pytest.raises(HTTPException) as exc:
+            verify_token(authorization=auth_header, settings=settings)
+        assert exc.value.status_code == 401, f"auth_header={repr(auth_header)} should raise 401"
+
+
+def test_verify_token_non_empty_webhook_token_works():
+    """verify_token with non-empty webhook_auth_token accepts correct token."""
+    from src.api.auth import verify_token
+    from src.api.schemas import Settings
+
+    settings = Settings(
+        postgres_host="localhost",
+        postgres_port=5432,
+        postgres_user="test",
+        postgres_password="test",
+        postgres_db="test",
+        redis_host="localhost",
+        redis_port=6379,
+        webhook_auth_token="test-token-123",
+        cors_allowed_origins="http://localhost:8082",
+        operator_password="test-operator-password-123",
+        operator_jwt_secret="test-operator-jwt-secret-min-32-chars-long",
+    )
+
+    # Correct token - should not raise
+    result = verify_token(authorization="Bearer test-token-123", settings=settings)
+    assert result is None
+
+    # Wrong token - should raise
+    with pytest.raises(HTTPException) as exc:
+        verify_token(authorization="Bearer wrong", settings=settings)
     assert exc.value.status_code == 401
 
 

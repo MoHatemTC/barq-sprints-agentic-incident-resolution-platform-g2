@@ -80,13 +80,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(webhook.router)
     app.include_router(health.router)
     app.include_router(config.router)
-    app.include_router(executions.router)
+    app.include_router(executions.router, dependencies=[Depends(require_operator_role)])
     app.include_router(approvals.router, dependencies=[Depends(require_operator_role)])
     app.include_router(approvals.servicenow_router)
-    app.include_router(dlq.router)
-    app.include_router(eval.router)
+    app.include_router(dlq.router, dependencies=[Depends(require_operator_role)])
+    app.include_router(eval.router, dependencies=[Depends(require_operator_role)])
     app.include_router(dashboard.router, dependencies=[Depends(require_operator_role)])
-    app.include_router(kb.router)
+    app.include_router(kb.router, dependencies=[Depends(require_operator_role)])
     app.include_router(operator_auth.router)
 
     return app
