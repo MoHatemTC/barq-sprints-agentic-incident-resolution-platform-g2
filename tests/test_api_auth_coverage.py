@@ -6,8 +6,6 @@
 - CORS: allowed origins echoed; evil origin gets no ACAO; "*" raises at startup.
 """
 
-import time
-import jwt
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -15,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 from fastapi import HTTPException
 
 from src.api.auth import verify_token
+from tests.conftest import TEST_OPERATOR_JWT_SECRET, operator_headers, non_operator_headers
 
 
 # Explicit allowlist of routes that are intentionally NOT protected by operator JWT
@@ -24,17 +23,8 @@ ALLOWLIST_NO_OPERATOR_JWT = {
 }
 
 
-def _operator_token(webhook_auth_token: str = "test-token-123", role: str = "operator") -> str:
-    payload = {"role": role, "exp": int(time.time()) + 3600}
-    return jwt.encode(payload, webhook_auth_token, algorithm="HS256")
-
-
-def operator_headers(webhook_auth_token: str = "test-token-123") -> dict:
-    return {"Authorization": f"Bearer {_operator_token(webhook_auth_token)}"}
-
-
-def non_operator_headers(webhook_auth_token: str = "test-token-123") -> dict:
-    return {"Authorization": f"Bearer {_operator_token(webhook_auth_token, role='viewer')}"}
+def _webhook_headers(webhook_auth_token: str = "test-token-123") -> dict:
+    return {"Authorization": f"Bearer {webhook_auth_token}"}
 
 
 def _collect_protected_operations(app: FastAPI) -> list[tuple[str, str]]:
@@ -66,10 +56,6 @@ def _fill_path_params(path: str) -> str:
     for param, value in replacements.items():
         path = path.replace(param, value)
     return path
-
-
-def _webhook_headers(webhook_auth_token: str = "test-token-123") -> dict:
-    return {"Authorization": f"Bearer {webhook_auth_token}"}
 
 
 @pytest.fixture

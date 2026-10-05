@@ -38,6 +38,7 @@ _INTEGRATION_MODULES = {
     "test_ingest",
     "test_knowledge_capture_service",
     "test_loop_closure",
+    "test_operator_login",
     "test_permissions",
     "test_referential_integrity",
     "test_registry_enforcement",
@@ -187,20 +188,25 @@ def cleanup(execution_id):
         db.close()
 
 
-def _operator_token(webhook_auth_token: str, role: str = "operator", exp_delta: int = 3600) -> str:
-    """Mint a JWT signed with the webhook_auth_token (HS256)."""
+# Test constants for operator auth
+TEST_OPERATOR_PASSWORD = "test-operator-password-123"
+TEST_OPERATOR_JWT_SECRET = "test-operator-jwt-secret-min-32-chars-long"
+
+
+def _operator_token(operator_jwt_secret: str, role: str = "operator", exp_delta: int = 3600) -> str:
+    """Mint a JWT signed with the operator_jwt_secret (HS256)."""
     payload = {"role": role, "exp": int(time.time()) + exp_delta}
-    return jwt.encode(payload, webhook_auth_token, algorithm="HS256")
+    return jwt.encode(payload, operator_jwt_secret, algorithm="HS256")
 
 
-def operator_headers(webhook_auth_token: str = "test-token-123") -> dict:
+def operator_headers(operator_jwt_secret: str = TEST_OPERATOR_JWT_SECRET) -> dict:
     """Return Authorization headers with a valid operator JWT."""
-    return {"Authorization": f"Bearer {_operator_token(webhook_auth_token)}"}
+    return {"Authorization": f"Bearer {_operator_token(operator_jwt_secret)}"}
 
 
-def non_operator_headers(webhook_auth_token: str = "test-token-123") -> dict:
+def non_operator_headers(operator_jwt_secret: str = TEST_OPERATOR_JWT_SECRET) -> dict:
     """Return Authorization headers with a valid JWT but non-operator role."""
-    return {"Authorization": f"Bearer {_operator_token(webhook_auth_token, role='viewer')}"}
+    return {"Authorization": f"Bearer {_operator_token(operator_jwt_secret, role='viewer')}"}
 
 
 @pytest.fixture
@@ -217,6 +223,8 @@ def test_settings():
         redis_port=6379,
         webhook_auth_token="test-token-123",
         cors_allowed_origins="http://localhost:8082,http://127.0.0.1:8082,http://localhost:3000,http://127.0.0.1:3000",
+        operator_password=TEST_OPERATOR_PASSWORD,
+        operator_jwt_secret=TEST_OPERATOR_JWT_SECRET,
     )
 
 

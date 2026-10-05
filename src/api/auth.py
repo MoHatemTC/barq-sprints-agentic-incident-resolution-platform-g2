@@ -12,9 +12,12 @@ def decode_bearer_token(authorization: str = Header(None), settings = Depends(ge
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
+    if not settings.operator_jwt_secret:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
     token = authorization.removeprefix("Bearer ")
     try:
-        payload = jwt.decode(token, settings.webhook_auth_token, algorithms=["HS256"])
+        payload = jwt.decode(token, settings.operator_jwt_secret, algorithms=["HS256"], options={"require": ["exp"]})
     except jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
