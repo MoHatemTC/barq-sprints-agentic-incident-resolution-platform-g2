@@ -73,14 +73,14 @@ def get_llm() -> Any:
                     logger.info("Remapped to gemini-3.8-flash (lightest available on proxy)")
 
             logger.info("LLM model: %s  base_url: %s", model_name, base_url)
-            # max_retries=6 lets the underlying OpenAI client honour the
-            # Retry-After header returned by 429 responses (≈12 s per attempt).
+            # max_retries=3 allows handling brief rate-limit spikes without
+            # stalling the worker queue for too long during prolonged 429 bursts.
             _llm_instance = ChatOpenAI(
                 model=model_name,
                 temperature=0,
                 api_key=os.environ["LITELLM_API_KEY"],
                 base_url=base_url,
-                max_retries=6,
+                max_retries=3,
                 stream_usage=True,
             )
         else:

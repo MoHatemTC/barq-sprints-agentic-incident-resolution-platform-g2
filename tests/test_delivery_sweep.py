@@ -65,7 +65,7 @@ def test_query_mirrors_the_business_rule_eligibility_checks():
     assert ("x_2215689_ai_inc_0_u_ai_processing_state=pending"
             "^ORx_2215689_ai_inc_0_u_ai_processing_stateISEMPTY") in query
     # grace window so the Business Rule's own webhook lands first, and no old backlog
-    assert "sys_updated_onRELATIVELT@minute@ago@2" in query
+    assert f"sys_updated_onRELATIVELT@minute@ago@{delivery_sweep.GRACE_MINUTES}" in query
     assert "sys_updated_onRELATIVEGT@minute@ago@1440" in query
 
 

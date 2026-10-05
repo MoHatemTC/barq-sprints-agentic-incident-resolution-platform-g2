@@ -41,12 +41,11 @@ def determine_risk_node(state: Dict[str, Any]) -> Dict[str, Any]:
     # --- Priority anchor ---
     sn_priority = str(payload.get("priority", "")).strip()
 
-    llm = get_llm()
-
     if sn_priority in ("1", "2"):
-        # P1 / P2 from ServiceNow are critical/high by definition
+        # P1 / P2 from ServiceNow are critical/high by definition (model is not called)
         risk = "high"
     elif sn_priority in ("3", "4", "5"):
+        llm = get_llm()
         # P3–P5: routine/low priority by default unless catastrophic
         prompt = f"""
     You are an expert IT triage agent.
@@ -64,6 +63,7 @@ def determine_risk_node(state: Dict[str, Any]) -> Dict[str, Any]:
         content = response.content if hasattr(response, "content") else str(response)
         risk = "high" if "high" in content.strip().lower() else "low"
     else:
+        llm = get_llm()
         # Standard canonical prompt when priority is not specified (e.g. test fixtures)
         prompt = f"""
     You are an expert IT triage agent.

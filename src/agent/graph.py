@@ -345,9 +345,10 @@ def create_graph():
         },
     )
 
-    # After a human decision the graph skips re-classification and jumps
-    # straight to KB retrieval (formulate_query) so determine_risk cannot
-    # open a second approval gate on the same incident.
+    # After an approval with a human solution, the graph routes back to classify
+    # so the solution can be synthesized with KB evidence. determine_risk returns {}
+    # for approved runs so no second approval gate opens on the same incident.
+    # Rejected incidents route straight to act to record the rejection.
     workflow.add_edge("prepare_review", "interrupt")
     workflow.add_conditional_edges(
         "interrupt",
